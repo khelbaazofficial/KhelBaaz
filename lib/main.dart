@@ -805,6 +805,101 @@ updatedHistory.add({
   welcomeBonusClaimed.value = true;
 }
 
+// ================= LOGIN PAGE =================
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final loginController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  bool hidePassword = true;
+  bool isAdminLogin = false;
+
+  @override
+  void dispose() {
+    loginController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(isAdminLogin ? 'Admin Login' : 'Login'),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            TextField(
+              controller: loginController,
+              decoration: InputDecoration(
+                labelText: isAdminLogin
+                    ? 'Mobile / Username / Email'
+                    : 'Mobile / Username',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: passwordController,
+              obscureText: hidePassword,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    hidePassword
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      hidePassword = !hidePassword;
+                    });
+                  },
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {},
+                child: const Text('LOGIN'),
+              ),
+            ),
+
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  isAdminLogin = !isAdminLogin;
+                });
+              },
+              child: Text(
+                isAdminLogin
+                    ? 'User Login'
+                    : 'Admin Login',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class FantasyApp extends StatelessWidget {
   const FantasyApp({super.key});
 
