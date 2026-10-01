@@ -922,25 +922,25 @@ Future<void> _login() async {
             const SizedBox(height: 20),
 
             SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {},
-                child: const Text('LOGIN'),
-              ),
-            ),
+  width: double.infinity,
+  child: ElevatedButton(
+    onPressed: _login,
+    child: const Text('LOGIN'),
+  ),
+),
 
-            TextButton(
-              onPressed: _login,
-                setState(() {
-                  isAdminLogin = !isAdminLogin;
-                });
-              },
-              child: Text(
-                isAdminLogin
-                    ? 'User Login'
-                    : 'Admin Login',
-              ),
-            ),
+TextButton(
+  onPressed: () {
+    setState(() {
+      isAdminLogin = !isAdminLogin;
+    });
+  },
+  child: Text(
+    isAdminLogin
+        ? 'User Login'
+        : 'Admin Login',
+  ),
+),
           ],
         ),
       ),
