@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:html' as html;
+import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -715,27 +715,25 @@ final ValueNotifier<String?> depositPaymentImage =
 
 final ValueNotifier<String?> selectedPaymentScreenshot =
     ValueNotifier<String?>(null);
-void pickImageFromGallery(
+Future<void> pickImageFromGallery(
   ValueNotifier<String?> target,
-) {
-  final input = html.FileUploadInputElement()
-    ..accept = 'image/*';
+) async {
+  final picker = ImagePicker();
 
-  input.click();
+  final image = await picker.pickImage(
+    source: ImageSource.gallery,
+    imageQuality: 70,
+  );
 
-  input.onChange.listen((_) {
-    final files = input.files;
+  if (image == null) return;
 
-    if (files == null || files.isEmpty) return;
+  final bytes = await image.readAsBytes();
 
-    final reader = html.FileReader();
+  final extension =
+      image.name.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
 
-    reader.readAsDataUrl(files.first);
-
-    reader.onLoadEnd.listen((_) {
-      target.value = reader.result as String?;
-    });
-  });
+  target.value =
+      'data:image/$extension;base64,${base64Encode(bytes)}';
 }
 final ValueNotifier<bool> hasUnreadNotification =
     ValueNotifier<bool>(false);
