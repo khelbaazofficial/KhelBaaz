@@ -820,6 +820,7 @@ class _LoginPageState extends State<LoginPage> {
 
   bool hidePassword = true;
   bool isAdminLogin = false;
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -827,126 +828,557 @@ class _LoginPageState extends State<LoginPage> {
     passwordController.dispose();
     super.dispose();
   }
-Future<void> _login() async {
-  final login = loginController.text.trim();
-  final password = passwordController.text.trim();
 
-  if (login.isEmpty || password.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Login ID और Password डालें'),
-      ),
-    );
-    return;
-  }
+  Future<void> _login() async {
+    final login = loginController.text.trim();
+    final password = passwordController.text.trim();
 
-  try {
+    if (login.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Username और Password डालें'),
+        ),
+      );
+      return;
+    }
+
+    // अभी Firebase Email/Password login working है.
+    // Username/Mobile login अगला step होगा.
     if (!login.contains('@')) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'अभी पहले Email login test कर रहे हैं',
+            'अभी login test के लिए registered Email डालें',
           ),
         ),
       );
       return;
     }
 
-    await FirebaseAuth.instance.signInWithEmailAndPassword(
-      email: login,
-      password: password,
-    );
-  } on FirebaseAuthException catch (e) {
-    String message = 'Login failed';
+    setState(() {
+      isLoading = true;
+    });
 
-    if (e.code == 'invalid-credential' ||
-        e.code == 'wrong-password' ||
-        e.code == 'user-not-found') {
-      message = 'Email या Password गलत है';
-    } else if (e.code == 'invalid-email') {
-      message = 'सही Email डालें';
-    } else if (e.code == 'too-many-requests') {
-      message = 'बहुत ज्यादा कोशिश हुई, थोड़ी देर बाद try करें';
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: login,
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      String message = 'Login failed';
+
+      if (e.code == 'invalid-credential' ||
+          e.code == 'wrong-password' ||
+          e.code == 'user-not-found') {
+        message = 'Email या Password गलत है';
+      } else if (e.code == 'invalid-email') {
+        message = 'सही Email डालें';
+      } else if (e.code == 'too-many-requests') {
+        message = 'बहुत ज्यादा कोशिश हुई, थोड़ी देर बाद try करें';
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+Future<void> _forgotPassword() async {
+    final email = loginController.text.trim();
+
+    if (!email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'पहले ऊपर अपना registered Email डालें',
+          ),
+        ),
+      );
+      return;
     }
 
-    if (!mounted) return;
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: email,
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Password reset link Email पर भेज दिया गया है',
+          ),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.message ?? 'Password reset नहीं हो पाया',
+          ),
+        ),
+      );
+    }
+  }
+
+  void _forgotUsername() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Forgot Username'),
+          content: const Text(
+            'Username recovery Mobile/Email verification के साथ अगला step में जोड़ेंगे।',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
     );
   }
-}
-  @override
+@override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(isAdminLogin ? 'Admin Login' : 'Login'),
-        centerTitle: true,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            TextField(
-              controller: loginController,
-              decoration: InputDecoration(
-                labelText: isAdminLogin
-                    ? 'Mobile / Username / Email'
-                    : 'Mobile / Username',
-                border: const OutlineInputBorder(),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF071A2E),
+              Color(0xFF0D3C48),
+              Color(0xFF146B55),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              // Background light circles
+              Positioned(
+                top: 50,
+                left: -45,
+                child: Container(
+                  width: 150,
+                  height: 150,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.05),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
 
-            TextField(
-              controller: passwordController,
-              obscureText: hidePassword,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-  icon: Icon(
-    hidePassword
-        ? Icons.visibility
-        : Icons.visibility_off,
-  ),
-  onPressed: () {
-    setState(() {
-      hidePassword = !hidePassword;
-    });
-  },
-),
+              Positioned(
+                top: 120,
+                right: -55,
+                child: Container(
+                  width: 180,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.05),
+                  ),
+                ),
               ),
-            ),
 
-            const SizedBox(height: 20),
+              // Cricket ball
+              const Positioned(
+                top: 150,
+                right: 55,
+                child: Text(
+                  '🔴',
+                  style: TextStyle(
+                    fontSize: 24,
+                  ),
+                ),
+              ),
 
-            SizedBox(
-  width: double.infinity,
-  child: ElevatedButton(
-    onPressed: _login,
-    child: const Text('LOGIN'),
-  ),
-),
+              // Cricket bat
+              const Positioned(
+                top: 165,
+                left: 45,
+                child: Text(
+                  '🏏',
+                  style: TextStyle(
+                    fontSize: 54,
+                  ),
+                ),
+              ),
 
-TextButton(
-  onPressed: () {
-    setState(() {
-      isAdminLogin = !isAdminLogin;
-    });
-  },
-  child: Text(
-    isAdminLogin
-        ? 'User Login'
-        : 'Admin Login',
-  ),
-),
-          ],
+              // Running player icon
+              Positioned(
+                top: 185,
+                right: 100,
+                child: Icon(
+                  Icons.directions_run,
+                  size: 48,
+                  color: Colors.white.withOpacity(0.22),
+                ),
+              ),
+
+              // Bottom ground
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  height: 150,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x001B8C66),
+                        Color(0xFF0E513C),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 38),
+
+                    // App logo circle
+                    Container(
+                      width: 78,
+                      height: 78,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFFFC928),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.25),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Text(
+                          '🏏',
+                          style: TextStyle(
+                            fontSize: 42,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // KhelBaaz title
+                    const Text(
+                      'KhelBaaz',
+                      style: TextStyle(
+                        fontSize: 42,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                        color: Color(0xFFFFD447),
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      isAdminLogin
+                          ? 'ADMIN LOGIN'
+                          : 'PLAY • COMPETE • WIN',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 2,
+                        color: Colors.white70,
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    const Text(
+                      'Build your team, join contests\nand become the next KhelBaaz.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.45,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+
+                    const SizedBox(height: 48),
+
+                    // Login card
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(
+                        22,
+                        26,
+                        22,
+                        24,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.30),
+                            blurRadius: 28,
+                            offset: const Offset(0, 14),
+                          ),
+                        ],
+                      ),
+child: Column(
+                        children: [
+                          Text(
+                            isAdminLogin
+                                ? 'Admin Login'
+                                : 'Welcome Back',
+                            style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF10263B),
+                            ),
+                          ),
+
+                          const SizedBox(height: 6),
+
+                          Text(
+                            isAdminLogin
+                                ? 'Login to manage KhelBaaz'
+                                : 'Login to continue playing',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF73808C),
+                            ),
+                          ),
+
+                          const SizedBox(height: 28),
+
+                          TextField(
+                            controller: loginController,
+                            keyboardType:
+                                TextInputType.emailAddress,
+                            decoration: InputDecoration(
+                              labelText: isAdminLogin
+                                  ? 'Username / Email'
+                                  : 'Username',
+                              hintText: 'Enter your username',
+                              prefixIcon: const Icon(
+                                Icons.person_outline,
+                              ),
+                              filled: true,
+                              fillColor:
+                                  const Color(0xFFF3F6F7),
+                              border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(16),
+                                borderSide: BorderSide.none,
+                              ),
+                              enabledBorder:
+                                  OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(16),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFD8E2E5),
+                                ),
+                              ),
+                              focusedBorder:
+                                  OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(16),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF14866D),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+      const SizedBox(height: 16),
+
+                          TextField(
+                            controller: passwordController,
+                            obscureText: hidePassword,
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              hintText: 'Enter your password',
+                              prefixIcon: const Icon(
+                                Icons.lock_outline,
+                              ),
+                              suffixIcon: IconButton(
+                                onPressed: () {
+                                  setState(() {
+                                    hidePassword =
+                                        !hidePassword;
+                                  });
+                                },
+                                icon: Icon(
+                                  hidePassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                ),
+                              ),
+                              filled: true,
+                              fillColor:
+                                  const Color(0xFFF3F6F7),
+                              border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(16),
+                                borderSide: BorderSide.none,
+                              ),
+                              enabledBorder:
+                                  OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(16),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFD8E2E5),
+                                ),
+                              ),
+                              focusedBorder:
+                                  OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(16),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF14866D),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+const SizedBox(height: 10),
+
+                          Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment.spaceBetween,
+                            children: [
+                              TextButton(
+                                onPressed: _forgotUsername,
+                                child: const Text(
+                                  'Forgot Username?',
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _forgotPassword,
+                                child: const Text(
+                                  'Forgot Password?',
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          SizedBox(
+                            width: double.infinity,
+                            height: 54,
+                            child: ElevatedButton(
+                              onPressed:
+                                  isLoading ? null : _login,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    const Color(0xFF118267),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    16,
+                                  ),
+                                ),
+elevation: 3,
+                              ),
+                              child: isLoading
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child:
+                                          CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'LOGIN',
+                                      style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight:
+                                            FontWeight.w900,
+                                        letterSpacing: 1.5,
+                                      ),
+                                    ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                isAdminLogin =
+                                    !isAdminLogin;
+                              });
+                            },
+                            icon: Icon(
+                              isAdminLogin
+                                  ? Icons.person
+                                  : Icons.admin_panel_settings,
+                            ),
+                            label: Text(
+                              isAdminLogin
+                                  ? 'User Login'
+                                  : 'Admin Login',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    const Text(
+                      'KhelBaaz Fantasy Cricket',
+                      style: TextStyle(
+                        color: Colors.white60,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
+
+                          
+              
 
 
 class FantasyApp extends StatelessWidget {
