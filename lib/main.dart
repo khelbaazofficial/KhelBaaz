@@ -905,17 +905,17 @@ Future<void> _login() async {
                 labelText: 'Password',
                 border: const OutlineInputBorder(),
                 suffixIcon: IconButton(
-                  icon: Icon(
-                    hidePassword
-                        ? Icons.visibility
-                        : Icons.visibility_off,
-                  ),
-                  onPressed: _login,
-                    setState(() {
-                      hidePassword = !hidePassword;
-                    });
-                  },
-                ),
+  icon: Icon(
+    hidePassword
+        ? Icons.visibility
+        : Icons.visibility_off,
+  ),
+  onPressed: () {
+    setState(() {
+      hidePassword = !hidePassword;
+    });
+  },
+),
               ),
             ),
 
@@ -930,7 +930,7 @@ Future<void> _login() async {
             ),
 
             TextButton(
-              onPressed: () {
+              onPressed: _login,
                 setState(() {
                   isAdminLogin = !isAdminLogin;
                 });
