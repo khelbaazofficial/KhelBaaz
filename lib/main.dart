@@ -827,7 +827,55 @@ class _LoginPageState extends State<LoginPage> {
     passwordController.dispose();
     super.dispose();
   }
+Future<void> _login() async {
+  final login = loginController.text.trim();
+  final password = passwordController.text.trim();
 
+  if (login.isEmpty || password.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Login ID और Password डालें'),
+      ),
+    );
+    return;
+  }
+
+  try {
+    if (!login.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'अभी पहले Email login test कर रहे हैं',
+          ),
+        ),
+      );
+      return;
+    }
+
+    await FirebaseAuth.instance.signInWithEmailAndPassword(
+      email: login,
+      password: password,
+    );
+  } on FirebaseAuthException catch (e) {
+    String message = 'Login failed';
+
+    if (e.code == 'invalid-credential' ||
+        e.code == 'wrong-password' ||
+        e.code == 'user-not-found') {
+      message = 'Email या Password गलत है';
+    } else if (e.code == 'invalid-email') {
+      message = 'सही Email डालें';
+    } else if (e.code == 'too-many-requests') {
+      message = 'बहुत ज्यादा कोशिश हुई, थोड़ी देर बाद try करें';
+    }
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -862,7 +910,7 @@ class _LoginPageState extends State<LoginPage> {
                         ? Icons.visibility
                         : Icons.visibility_off,
                   ),
-                  onPressed: () {
+                  onPressed: _login,
                     setState(() {
                       hidePassword = !hidePassword;
                     });
