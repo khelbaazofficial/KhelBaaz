@@ -10278,46 +10278,76 @@ Card(
     ),
     title: const Text('Logout'),
     trailing: const Icon(Icons.chevron_right),
-    onTap: () {
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Logout'),
-          content: const Text(
-            'क्या आप सच में Logout करना चाहते हैं?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
+    onTap: () async {
+  final bool? shouldLogout = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        title: const Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: Color(0xFFFFE5E5),
+              child: Icon(
+                Icons.logout,
+                color: Colors.red,
+              ),
             ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Logout successful'),
-                  ),
-                );
-              },
-              child: const Text('Logout'),
+            SizedBox(width: 12),
+            Text(
+              'Logout?',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
+        content: const Text(
+          'क्या आप सच में अपने KhelBaaz account से logout करना चाहते हैं?',
+          style: TextStyle(
+            fontSize: 15,
+            height: 1.4,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          16,
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, false);
+            },
+            child: const Text('नहीं'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext, true);
+            },
+            icon: const Icon(Icons.logout),
+            label: const Text('हाँ, Logout'),
+          ),
+        ],
       );
     },
-  ),
-),
+  );
 
-        ],
-      ),
-    );
+  if (shouldLogout == true) {
+    await FirebaseAuth.instance.signOut();
   }
+},
+     ),
+),
+],
+),
+);
 }
-          
+}     
 
 
 class MyTeamsPage extends StatelessWidget {
