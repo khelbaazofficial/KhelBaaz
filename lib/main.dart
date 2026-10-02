@@ -828,70 +828,201 @@ class _LoginPageState extends State<LoginPage> {
     passwordController.dispose();
     super.dispose();
   }
+Future<void> _login() async {
+  final login = loginController.text.trim();
+  final password = passwordController.text.trim();
 
-  Future<void> _login() async {
-    final login = loginController.text.trim();
-    final password = passwordController.text.trim();
+  if (login.isEmpty || password.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Username / Mobile और Password डालें'),
+      ),
+    );
+    return;
+  }
 
-    if (login.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Username और Password डालें'),
-        ),
-      );
-      return;
-    }
+  // Normal User में Email से login नहीं करना है.
+  // User = Username / Mobile
+  // Admin = Username / Mobile / Email
+  if (!isAdminLogin && login.contains('@')) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('User Login में Username या Mobile Number डालें'),
+      ),
+    );
+    return;
+  }
 
-    // अभी Firebase Email/Password login working है.
-    // Username/Mobile login अगला step होगा.
+  setState(() {
+    isLoading = true;
+  });
+
+  try {
+    String authEmail = login;
+
+    // Username या Mobile आया है तो login_lookup से
+    // Firebase वाला registered Email निकालेंगे.
     if (!login.contains('@')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'अभी login test के लिए registered Email डालें',
+      String lookupKey = login.toLowerCase();
+
+      // अगर +91 के साथ 10 digit mobile लिखा है तो +91 हटा दें
+      if (lookupKey.startsWith('+91') &&
+          lookupKey.length == 13) {
+        lookupKey = lookupKey.substring(3);
+      }
+
+      final lookupDoc = await FirebaseFirestore.instance
+          .collection('login_lookup')
+          .doc(lookupKey)
+          .get();
+
+      if (!lookupDoc.exists) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Username या Mobile Number नहीं मिला'),
           ),
-        ),
-      );
-      return;
+        );
+        return;
+      }
+final lookupData = lookupDoc.data();
+
+      authEmail =
+          (lookupData?['authEmail'] ?? '').toString().trim();
+
+      if (authEmail.isEmpty) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('इस Login ID का Email नहीं मिला'),
+          ),
+        );
+        return;
+      }
     }
 
-    setState(() {
-      isLoading = true;
-    });
+    final credential =
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+      email: authEmail,
+      password: password,
+    );
 
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: login,
-        password: password,
-      );
-    } on FirebaseAuthException catch (e) {
-      String message = 'Login failed';
+    final uid = credential.user?.uid;
 
-      if (e.code == 'invalid-credential' ||
-          e.code == 'wrong-password' ||
-          e.code == 'user-not-found') {
-        message = 'Email या Password गलत है';
-      } else if (e.code == 'invalid-email') {
-        message = 'सही Email डालें';
-      } else if (e.code == 'too-many-requests') {
-        message = 'बहुत ज्यादा कोशिश हुई, थोड़ी देर बाद try करें';
+    if (uid == null) {
+      await FirebaseAuth.instance.signOut();
+      throw Exception('UID_NOT_FOUND');
+    }
+
+    // ADMIN LOGIN की अलग verification
+    if (isAdminLogin) {
+      final adminDoc = await FirebaseFirestore.instance
+          .collection('admins')
+          .doc(uid)
+          .get();
+
+      final adminData = adminDoc.data();
+
+      final role =
+          (adminData?['role'] ?? '').toString().toUpperCase();
+
+      final active = adminData?['active'] == true;
+
+      if (!adminDoc.exists ||
+          role != 'ADMIN' ||
+          !active) {
+        await FirebaseAuth.instance.signOut();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('यह Admin account नहीं है'),
+          ),
+        );
+        return;
       }
+    } else {
+      // अगर ADMIN ने गलती से User Login use किया
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
 
-      if (!mounted) return;
+      final userData = userDoc.data();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
+      final role =
+          (userData?['role'] ?? '').toString().toUpperCase();
+
+      if (role == 'ADMIN') {
+        await FirebaseAuth.instance.signOut();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Admin account के लिए Admin Login करें'),
+          ),
+        );
+        return;
       }
+    }
+// Successful login के बाद कुछ navigate नहीं करना.
+    // FantasyApp का authStateChanges अपने-आप MainPage खोलेगा.
+  } on FirebaseAuthException catch (e) {
+    String message = 'Login failed';
+
+    if (e.code == 'invalid-credential' ||
+        e.code == 'wrong-password' ||
+        e.code == 'user-not-found') {
+      message = 'Login ID या Password गलत है';
+    } else if (e.code == 'invalid-email') {
+      message = 'सही Login ID डालें';
+    } else if (e.code == 'too-many-requests') {
+      message =
+          'बहुत ज्यादा कोशिश हुई, थोड़ी देर बाद try करें';
+    }
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  } on FirebaseException catch (e) {
+    if (!mounted) return;
+
+    String message = 'Firebase से Login नहीं हो पाया';
+
+    if (e.code == 'permission-denied') {
+      message = 'login_lookup की Firebase permission नहीं मिली';
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Login नहीं हो पाया'),
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
     }
   }
+}
+      
 Future<void> _forgotPassword() async {
     final email = loginController.text.trim();
 
