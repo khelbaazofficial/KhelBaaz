@@ -1097,10 +1097,20 @@ Future<void> _forgotPassword() async {
       );
     },
   );
-recoveryController.dispose();
+if (enteredLogin == null || enteredLogin.isEmpty) {
+  recoveryController.dispose();
+  return;
+}
 
-  if (enteredLogin == null || enteredLogin.trim().isEmpty) {
-    return;
+// पहले वाला dialog पूरी तरह बंद होने दो
+await Future<void>.delayed(const Duration(milliseconds: 350));
+
+if (!mounted) {
+  recoveryController.dispose();
+  return;
+}
+
+recoveryController.dispose();
   }
 
   final String lookupKey =
@@ -1294,11 +1304,19 @@ Future<void> _forgotUsername() async {
       );
     },
   );
-recoveryController.dispose();
+if (enteredLogin == null || enteredLogin.isEmpty) {
+  recoveryController.dispose();
+  return;
+}
 
-  if (recoveryId == null || recoveryId.trim().isEmpty) {
-    return;
-  }
+await Future<void>.delayed(const Duration(milliseconds: 350));
+
+if (!mounted) {
+  recoveryController.dispose();
+  return;
+}
+
+recoveryController.dispose();
 
   final String lookupKey =
       _normalizeRecoveryKey(recoveryId);
