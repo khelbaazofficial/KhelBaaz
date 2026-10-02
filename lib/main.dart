@@ -805,6 +805,9 @@ updatedHistory.add({
   welcomeBonusClaimed.value = true;
 }
 
+final ValueNotifier<bool> authNavigationBlocked =
+    ValueNotifier<bool>(false);
+
 // ================= LOGIN PAGE =================
 
 class LoginPage extends StatefulWidget {
@@ -852,7 +855,7 @@ Future<void> _login() async {
     );
     return;
   }
-
+authNavigationBlocked.value = true;
   setState(() {
     isLoading = true;
   });
@@ -1014,12 +1017,14 @@ final lookupData = lookupDoc.data();
         content: Text('Login नहीं हो पाया'),
       ),
     );
-  } finally {
-    if (mounted) {
-      setState(() {
-        isLoading = false;
-      });
-    }
+ } finally {
+  authNavigationBlocked.value = false;
+
+  if (mounted) {
+    setState(() {
+      isLoading = false;
+    });
+  }
   }
 }
       
@@ -1545,19 +1550,29 @@ class FantasyApp extends StatelessWidget {
           home: StreamBuilder<User?>(
   stream: FirebaseAuth.instance.authStateChanges(),
   builder: (context, snapshot) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
+    return ValueListenableBuilder<bool>(
+      valueListenable: authNavigationBlocked,
+      builder: (context, blocked, _) {
+        if (blocked) {
+          return const LoginPage();
+        }
 
-    if (snapshot.hasData) {
-      return const MainPage();
-    }
+        if (snapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
 
-    return const LoginPage();
+        if (snapshot.hasData) {
+          return const MainPage();
+        }
+
+        return const LoginPage();
+      },
+    );
   },
 ),
         );
