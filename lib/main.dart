@@ -12937,7 +12937,7 @@ if (title == 'Winning') {
   horizontal: 12,
   vertical: 0,
 ),
-minVerticalPadding: 3,
+minVerticalPadding: 0,
 visualDensity: const VisualDensity(
   vertical: -4,
 ),         
@@ -12955,7 +12955,7 @@ visualDensity: const VisualDensity(
                       ),
                     ),
                     subtitle: Padding(
-  padding: const EdgeInsets.only(top: 3),
+  padding: const EdgeInsets.only(top: 1),
   child: title == 'Deposit Reversed'
       ? Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -13021,7 +13021,7 @@ height: 1.2,
                         fontSize: 16,
                       ),
                     ),
-                    isThreeLine: true,
+                    isThreeLine: false,
 ),
 ),
 ],
