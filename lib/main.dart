@@ -10309,33 +10309,58 @@ String mobileNumber = '9876543210';
 ),
 
 const SizedBox(height: 12),  
-          Card(
-  child: ListTile(
-    leading: Container(
-  width: 46,
-  height: 46,
-  decoration: BoxDecoration(
-    color: const Color(0xFFFFE9DD),
-    borderRadius: BorderRadius.circular(12),
-  ),
-  child: const Icon(
-    Icons.admin_panel_settings,
-    color: Colors.deepOrange,
-    size: 28,
-  ),
-),
-    title: const Text('Admin Dashboard'),
-    trailing: const Icon(Icons.chevron_right),
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const AdminDashboardPage(),
+
+FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+  future: FirebaseFirestore.instance
+      .collection('users')
+      .doc(FirebaseAuth.instance.currentUser?.uid)
+      .get(),
+  builder: (context, snapshot) {
+    final data = snapshot.data?.data();
+
+    final bool isAdmin =
+        (data?['role'] ?? '')
+                .toString()
+                .trim()
+                .toUpperCase() ==
+            'ADMIN';
+
+    if (!isAdmin) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      child: ListTile(
+        leading: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFE9DD),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.admin_panel_settings,
+            color: Colors.deepOrange,
+            size: 28,
+          ),
         ),
-      );
-    },
-  ),
+        title: const Text('Admin Dashboard'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  const AdminDashboardPage(),
+            ),
+          );
+        },
+      ),
+    );
+  },
 ),
+
+          
 const SizedBox(height: 15),
 
 Row(
