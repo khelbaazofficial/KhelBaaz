@@ -10104,10 +10104,60 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  String playerName = 'Fantasy Player';
-String username = '@CricNovaPlay';
-String mobileNumber = '9876543210';
+  String playerName = '';
+  String username = '';
+  String mobileNumber = '';
   IconData profileIcon = Icons.person;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLoggedInProfile();
+  }
+
+  Future<void> _loadLoggedInProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final data = doc.data();
+
+      if (!mounted) return;
+
+      final savedUsername =
+          (data?['username'] ?? '').toString().trim();
+
+      final savedMobile =
+          (data?['mobile'] ?? '').toString().trim();
+
+      final savedName =
+          (data?['playerName'] ??
+                  data?['name'] ??
+                  '')
+              .toString()
+              .trim();
+
+      setState(() {
+        username = savedUsername.isNotEmpty
+            ? '@${savedUsername.replaceFirst('@', '')}'
+            : (user.email ?? 'User');
+
+        mobileNumber = savedMobile;
+
+        playerName = savedName.isNotEmpty
+            ? savedName
+            : savedUsername;
+      });
+    } catch (e) {
+      debugPrint('Profile load error: $e');
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -10246,7 +10296,8 @@ String mobileNumber = '9876543210';
                       ),
                       const SizedBox(height: 12),
                       TextField(
-                        controller: usernameController,
+                     controller: usernameController,
+                     readOnly: true,
                         decoration: const InputDecoration(
                           labelText: 'Username',
                           border: OutlineInputBorder(),
@@ -10254,7 +10305,9 @@ String mobileNumber = '9876543210';
                       ),
                       const SizedBox(height: 12),
                       TextField(
-                        controller: mobileController,
+                    controller: mobileController,
+                    readOnly: true,
+                      
                         keyboardType: TextInputType.phone,
                         decoration: const InputDecoration(
                           labelText: 'Mobile Number',
@@ -10271,28 +10324,32 @@ String mobileNumber = '9876543210';
                       child: const Text('CANCEL'),
                     ),
                     ElevatedButton(
-                      onPressed: () {
-                        final newName =
-                            controller.text.trim();
-                        final newUsername =
-                            usernameController.text.trim();
-                        final newMobile =
-                            mobileController.text.trim();
+                      onPressed: () async {
+  final newName = controller.text.trim();
+  final user = FirebaseAuth.instance.currentUser;
 
-                        setState(() {
-                          if (newName.isNotEmpty) {
-                            playerName = newName;
-                          }
-                          if (newUsername.isNotEmpty) {
-                            username = newUsername;
-                          }
-                          if (newMobile.isNotEmpty) {
-                            mobileNumber = newMobile;
-                          }
-                        });
+  if (user == null || newName.isEmpty) {
+    return;
+  }
 
-                        Navigator.pop(context);
-                      },
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .set(
+    {
+      'playerName': newName,
+    },
+    SetOptions(merge: true),
+  );
+
+  if (!mounted) return;
+
+  setState(() {
+    playerName = newName;
+  });
+
+  Navigator.pop(context);
+},
                       child: const Text('SAVE'),
                     ),
                   ],
