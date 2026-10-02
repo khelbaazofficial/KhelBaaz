@@ -2009,7 +2009,7 @@ Widget build(BuildContext context) {
   }
 
   if (isAdmin == true) {
-    return const AdminDashboardPage();
+  return const AdminMainPage();
   }
 
   final pages = [
@@ -2174,6 +2174,103 @@ height: 70,
     );
   }
 }
+
+class AdminMainPage extends StatefulWidget {
+  const AdminMainPage({super.key});
+
+  @override
+  State<AdminMainPage> createState() => _AdminMainPageState();
+}
+
+class _AdminMainPageState extends State<AdminMainPage> {
+  int currentIndex = 0;
+
+  final pages = const [
+    AdminHomePage(),
+    AdminDashboardPage(),
+    AdminProfilePage(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: currentIndex,
+        children: pages,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            currentIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.admin_panel_settings_outlined),
+            selectedIcon: Icon(Icons.admin_panel_settings),
+            label: 'Dashboard',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AdminHomePage extends StatelessWidget {
+  const AdminHomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Admin Home'),
+      ),
+      body: const Center(
+        child: Text(
+          'Admin Home',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AdminProfilePage extends StatelessWidget {
+  const AdminProfilePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Admin Profile'),
+      ),
+      body: const Center(
+        child: Text(
+          'Admin Profile',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class BottomNavCurvePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
