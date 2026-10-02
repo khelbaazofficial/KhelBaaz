@@ -2233,16 +2233,308 @@ class AdminHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin Home'),
-      ),
-      body: const Center(
-        child: Text(
-          'Admin Home',
-          style: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-          ),
+      backgroundColor: const Color(0xFFFFF9F7),
+      body: SafeArea(
+        child: ValueListenableBuilder<List<Map<String, String>>>(
+          valueListenable: adminMatches,
+          builder: (context, matches, _) {
+            final upcomingCount = matches
+                .where(
+                  (m) =>
+                      (m['status'] ?? '')
+                          .toUpperCase() ==
+                      'UPCOMING',
+                )
+                .length;
+
+            final liveCount = matches
+                .where(
+                  (m) =>
+                      (m['status'] ?? '')
+                          .toUpperCase() ==
+                      'LIVE',
+                )
+                .length;
+
+            final completedCount = matches
+                .where(
+                  (m) =>
+                      (m['status'] ?? '')
+                          .toUpperCase() ==
+                      'COMPLETED',
+                )
+                .length;
+
+            final currentMatches = matches
+                .where((m) {
+                  final status =
+                      (m['status'] ?? '').toUpperCase();
+
+                  return status == 'UPCOMING' ||
+                      status == 'LIVE';
+                })
+                .take(3)
+                .toList();
+
+            Widget statCard(
+              String title,
+              int count,
+              IconData icon,
+              Color color,
+            ) {
+              return Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius:
+                        BorderRadius.circular(18),
+                    border: Border.all(
+                      color: color.withOpacity(0.25),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        icon,
+                        color: color,
+                        size: 28,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '$count',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Admin Home',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Manage KhelBaaz',
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius:
+                            BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'ADMIN',
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 22),
+
+                Row(
+                  children: [
+                    statCard(
+                      'Upcoming',
+                      upcomingCount,
+                      Icons.schedule,
+                      Colors.orange,
+                    ),
+                    const SizedBox(width: 10),
+                    statCard(
+                      'Live',
+                      liveCount,
+                      Icons.sensors,
+                      Colors.green,
+                    ),
+                    const SizedBox(width: 10),
+                    statCard(
+                      'Completed',
+                      completedCount,
+                      Icons.check_circle_outline,
+                      Colors.deepPurple,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                Card(
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(18),
+                  ),
+                  child: ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    leading: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius:
+                            BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.sports_cricket,
+                        color: Colors.deepOrange,
+                      ),
+                    ),
+                    title: const Text(
+                      'Manage Matches',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${matches.length} total matches',
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              const AdminMatchesPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 22),
+
+                const Text(
+                  'Current Matches',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                if (currentMatches.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(
+                        child: Text(
+                          'No live or upcoming matches',
+                        ),
+                      ),
+                    ),
+                  ),
+
+                ...currentMatches.map((match) {
+                  final team1 =
+                      match['team1'] ?? '';
+                  final team2 =
+                      match['team2'] ?? '';
+                  final date =
+                      match['date'] ?? '';
+                  final time =
+                      match['time'] ?? '';
+                  final status =
+                      (match['status'] ?? '')
+                          .toUpperCase();
+
+                  final isLive = status == 'LIVE';
+
+                  return Card(
+                    margin:
+                        const EdgeInsets.only(bottom: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(16),
+                    ),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: isLive
+                            ? Colors.green.shade50
+                            : Colors.orange.shade50,
+                        child: Icon(
+                          isLive
+                              ? Icons.sensors
+                              : Icons.schedule,
+                          color: isLive
+                              ? Colors.green
+                              : Colors.orange,
+                        ),
+                      ),
+                      title: Text(
+                        '$team1 vs $team2',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '$date • $time',
+                      ),
+                      trailing: Text(
+                        status,
+                        style: TextStyle(
+                          color: isLive
+                              ? Colors.green
+                              : Colors.deepOrange,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            );
+          },
         ),
       ),
     );
