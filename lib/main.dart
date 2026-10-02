@@ -2546,19 +2546,214 @@ class AdminProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
     return Scaffold(
+      backgroundColor: const Color(0xFFFFF9F7),
       appBar: AppBar(
         title: const Text('Admin Profile'),
       ),
-      body: const Center(
-        child: Text(
-          'Admin Profile',
-          style: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+      body: user == null
+          ? const Center(
+              child: Text('Admin account not found'),
+            )
+          : FutureBuilder<
+              DocumentSnapshot<Map<String, dynamic>>>(
+              future: FirebaseFirestore.instance
+                  .collection('admins')
+                  .doc(user.uid)
+                  .get(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                final data = snapshot.data?.data();
+
+                final username =
+                    (data?['username'] ?? 'Admin')
+                        .toString();
+
+                final mobile =
+                    (data?['mobile'] ?? '')
+                        .toString();
+
+                final email =
+                    (data?['email'] ??
+                            user.email ??
+                            '')
+                        .toString();
+
+                return ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(20),
+                      ),
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.all(20),
+                        child: Column(
+                          children: [
+                            const CircleAvatar(
+                              radius: 42,
+                              backgroundColor:
+                                  Color(0xFFFFE5E5),
+                              child: Icon(
+                                Icons
+                                    .admin_panel_settings,
+                                size: 46,
+                                color: Colors.red,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              '@$username',
+                              style: const TextStyle(
+                                fontSize: 23,
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets
+                                  .symmetric(
+                                horizontal: 12,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    Colors.red.shade50,
+                                borderRadius:
+                                    BorderRadius.circular(
+                                  20,
+                                ),
+                              ),
+                              child: Text(
+                                'ADMIN',
+                                style: TextStyle(
+                                  color:
+                                      Colors.red.shade700,
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    Card(
+                      child: Column(
+                        children: [
+                          ListTile(
+                            leading: const Icon(
+                              Icons.phone,
+                            ),
+                            title: const Text(
+                              'Mobile Number',
+                            ),
+                            subtitle: Text(
+                              mobile.isEmpty
+                                  ? 'Not added'
+                                  : mobile,
+                            ),
+                          ),
+                          const Divider(height: 1),
+                          ListTile(
+                            leading: const Icon(
+                              Icons.email_outlined,
+                            ),
+                            title:
+                                const Text('Email'),
+                            subtitle: Text(
+                              email.isEmpty
+                                  ? 'Not added'
+                                  : email,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        final shouldLogout =
+                            await showDialog<bool>(
+                          context: context,
+                          barrierDismissible: false,
+                          builder:
+                              (dialogContext) {
+                            return AlertDialog(
+                              title: const Text(
+                                'Logout?',
+                              ),
+                              content: const Text(
+                                'क्या आप Admin account से logout करना चाहते हैं?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(
+                                      dialogContext,
+                                      false,
+                                    );
+                                  },
+                                  child: const Text(
+                                    'नहीं',
+                                  ),
+                                ),
+                                FilledButton.icon(
+                                  onPressed: () {
+                                    Navigator.pop(
+                                      dialogContext,
+                                      true,
+                                    );
+                                  },
+                                  icon: const Icon(
+                                    Icons.logout,
+                                  ),
+                                  label: const Text(
+                                    'हाँ, Logout',
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+
+                        if (shouldLogout == true) {
+                          await FirebaseAuth.instance
+                              .signOut();
+                        }
+                      },
+                      icon: const Icon(
+                        Icons.logout,
+                        color: Colors.red,
+                      ),
+                      label: const Text(
+                        'Logout',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
     );
   }
 }
