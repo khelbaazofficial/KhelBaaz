@@ -12519,7 +12519,7 @@ String _historyFullDate(DateTime date) {
 
 Widget _historyDateRibbon(DateTime date) {
   return Container(
-    height: 42,
+    height: 46,
     margin: const EdgeInsets.only(
       top: 3,
       bottom: 6,
@@ -12545,7 +12545,7 @@ Widget _historyDateRibbon(DateTime date) {
       children: [
         Container(
           width: 54,
-          height: 42,
+          height: 46,
           decoration: const BoxDecoration(
             color: Color(0xFF00574B),
             borderRadius: BorderRadius.only(
