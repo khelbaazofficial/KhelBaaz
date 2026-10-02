@@ -1304,7 +1304,7 @@ Future<void> _forgotUsername() async {
       );
     },
   );
-if (enteredLogin == null || enteredLogin.isEmpty) {
+  if (recoveryId == null || recoveryId.isEmpty) {
   recoveryController.dispose();
   return;
 }
