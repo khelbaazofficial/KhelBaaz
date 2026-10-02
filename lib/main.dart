@@ -1027,61 +1027,175 @@ final lookupData = lookupDoc.data();
   }
   }
 }
-      
-Future<void> _forgotPassword() async {
-    final email = loginController.text.trim();
 
-    if (!email.contains('@')) {
+String _normalizeRecoveryKey(String value) {
+  String key = value.trim().toLowerCase();
+
+  if (key.startsWith('+91') && key.length == 13) {
+    key = key.substring(3);
+  }
+
+  return key;
+}
+
+Future<void> _forgotPassword() async {
+  final recoveryController = TextEditingController();
+
+  final String? enteredLogin = await showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        title: const Text(
+          'Forgot Password',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: TextField(
+          controller: recoveryController,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: isAdminLogin
+                ? 'Username / Mobile / Email'
+                : 'Username / Mobile',
+            hintText: 'अपना Login ID डालें',
+            prefixIcon: const Icon(Icons.person_search_outlined),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = recoveryController.text.trim();
+
+              if (value.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('पहले अपना Login ID डालें'),
+                  ),
+                );
+                return;
+              }
+
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Send Reset Link'),
+          ),
+        ],
+      );
+    },
+  );
+recoveryController.dispose();
+
+  if (enteredLogin == null || enteredLogin.trim().isEmpty) {
+    return;
+  }
+
+  final String lookupKey =
+      _normalizeRecoveryKey(enteredLogin);
+
+  // Normal User को Email से login/reset नहीं देना है.
+  if (!isAdminLogin && lookupKey.contains('@')) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'User के लिए Username या Mobile Number डालें',
+        ),
+      ),
+    );
+    return;
+  }
+
+  try {
+    String authEmail = '';
+
+    // Admin Email सीधे Firebase Auth वाला Email हो सकता है.
+    if (isAdminLogin && lookupKey.contains('@')) {
+      authEmail = lookupKey;
+    } else {
+      final lookupDoc =
+          await FirebaseFirestore.instance
+              .collection('login_lookup')
+              .doc(lookupKey)
+              .get();
+
+      if (!lookupDoc.exists) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'यह Username या Mobile Number नहीं मिला',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final lookupData = lookupDoc.data();
+
+      authEmail =
+          (lookupData?['authEmail'] ?? '')
+              .toString()
+              .trim();
+    }
+
+    if (authEmail.isEmpty) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'पहले ऊपर अपना registered Email डालें',
+            'इस account का registered Email नहीं मिला',
           ),
         ),
       );
       return;
     }
+await FirebaseAuth.instance.sendPasswordResetEmail(
+      email: authEmail,
+    );
 
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(
-        email: email,
-      );
+    if (!mounted) return;
 
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Password reset link Email पर भेज दिया गया है',
-          ),
-        ),
-      );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.message ?? 'Password reset नहीं हो पाया',
-          ),
-        ),
-      );
-    }
-  }
-
-  void _forgotUsername() {
-    showDialog(
+    await showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Forgot Username'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          title: const Row(
+            children: [
+              Icon(
+                Icons.mark_email_read_outlined,
+                color: Colors.green,
+              ),
+              SizedBox(width: 10),
+              Text('Reset Link Sent'),
+            ],
+          ),
           content: const Text(
-            'Username recovery Mobile/Email verification के साथ अगला step में जोड़ेंगे।',
+            'Password reset link आपके registered Email पर भेज दिया गया है।',
           ),
           actions: [
-            TextButton(
+            FilledButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
               },
               child: const Text('OK'),
             ),
@@ -1089,7 +1203,223 @@ Future<void> _forgotPassword() async {
         );
       },
     );
+  } on FirebaseAuthException catch (e) {
+    if (!mounted) return;
+
+    String message = 'Password reset नहीं हो पाया';
+
+    if (e.code == 'invalid-email') {
+      message = 'Registered Email सही नहीं है';
+    } else if (e.code == 'too-many-requests') {
+      message =
+          'बहुत ज्यादा कोशिश हुई है, थोड़ी देर बाद फिर कोशिश करें';
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Password reset नहीं हो पाया',
+        ),
+      ),
+    );
   }
+}
+Future<void> _forgotUsername() async {
+  final recoveryController = TextEditingController();
+
+  final String? recoveryId = await showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        title: const Text(
+          'Forgot Username',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: TextField(
+          controller: recoveryController,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: 'Registered Mobile / Email',
+            hintText: 'Mobile Number या Email डालें',
+            prefixIcon: const Icon(
+              Icons.manage_search,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value =
+                  recoveryController.text.trim();
+
+              if (value.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Registered Mobile या Email डालें',
+                    ),
+                  ),
+                );
+                return;
+              }
+
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Find Username'),
+          ),
+        ],
+      );
+    },
+  );
+recoveryController.dispose();
+
+  if (recoveryId == null || recoveryId.trim().isEmpty) {
+    return;
+  }
+
+  final String lookupKey =
+      _normalizeRecoveryKey(recoveryId);
+
+  final bool isEmail = lookupKey.contains('@');
+  final bool isMobile =
+      RegExp(r'^[0-9]{10}$').hasMatch(lookupKey);
+
+  if (!isEmail && !isMobile) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Registered Mobile Number या Email ही डालें',
+        ),
+      ),
+    );
+    return;
+  }
+
+  try {
+    final lookupDoc =
+        await FirebaseFirestore.instance
+            .collection('login_lookup')
+            .doc(lookupKey)
+            .get();
+
+    if (!lookupDoc.exists) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'इस Mobile/Email से account नहीं मिला',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final lookupData = lookupDoc.data();
+
+    final String username =
+        (lookupData?['username'] ?? '')
+            .toString()
+            .trim();
+
+    if (username.isEmpty) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'इस account के लिए Username recovery setup अभी पूरा नहीं है',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          title: const Row(
+            children: [
+              Icon(
+                Icons.person_outline,
+                color: Colors.green,
+              ),
+              SizedBox(width: 10),
+              Text('Username Found'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'आपका Username है:',
+              ),
+              const SizedBox(height: 12),
+              SelectableText(
+                username,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Username recovery नहीं हो पाई',
+        ),
+      ),
+    );
+  }
+}
+
+  
 @override
   Widget build(BuildContext context) {
     return Scaffold(
