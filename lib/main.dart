@@ -1939,19 +1939,81 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  int currentIndex = 0;
 
-  @override
+int currentIndex = 0;
+bool? isAdmin;
+
+@override
 void initState() {
   super.initState();
-
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    giveWelcomeBonusIfNeeded();
-  });
+  _loadLoggedInRole();
 }
-  @override
-  Widget build(BuildContext context) {
-    final pages = [
+
+Future<void> _loadLoggedInRole() async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    if (!mounted) return;
+
+    setState(() {
+      isAdmin = false;
+    });
+    return;
+  }
+
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('admins')
+        .doc(user.uid)
+        .get();
+
+    final data = doc.data();
+
+    final bool adminAccount =
+        doc.exists &&
+        (data?['role'] ?? '')
+                .toString()
+                .trim()
+                .toUpperCase() ==
+            'ADMIN' &&
+        data?['active'] == true;
+
+    if (!adminAccount) {
+      giveWelcomeBonusIfNeeded();
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      isAdmin = adminAccount;
+    });
+  } catch (e) {
+    debugPrint('Role load error: $e');
+
+    if (!mounted) return;
+
+    setState(() {
+      isAdmin = false;
+    });
+  }
+}
+
+@override
+Widget build(BuildContext context) {
+  if (isAdmin == null) {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+
+  if (isAdmin == true) {
+    return const AdminDashboardPage();
+  }
+
+  final pages = [
+  
       const HomePage(),
       const MyContestsPage(),
       const ProfilePage(),
