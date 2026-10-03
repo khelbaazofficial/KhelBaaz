@@ -760,23 +760,95 @@ final ValueNotifier<bool> hasUnreadNotification =
     ValueNotifier<bool>(false);
 final ValueNotifier<List<Map<String, dynamic>>> appNotifications =
     ValueNotifier<List<Map<String, dynamic>>>([]);
-void addWalletRequest({
+Future<void> addWalletRequest({
   required String type,
   required double amount,
   String? screenshot,
-}) {
-  final updated =
-      List<Map<String, dynamic>>.from(walletRequests.value);
+}) async {
+  final user =
+      FirebaseAuth.instance.currentUser;
 
-  updated.add({
-  'type': type,
-  'amount': amount,
-  'status': 'PENDING',
-  'createdAt': DateTime.now(),
-  'screenshot': screenshot,
-});
+  if (user == null) return;
 
-  walletRequests.value = updated;
+  try {
+    final userRef =
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid);
+
+    final userDoc =
+        await userRef.get();
+
+    final data =
+        userDoc.data();
+
+    if (data == null) return;
+
+    final role =
+        (data['role'] ?? 'USER')
+            .toString()
+            .trim()
+            .toUpperCase();
+
+    if (role == 'ADMIN') return;
+
+    final rawRequests =
+        data['walletRequests'];
+
+    final savedRequests =
+        rawRequests is List
+            ? rawRequests
+                .whereType<Map>()
+                .map(
+                  (e) =>
+                      Map<String,
+                          dynamic>.from(
+                    e,
+                  ),
+                )
+                .toList()
+            : <Map<String,
+                dynamic>>[];
+
+    final now = DateTime.now();
+
+    final requestId =
+        'REQ-${now.microsecondsSinceEpoch}';
+
+    final newRequest =
+        <String, dynamic>{
+      'requestId': requestId,
+      'userId': user.uid,
+      'username':
+          (data['username'] ?? '')
+              .toString(),
+      'type':
+          type.trim().toUpperCase(),
+      'amount': amount,
+      'status': 'PENDING',
+      'createdAt': now,
+      'screenshot': screenshot,
+    };
+
+    savedRequests.add(
+      newRequest,
+    );
+
+    await userRef.set(
+      {
+        'walletRequests':
+            savedRequests,
+      },
+      SetOptions(merge: true),
+    );
+
+    walletRequests.value =
+        savedRequests;
+  } catch (e) {
+    debugPrint(
+      'Wallet Request save error: $e',
+    );
+  }
 }
 
 Future<void> giveWelcomeBonusIfNeeded() async {
@@ -815,6 +887,37 @@ if (savedHistoryRaw is List) {
       .toList();
 } else {
   transactionHistory.value = [];
+}
+final savedRequestsRaw =
+    data['walletRequests'];
+
+if (savedRequestsRaw is List) {
+  walletRequests.value =
+      savedRequestsRaw
+          .whereType<Map>()
+          .map((raw) {
+    final item =
+        Map<String, dynamic>.from(
+      raw,
+    );
+
+    for (final key in [
+      'createdAt',
+      'resolvedAt',
+      'reversedAt',
+    ]) {
+      final value = item[key];
+
+      if (value is Timestamp) {
+        item[key] =
+            value.toDate();
+      }
+    }
+
+    return item;
+  }).toList();
+} else {
+  walletRequests.value = [];
 }
     
     // यह user पहले Welcome Bonus ले चुका है
@@ -16544,204 +16647,577 @@ joinedContests.value = [
     );
   }
 }
-class AdminWalletRequestsPage extends StatelessWidget {
-  const AdminWalletRequestsPage({super.key});
+class AdminWalletRequestsPage
+    extends StatefulWidget {
+  const AdminWalletRequestsPage({
+    super.key,
+  });
+
+  @override
+  State<AdminWalletRequestsPage>
+      createState() =>
+          _AdminWalletRequestsPageState();
+}
+
+class _AdminWalletRequestsPageState
+    extends State<
+        AdminWalletRequestsPage> {
+  @override
+  void initState() {
+    super.initState();
+    _loadWalletRequests();
+  }
+
+  Future<void>
+      _loadWalletRequests() async {
+    try {
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .get();
+
+      final loaded =
+          <Map<String, dynamic>>[];
+
+      for (final doc
+          in snapshot.docs) {
+        final user =
+            Map<String, dynamic>.from(
+          doc.data(),
+        );
+
+        final role =
+            (user['role'] ?? 'USER')
+                .toString()
+                .trim()
+                .toUpperCase();
+
+        if (role == 'ADMIN') {
+          continue;
+        }
+
+        final rawRequests =
+            user['walletRequests'];
+
+        if (rawRequests is! List) {
+          continue;
+        }
+
+        for (final raw in rawRequests
+            .whereType<Map>()) {
+          final request =
+              Map<String, dynamic>.from(
+            raw,
+          );
+
+          request['userId'] ??=
+              doc.id;
+
+          request['username'] ??=
+              user['username'];
+
+          for (final key in [
+            'createdAt',
+            'resolvedAt',
+            'reversedAt',
+          ]) {
+            final value =
+                request[key];
+
+            if (value is Timestamp) {
+              request[key] =
+                  value.toDate();
+            }
+          }
+
+          loaded.add(request);
+        }
+      }
+
+      loaded.sort((a, b) {
+        final aDate =
+            a['createdAt'];
+        final bDate =
+            b['createdAt'];
+
+        if (aDate is DateTime &&
+            bDate is DateTime) {
+          return aDate.compareTo(
+            bDate,
+          );
+        }
+
+        return 0;
+      });
+
+      walletRequests.value =
+          loaded;
+    } catch (e) {
+      debugPrint(
+        'Wallet Requests load error: $e',
+      );
+    }
+  }
 
   Future<void> approveRequest(
   BuildContext context,
   int index,
   Map<String, dynamic> request,
 ) async {
-    final updated =
-        List<Map<String, dynamic>>.from(walletRequests.value);
-if (index < 0 || index >= updated.length) return;
+  final updated =
+      List<Map<String, dynamic>>.from(
+    walletRequests.value,
+  );
 
-final currentStatus =
-    (updated[index]['status'] ?? 'PENDING')
-        .toString()
-        .toUpperCase();
-final noteController =
-    TextEditingController(text: 'Verified payment');
-
-final adminNote = await showDialog<String>(
-  context: context,
-  builder: (context) {
-    return AlertDialog(
-      title: const Text('Admin Note'),
-      content: TextField(
-        controller: noteController,
-        decoration: const InputDecoration(
-          labelText: 'Note',
-          hintText: 'Verified payment',
-          border: OutlineInputBorder(),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('CANCEL'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final note = noteController.text.trim();
-
-            Navigator.pop(
-              context,
-              note.isEmpty ? 'Verified payment' : note,
-            );
-          },
-          child: const Text('APPROVE'),
-        ),
-      ],
-    );
-  },
-);
-
-if (adminNote == null) return;
-if (currentStatus != 'PENDING') {
-  return;
-}
-    final String type = request['type'];
-    final double amount = request['amount'];
-final now = DateTime.now();
-    if (type == 'DEPOSIT') {
-      final txnNumber = generateTxnNumber('DEPOSIT');
-      request['txnNumber'] = txnNumber;
-      walletBalance.value += amount;
-      transactionHistory.value = [
-        ...transactionHistory.value,
-        {
-          'title': 'Deposit Approved',
-'subtitle': 'Admin approved deposit request',
-'dateTime':
-    '${now.day.toString().padLeft(2, '0')}/'
-    '${now.month.toString().padLeft(2, '0')}/'
-    '${now.year}  '
-    '${now.hour.toString().padLeft(2, '0')}:'
-    '${now.minute.toString().padLeft(2, '0')}',
-'amount': amount,
-          'txnNumber': txnNumber,
-        },
-      ];
-      ScaffoldMessenger.of(context).showSnackBar(
-  SnackBar(
-    content: Text(
-      'Deposit ₹${amount.toStringAsFixed(0)} approved',
-    ),
-  ),
-);
-      appNotifications.value = [
-  ...appNotifications.value,
-  {
-    'title': 'Deposit Approved',
-    'subtitle':
-        '₹${amount.toStringAsFixed(0)} आपके wallet में add हो गए.',
-    'icon': Icons.account_balance_wallet_outlined,
-  },
-];
-      appNotifications.value = [
-  ...appNotifications.value,
-  {
-    'title': 'Withdraw Approved',
-    'subtitle':
-        '₹${amount.toStringAsFixed(0)} आपके wallet से withdraw हुए.',
-    'icon': Icons.account_balance_wallet_outlined,
-  },
-];
-      hasUnreadNotification.value = true;
-    } else if (type == 'WITHDRAW') {
-      if (amount > walletBalance.value) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Insufficient wallet balance'),
-          ),
-        );
-        return;
-      }
-
-      walletBalance.value -= amount;
-      final txnNumber = generateTxnNumber('WITHDRAW');
-                    transactionHistory.value = [
-        ...transactionHistory.value,
-        {
-          'title': 'Withdraw Approved',
-'subtitle': 'Admin approved withdraw request',
-'dateTime':
-    '${now.day.toString().padLeft(2, '0')}/'
-    '${now.month.toString().padLeft(2, '0')}/'
-    '${now.year}  '
-    '${now.hour.toString().padLeft(2, '0')}:'
-    '${now.minute.toString().padLeft(2, '0')}',
-'amount': -amount,
-          'txnNumber': txnNumber,
-        },
-      ];
-      ScaffoldMessenger.of(context).showSnackBar(
-  SnackBar(
-    content: Text(
-      'Withdraw ₹${amount.toStringAsFixed(0)} approved',
-    ),
-  ),
-);
-      appNotifications.value = [
-  {
-    'title': 'Withdraw Approved',
-    'subtitle':
-        '₹${amount.toStringAsFixed(0)} आपके wallet से withdraw हुए.',
-    'icon': Icons.account_balance_wallet_outlined,
-  },
-  ...appNotifications.value,
-];
-
-hasUnreadNotification.value = true;
-    }
-    
-updated[index] = {
-  ...updated[index],
-  'status': 'APPROVED',
-  'resolvedAt': now,
-  'adminNote': adminNote,
-};
-   
-
-    walletRequests.value = updated;
+  if (index < 0 ||
+      index >= updated.length) {
+    return;
   }
 
-  void rejectRequest(int index) {
-    final updated =
-        List<Map<String, dynamic>>.from(walletRequests.value);
+  final currentStatus =
+      (updated[index]['status'] ??
+              'PENDING')
+          .toString()
+          .toUpperCase();
 
-    updated[index] = {
-  ...updated[index],
-  'status': 'REJECTED',
-  'resolvedAt': DateTime.now(),
-};
+  if (currentStatus != 'PENDING') {
+    return;
+  }
+
+  final noteController =
+      TextEditingController(
+    text: 'Verified payment',
+  );
+
+  final adminNote =
+      await showDialog<String>(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        title:
+            const Text('Admin Note'),
+        content: TextField(
+          controller: noteController,
+          decoration:
+              const InputDecoration(
+            labelText: 'Note',
+            hintText:
+                'Verified payment',
+            border:
+                OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(
+              dialogContext,
+            ),
+            child:
+                const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final note =
+                  noteController.text
+                      .trim();
+
+              Navigator.pop(
+                dialogContext,
+                note.isEmpty
+                    ? 'Verified payment'
+                    : note,
+              );
+            },
+            child:
+                const Text('APPROVE'),
+          ),
+        ],
+      );
+    },
+  );
+
+  noteController.dispose();
+
+  if (adminNote == null) return;
+
+  final type =
+      (request['type'] ?? '')
+          .toString()
+          .trim()
+          .toUpperCase();
+
+  final amount =
+      double.tryParse(
+            (request['amount'] ?? 0)
+                .toString(),
+          ) ??
+          0;
+
+  final userId =
+      (request['userId'] ?? '')
+          .toString()
+          .trim();
+
+  if (userId.isEmpty ||
+      amount <= 0) {
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Request का user data नहीं मिला',
+        ),
+      ),
+    );
+    return;
+  }
+
+  if (type != 'DEPOSIT' &&
+      type != 'WITHDRAW') {
+    return;
+  }
+
+  try {
+    final userRef =
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId);
+
+    final userDoc =
+        await userRef.get();
+
+    final userData =
+        userDoc.data();
+
+    if (userData == null) return;
+
+    final savedBalance =
+        (userData['walletBalance']
+                    as num?)
+                ?.toDouble() ??
+            0;
+
+    if (type == 'WITHDRAW' &&
+        amount > savedBalance) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Insufficient wallet balance',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final rawHistory =
+        userData['transactionHistory'];
+
+    final savedHistory =
+        rawHistory is List
+            ? rawHistory
+                .whereType<Map>()
+                .map(
+                  (e) =>
+                      Map<String,
+                          dynamic>.from(
+                    e,
+                  ),
+                )
+                .toList()
+            : <Map<String,
+                dynamic>>[];
+
+    final rawRequests =
+        userData['walletRequests'];
+
+    final savedRequests =
+        rawRequests is List
+            ? rawRequests
+                .whereType<Map>()
+                .map(
+                  (e) =>
+                      Map<String,
+                          dynamic>.from(
+                    e,
+                  ),
+                )
+                .toList()
+            : <Map<String,
+                dynamic>>[];
+
+    final requestId =
+        (request['requestId'] ?? '')
+            .toString();
+
+    int savedRequestIndex =
+        savedRequests.indexWhere(
+      (item) =>
+          requestId.isNotEmpty &&
+          (item['requestId'] ?? '')
+                  .toString() ==
+              requestId,
+    );
+
+    if (savedRequestIndex == -1) {
+      savedRequestIndex =
+          savedRequests.indexWhere(
+        (item) =>
+            (item['type'] ?? '')
+                    .toString()
+                    .toUpperCase() ==
+                type &&
+            (item['amount'] ?? 0)
+                    .toString() ==
+                amount.toString() &&
+            (item['status'] ?? 'PENDING')
+                    .toString()
+                    .toUpperCase() ==
+                'PENDING',
+      );
+    }
+
+    final now = DateTime.now();
+
+    final txnNumber =
+        type == 'DEPOSIT'
+            ? generateTxnNumber(
+                'DEPOSIT',
+              )
+            : generateTxnNumber(
+                'WITHDRAW',
+              );
+
+    final username =
+        (userData['username'] ??
+                request['username'] ??
+                '')
+            .toString();
+
+    final newBalance =
+        type == 'DEPOSIT'
+            ? savedBalance + amount
+            : savedBalance - amount;
+
+    savedHistory.add({
+      'title': type == 'DEPOSIT'
+          ? 'Deposit Approved'
+          : 'Withdraw Approved',
+      'subtitle': type == 'DEPOSIT'
+          ? 'Admin approved deposit request'
+          : 'Admin approved withdraw request',
+      'description':
+          'Admin approved wallet request',
+      'type': type == 'DEPOSIT'
+          ? 'DEPOSIT'
+          : 'WITHDRAWAL',
+      'amount': type == 'DEPOSIT'
+          ? amount
+          : -amount,
+      'txnNumber': txnNumber,
+      'userId': userId,
+      'username': username,
+      'createdAt': now,
+      'dateTime':
+          '${now.day.toString().padLeft(2, '0')}/'
+          '${now.month.toString().padLeft(2, '0')}/'
+          '${now.year} '
+          '${now.hour.toString().padLeft(2, '0')}:'
+          '${now.minute.toString().padLeft(2, '0')}',
+    });
+
+    final approvedRequest =
+        <String, dynamic>{
+      ...request,
+      'status': 'APPROVED',
+      'resolvedAt': now,
+      'adminNote': adminNote,
+      'txnNumber': txnNumber,
+      'userId': userId,
+      'username': username,
+    };
+
+    if (savedRequestIndex != -1) {
+      savedRequests[
+              savedRequestIndex] =
+          approvedRequest;
+    } else {
+      savedRequests.add(
+        approvedRequest,
+      );
+    }
+
+    await userRef.set(
+      {
+        'walletBalance':
+            newBalance,
+        'transactionHistory':
+            savedHistory,
+        'walletRequests':
+            savedRequests,
+      },
+      SetOptions(merge: true),
+    );
+
+    updated[index] =
+        approvedRequest;
 
     walletRequests.value = updated;
-    final rejected = updated[index];
 
-final type =
-    (rejected['type'] ?? '').toString();
+    if (!context.mounted) return;
 
-final amount =
-    double.tryParse(
-      (rejected['amount'] ?? 0).toString(),
-    ) ??
-    0;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(
+          type == 'DEPOSIT'
+              ? 'Deposit ₹${amount.toStringAsFixed(0)} approved'
+              : 'Withdraw ₹${amount.toStringAsFixed(0)} approved',
+        ),
+      ),
+    );
+  } catch (e) {
+    debugPrint(
+      'Wallet Approve error: $e',
+    );
 
-appNotifications.value = [
-  {
-    'title': type == 'DEPOSIT'
-        ? 'Deposit Rejected'
-        : 'Withdraw Rejected',
-    'subtitle':
-        '₹${amount.toStringAsFixed(0)} ${type.toLowerCase()} request reject कर दी गई।',
-    'icon': Icons.cancel_outlined,
-  },
-  ...appNotifications.value,
-];
+    if (!context.mounted) return;
 
-hasUnreadNotification.value = true;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Request approve नहीं हो पाई',
+        ),
+      ),
+    );
+  }
+  }
+
+  Future<void> rejectRequest(
+  int index,
+) async {
+  final updated =
+      List<Map<String, dynamic>>.from(
+    walletRequests.value,
+  );
+
+  if (index < 0 ||
+      index >= updated.length) {
+    return;
+  }
+
+  final request = updated[index];
+
+  final userId =
+      (request['userId'] ?? '')
+          .toString()
+          .trim();
+
+  if (userId.isEmpty) return;
+
+  try {
+    final userRef =
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId);
+
+    final userDoc =
+        await userRef.get();
+
+    final userData =
+        userDoc.data();
+
+    if (userData == null) return;
+
+    final rawRequests =
+        userData['walletRequests'];
+
+    final savedRequests =
+        rawRequests is List
+            ? rawRequests
+                .whereType<Map>()
+                .map(
+                  (e) =>
+                      Map<String,
+                          dynamic>.from(
+                    e,
+                  ),
+                )
+                .toList()
+            : <Map<String,
+                dynamic>>[];
+
+    final requestId =
+        (request['requestId'] ?? '')
+            .toString();
+
+    int savedIndex =
+        savedRequests.indexWhere(
+      (item) =>
+          requestId.isNotEmpty &&
+          (item['requestId'] ?? '')
+                  .toString() ==
+              requestId,
+    );
+
+    if (savedIndex == -1) {
+      savedIndex =
+          savedRequests.indexWhere(
+        (item) =>
+            (item['type'] ?? '')
+                    .toString() ==
+                (request['type'] ?? '')
+                    .toString() &&
+            (item['amount'] ?? 0)
+                    .toString() ==
+                (request['amount'] ?? 0)
+                    .toString() &&
+            (item['status'] ?? 'PENDING')
+                    .toString()
+                    .toUpperCase() ==
+                'PENDING',
+      );
+    }
+
+    if (savedIndex == -1) return;
+
+    final now = DateTime.now();
+
+    final rejectedRequest =
+        <String, dynamic>{
+      ...savedRequests[savedIndex],
+      'status': 'REJECTED',
+      'resolvedAt': now,
+    };
+
+    savedRequests[savedIndex] =
+        rejectedRequest;
+
+    await userRef.set(
+      {
+        'walletRequests':
+            savedRequests,
+      },
+      SetOptions(merge: true),
+    );
+
+    updated[index] = {
+      ...request,
+      'status': 'REJECTED',
+      'resolvedAt': now,
+    };
+
+    walletRequests.value = updated;
+  } catch (e) {
+    debugPrint(
+      'Wallet Reject error: $e',
+    );
+  }
   }
     @override
   Widget build(BuildContext context) {
@@ -19864,65 +20340,51 @@ Future<void>
     );
   }
 }
+  
   Future<void> reversePayment(
   BuildContext context,
   Map<String, dynamic> item,
 ) async {
-  final updated =
-      List<Map<String, dynamic>>.from(
-    walletRequests.value,
-  );
-
-  final index = updated.indexWhere((request) {
-  final requestType =
-      (request['type'] ?? '').toString().toUpperCase();
-
-  final itemType =
-      (item['type'] ?? '').toString().toUpperCase();
-
-  final requestAmount =
-      double.tryParse(
-        (request['amount'] ?? 0).toString(),
-      ) ??
-      0;
-
-  final itemAmount =
-      double.tryParse(
-        (item['amount'] ?? 0).toString(),
-      ) ??
-      0;
-
-  return requestType == itemType &&
-      requestAmount == itemAmount &&
-      request['resolvedAt'] == item['resolvedAt'];
-});
-
-if (index == -1) return;
-
-  final status =
-      (updated[index]['status'] ?? '')
-          .toString()
-          .toUpperCase();
-
-  if (status != 'APPROVED') return;
-if (updated[index]['isReversed'] == true) return;
   final type =
-      (updated[index]['type'] ?? '')
+      (item['type'] ?? '')
           .toString()
+          .trim()
           .toUpperCase();
 
-  // Reverse sirf Deposit ka hoga
   if (type != 'DEPOSIT') return;
 
+  final userId =
+      (item['userId'] ?? '')
+          .toString()
+          .trim();
+
+  final txnNumber =
+      (item['txnNumber'] ?? '')
+          .toString()
+          .trim();
+
   final amount =
-      double.tryParse(
-        (updated[index]['amount'] ?? 0)
-            .toString(),
-      ) ??
-      0;
-final txnNumber =
-    (updated[index]['txnNumber'] ?? '')
-        .toString();
+      (double.tryParse(
+                (item['amount'] ?? 0)
+                    .toString(),
+              ) ??
+              0)
+          .abs();
+
+  if (userId.isEmpty ||
+      txnNumber.isEmpty ||
+      amount <= 0) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Deposit user/transaction data नहीं मिला',
+        ),
+      ),
+    );
+    return;
+  }
+
   final noteController =
       TextEditingController();
 
@@ -19938,11 +20400,14 @@ final txnNumber =
         content: TextField(
           controller: noteController,
           maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Admin Note / Reason',
+          decoration:
+              const InputDecoration(
+            labelText:
+                'Admin Note / Reason',
             hintText:
                 'Deposit reverse karne ka reason likhiye',
-            border: OutlineInputBorder(),
+            border:
+                OutlineInputBorder(),
           ),
         ),
         actions: [
@@ -19952,14 +20417,14 @@ final txnNumber =
                 dialogContext,
               );
             },
-            child: const Text(
-              'CANCEL',
-            ),
+            child:
+                const Text('CANCEL'),
           ),
           ElevatedButton(
             onPressed: () {
               final note =
-                  noteController.text.trim();
+                  noteController.text
+                      .trim();
 
               if (note.isEmpty) {
                 ScaffoldMessenger.of(
@@ -19979,83 +20444,272 @@ final txnNumber =
                 note,
               );
             },
-            child: const Text(
-              'REVERSE',
-            ),
+            child:
+                const Text('REVERSE'),
           ),
         ],
       );
     },
   );
+
   noteController.dispose();
 
-  // CANCEL kiya to kuch nahi hoga
   if (reverseNote == null) return;
 
-  final now = DateTime.now();
+  try {
+    final userRef =
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId);
 
-  // Deposit ka paisa user wallet se minus hoga
-walletBalance.value -= amount;
+    final userDoc =
+        await userRef.get();
 
-// Original APPROVED request ko bilkul same rehne do.
-// Reverse ke liye alag nayi history entry banao.
-// Original APPROVED entry ko history me rehne do,
-// lekin dobara reverse hone se lock kar do.
-updated[index] = {
-  ...updated[index],
-  'isReversed': true,
-  'reversedAt': now,
-  'reverseNote': reverseNote,
-};
+    final userData =
+        userDoc.data();
 
-// Reverse ki alag entry
-final reversedEntry = <String, dynamic>{
-  ...updated[index],
-  'status': 'REVERSED',
-  'isReverseEntry': true,
-  'reversedAt': now,
-  'reverseNote': reverseNote,
-};
+    if (userData == null) {
+      if (!context.mounted) return;
 
-updated.add(reversedEntry);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'User Firebase में नहीं मिला',
+          ),
+        ),
+      );
+      return;
+    }
 
-walletRequests.value = updated;
+    final currentBalance =
+        (userData['walletBalance']
+                    as num?)
+                ?.toDouble() ??
+            0;
 
-// Nayi REVERSED entry original APPROVED ke baad add hogi.
-// My Requests me newest-first sorting ise upar dikhayegi.
+    final rawHistory =
+        userData['transactionHistory'];
 
+    final updatedHistory =
+        rawHistory is List
+            ? rawHistory
+                .whereType<Map>()
+                .map(
+                  (e) =>
+                      Map<String,
+                          dynamic>.from(
+                    e,
+                  ),
+                )
+                .toList()
+            : <Map<String,
+                dynamic>>[];
 
-walletRequests.value = updated;
+    final alreadyReversed =
+        updatedHistory.any((tx) {
+      final title =
+          (tx['title'] ?? '')
+              .toString()
+              .trim()
+              .toUpperCase();
 
-  // User Transaction History
-  transactionHistory.value = [
-  ...transactionHistory.value,
-  {
-    'title': 'Deposit Reversed',
-        'txnNumber': txnNumber,
-    'subtitle': 'Admin: $reverseNote',
-    'dateTime':
-        '${now.day.toString().padLeft(2, '0')}/'
-        '${now.month.toString().padLeft(2, '0')}/'
-        '${now.year}  '
-        '${now.hour.toString().padLeft(2, '0')}:'
-        '${now.minute.toString().padLeft(2, '0')}',
-    'amount': -amount,
-  },
-];
+      final txNumber =
+          (tx['txnNumber'] ?? '')
+              .toString();
 
-  if (!context.mounted) return;
+      return title ==
+              'DEPOSIT REVERSED' &&
+          txNumber == txnNumber;
+    });
 
-  ScaffoldMessenger.of(context)
-      .showSnackBar(
-    SnackBar(
-      content: Text(
-        '₹${amount.toStringAsFixed(0)} deposit reversed',
+    if (alreadyReversed) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'यह deposit पहले ही reverse हो चुका है',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+
+    final username =
+        (userData['username'] ??
+                item['username'] ??
+                '')
+            .toString();
+
+    final reversedTransaction =
+        <String, dynamic>{
+      'title': 'Deposit Reversed',
+      'subtitle':
+          'Admin: $reverseNote',
+      'description':
+          'Deposit reversed by admin',
+      'type': 'DEPOSIT_REVERSAL',
+      'amount': -amount,
+      'txnNumber': txnNumber,
+      'userId': userId,
+      'username': username,
+      'createdAt': now,
+      'dateTime':
+          '${now.day.toString().padLeft(2, '0')}/'
+          '${now.month.toString().padLeft(2, '0')}/'
+          '${now.year} '
+          '${now.hour.toString().padLeft(2, '0')}:'
+          '${now.minute.toString().padLeft(2, '0')}',
+      'reverseNote': reverseNote,
+    };
+
+    updatedHistory.add(
+      reversedTransaction,
+    );
+
+    final rawRequests =
+        userData['walletRequests'];
+
+    final updatedRequests =
+        rawRequests is List
+            ? rawRequests
+                .whereType<Map>()
+                .map(
+                  (e) =>
+                      Map<String,
+                          dynamic>.from(
+                    e,
+                  ),
+                )
+                .toList()
+            : <Map<String,
+                dynamic>>[];
+
+    final requestIndex =
+        updatedRequests.indexWhere(
+      (request) =>
+          (request['txnNumber'] ?? '')
+              .toString() ==
+          txnNumber,
+    );
+
+    if (requestIndex != -1) {
+      final originalRequest =
+          <String, dynamic>{
+        ...updatedRequests[
+            requestIndex],
+        'isReversed': true,
+        'reversedAt': now,
+        'reverseNote': reverseNote,
+      };
+
+      updatedRequests[requestIndex] =
+          originalRequest;
+
+      updatedRequests.add({
+        ...originalRequest,
+        'status': 'REVERSED',
+        'isReverseEntry': true,
+        'reversedAt': now,
+        'reverseNote': reverseNote,
+      });
+    }
+
+    await userRef.set(
+      {
+        'walletBalance':
+            currentBalance - amount,
+        'transactionHistory':
+            updatedHistory,
+        'walletRequests':
+            updatedRequests,
+      },
+      SetOptions(merge: true),
+    );
+
+    final localRequests =
+        List<Map<String, dynamic>>.from(
+      walletRequests.value,
+    );
+
+    final localIndex =
+        localRequests.indexWhere(
+      (request) =>
+          (request['userId'] ?? '')
+                      .toString() ==
+                  userId &&
+              (request['txnNumber'] ??
+                      '')
+                  .toString() ==
+                  txnNumber &&
+              request['isReverseEntry'] !=
+                  true,
+    );
+
+    if (localIndex != -1) {
+      final originalLocal =
+          <String, dynamic>{
+        ...localRequests[localIndex],
+        'isReversed': true,
+        'reversedAt': now,
+        'reverseNote': reverseNote,
+      };
+
+      localRequests[localIndex] =
+          originalLocal;
+
+      localRequests.add({
+        ...originalLocal,
+        'status': 'REVERSED',
+        'isReverseEntry': true,
+        'reversedAt': now,
+        'reverseNote': reverseNote,
+      });
+
+      walletRequests.value =
+          localRequests;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      adminWalletTransactions = [
+        ...adminWalletTransactions,
+        reversedTransaction,
+      ];
+    });
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(
+          '₹${amount.toStringAsFixed(0)} deposit reversed',
+        ),
       ),
-    ),
-  );
-}
- 
+    );
+  } catch (e) {
+    debugPrint(
+      'Deposit Reverse error: $e',
+    );
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Deposit reverse नहीं हो पाया',
+        ),
+      ),
+    );
+  }
+  }
   
   @override
   Widget build(BuildContext context) {
@@ -20121,20 +20775,8 @@ walletRequests.value = updated;
           List<Map<String, dynamic>>>(
         valueListenable: walletRequests,
         builder: (context, requests, _) {
-          final approved = requests
-    .where(
-      (item) =>
-          (item['status'] ?? '')
-                  .toString()
-                  .toUpperCase() ==
-              'APPROVED' &&
-          item['isReversed'] != true,
-    )
-    .map(
-      (item) =>
-          Map<String, dynamic>.from(item),
-    )
-    .toList();
+          final approved =
+    <Map<String, dynamic>>[];
 
 final reversedTxnNumbers =
     adminWalletTransactions
