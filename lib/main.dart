@@ -634,6 +634,151 @@ final ValueNotifier<List<Map<String, dynamic>>> transactionHistory =
 final ValueNotifier<List<Map<String, dynamic>>> walletRequests =
   
     ValueNotifier<List<Map<String, dynamic>>>([]);
+double _calculateWithdrawableBalance({
+  required double currentWallet,
+  required List<Map<String, dynamic>>
+      history,
+}) {
+  double withdrawable = 0;
+  double bonusBalance = 0;
+
+  for (final tx in history) {
+    final title =
+        (tx['title'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
+
+    final type =
+        (tx['type'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
+
+    final amount =
+        (double.tryParse(
+                  (tx['amount'] ?? 0)
+                      .toString(),
+                ) ??
+                0)
+            .abs();
+
+    final isDepositReversal =
+        type == 'DEPOSIT_REVERSAL' ||
+        title == 'DEPOSIT REVERSED';
+
+    final isDeposit =
+        type == 'DEPOSIT' ||
+        title == 'DEPOSIT APPROVED';
+
+    final isWinning =
+        type == 'WINNING' ||
+        type == 'WIN' ||
+        type == 'PRIZE' ||
+        title.contains('WINNING') ||
+        title.contains('PRIZE');
+
+    final isWithdraw =
+        type == 'WITHDRAW' ||
+        type == 'WITHDRAWAL' ||
+        title == 'WITHDRAW APPROVED';
+
+    final isContestEntry =
+        type == 'ENTRY' ||
+        type == 'CONTEST_ENTRY' ||
+        type == 'ENTRY_FEE' ||
+        title.contains(
+          'CONTEST ENTRY',
+        ) ||
+        title.contains(
+          'ENTRY FEE',
+        );
+
+    final isBonus =
+        type == 'WELCOME_BONUS' ||
+        type == 'USER_BONUS' ||
+        type == 'BONUS' ||
+        title == 'WELCOME BONUS' ||
+        title == 'ADMIN BONUS';
+
+    if (isDepositReversal) {
+      withdrawable =
+          (withdrawable - amount)
+              .clamp(
+                0,
+                double.infinity,
+              )
+              .toDouble();
+      continue;
+    }
+
+    if (isDeposit) {
+      withdrawable += amount;
+      continue;
+    }
+
+    if (isWinning) {
+      withdrawable += amount;
+      continue;
+    }
+
+    if (isWithdraw) {
+      withdrawable =
+          (withdrawable - amount)
+              .clamp(
+                0,
+                double.infinity,
+              )
+              .toDouble();
+      continue;
+    }
+
+    if (isContestEntry) {
+      double remainingEntry =
+          amount;
+
+      if (bonusBalance >=
+          remainingEntry) {
+        bonusBalance -=
+            remainingEntry;
+        remainingEntry = 0;
+      } else {
+        remainingEntry -=
+            bonusBalance;
+        bonusBalance = 0;
+      }
+
+      if (remainingEntry > 0) {
+        withdrawable =
+            (withdrawable -
+                    remainingEntry)
+                .clamp(
+                  0,
+                  double.infinity,
+                )
+                .toDouble();
+      }
+
+      continue;
+    }
+
+    if (isBonus) {
+      bonusBalance += amount;
+    }
+  }
+
+  final safeWallet =
+      currentWallet
+          .clamp(
+            0,
+            double.infinity,
+          )
+          .toDouble();
+
+  return withdrawable < safeWallet
+      ? withdrawable
+      : safeWallet;
+}
 // ============== TRANSACTION NUMBER SYSTEM ==============
 
 int depositTxnSerial = 0;
@@ -13125,7 +13270,8 @@ void showWithdrawRequestDialog(BuildContext context) {
         labelText: 'Amount',
         prefixText: '₹ ',
       
-        helperText: 'न्यूनतम ₹100 - अधिकतम Wallet Balance तक',
+        helperText:
+    'न्यूनतम ₹500 • केवल Deposit + Winning withdraw',
         border: OutlineInputBorder(),
       ),
     ),
@@ -13152,16 +13298,6 @@ void showWithdrawRequestDialog(BuildContext context) {
   foregroundColor: Colors.white,
 ),
           onPressed: () {
-            amountController.text = '100';
-          },
-          child: const Text('₹100'),
-        ),
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-  backgroundColor: Colors.red,
-  foregroundColor: Colors.white,
-),
-          onPressed: () {
             amountController.text = '500';
           },
           child: const Text('₹500'),
@@ -13175,6 +13311,16 @@ void showWithdrawRequestDialog(BuildContext context) {
             amountController.text = '1000';
           },
           child: const Text('₹1000'),
+        ),
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+  backgroundColor: Colors.red,
+  foregroundColor: Colors.white,
+),
+          onPressed: () {
+            amountController.text = '2000';
+          },
+          child: const Text('₹2000'),
         ),
       ],
     ),
@@ -13196,11 +13342,11 @@ void showWithdrawRequestDialog(BuildContext context) {
               final double? amount =
                   double.tryParse(amountController.text);
 
-               if (amount == null || amount < 100) {
+               if (amount == null || amount < 500) {
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(
       content: Text(
-        'न्यूनतम Withdrawal ₹100 है',
+        'न्यूनतम Withdrawal ₹500 है',
       ),
     ),
   );
@@ -13230,16 +13376,29 @@ void showWithdrawRequestDialog(BuildContext context) {
       (double.tryParse(value?.toString() ?? '0') ?? 0.0);
 });
 
+final double withdrawableBeforePending =
+    _calculateWithdrawableBalance(
+  currentWallet:
+      walletBalance.value,
+  history:
+      transactionHistory.value,
+);
+
 final double availableBalance =
-    (walletBalance.value - pendingWithdrawTotal)
-        .clamp(0, double.infinity)
+    (withdrawableBeforePending -
+            pendingWithdrawTotal)
+        .clamp(
+          0,
+          double.infinity,
+        )
         .toDouble();
 
 if (amount > availableBalance) {
-  ScaffoldMessenger.of(context).showSnackBar(
+  ScaffoldMessenger.of(context)
+      .showSnackBar(
     SnackBar(
       content: Text(
-        'Insufficient balance • Available ₹${availableBalance.toStringAsFixed(0)}',
+        'Bonus direct withdraw नहीं होगा • Available ₹${availableBalance.toStringAsFixed(0)}',
       ),
     ),
   );
@@ -17167,7 +17326,26 @@ if (adminNote == null) return;
                 .toList()
             : <Map<String,
                 dynamic>>[];
+final double withdrawableBalance =
+    _calculateWithdrawableBalance(
+  currentWallet: savedBalance,
+  history: savedHistory,
+);
 
+if (type == 'WITHDRAW' &&
+    amount > withdrawableBalance) {
+  if (!context.mounted) return;
+
+  ScaffoldMessenger.of(context)
+      .showSnackBar(
+    SnackBar(
+      content: Text(
+        'Bonus direct withdraw नहीं होगा • Available ₹${withdrawableBalance.toStringAsFixed(0)}',
+      ),
+    ),
+  );
+  return;
+}
     final rawRequests =
         userData['walletRequests'];
 
@@ -17978,7 +18156,7 @@ Map<String, dynamic> _calculateUserStats(
               ? Colors.white
               : const Color(0xFF555555),
           fontWeight: FontWeight.w700,
-          fontSize: 12,
+          fontSize: 12,fontWeight: FontWeight.w700,
         ),
         side: BorderSide(
           color: selected
@@ -17993,73 +18171,74 @@ Map<String, dynamic> _calculateUserStats(
     );
   }
 Widget _smallStat({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Container(
-      width: 116,
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 9,
-        vertical: 8,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white
-            .withOpacity(0.72),
-        borderRadius:
-            BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            color: color,
-            size: 18,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(
-                    fontSize: 9.5,
-                    color:
-                        Color(0xFF666666),
-                    fontWeight:
-                        FontWeight.w600,
+  required IconData icon,
+  required String label,
+  required String value,
+  required Color color,
+}) {
+  return Container(
+    width: 103,
+    padding:
+        const EdgeInsets.symmetric(
+      horizontal: 6,
+      vertical: 5,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.white
+          .withOpacity(0.72),
+      borderRadius:
+          BorderRadius.circular(10),
+    ),
+    child: Row(
+      children: [
+        Icon(
+          icon,
+          color: color,
+          size: 15,
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow:
+                    TextOverflow.ellipsis,
+                style:
+                    const TextStyle(
+                  fontSize: 8.5,
+                  color: Color(
+                    0xFF666666,
+                  ),
+                  fontWeight:
+                      FontWeight.w600,
+                ),
+              ),
+              Text(
+                value,
+                maxLines: 1,
+                overflow:
+                    TextOverflow.ellipsis,
+                style:
+                    const TextStyle(
+                  fontSize: 11,
+                  fontWeight:
+                      FontWeight.bold,
+                  color: Color(
+                    0xFF252525,
                   ),
                 ),
-                const SizedBox(height: 1),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(
-                    fontSize: 12,
-                    fontWeight:
-                        FontWeight.bold,
-                    color:
-                        Color(0xFF252525),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   Color _cardColor(int rank) {
     if (rank == 1) {
@@ -18449,9 +18628,9 @@ const Text(
 
             return Container(
               margin:
-                  const EdgeInsets.only(
-                bottom: 13,
-              ),
+    const EdgeInsets.only(
+  bottom: 7,
+),
               decoration: BoxDecoration(
                 color: _cardColor(rank),
                 borderRadius:
@@ -18499,17 +18678,17 @@ child: Material(
                     );
                   },
                   child: Padding(
-                    padding:
-                        const EdgeInsets.all(
-                      14,
-                    ),
+                   padding:
+    const EdgeInsets.all(
+  10,
+),
                     child: Column(
                       children: [
                         Row(
                           children: [
                             Container(
-                              width: 48,
-                              height: 48,
+                              width: 40,
+                              height: 40,
                               decoration:
                                   BoxDecoration(
                                 color:
@@ -18627,12 +18806,12 @@ const SizedBox(
                         ),
 
                         const SizedBox(
-                          height: 13,
-                        ),
+  height: 8,
+),
 
-                        Wrap(
-                          spacing: 7,
-                          runSpacing: 7,
+Wrap(
+  spacing: 5,
+  runSpacing: 5,
                           children: [
                             _smallStat(
                               icon: Icons
@@ -19393,111 +19572,69 @@ if (rawActivities is List) {
                 color = Colors.orange;
               }
 
-              return Container(
-                margin:
-                    const EdgeInsets.only(
-                  bottom: 9,
-                ),
-                padding:
-                    const EdgeInsets.all(
-                  13,
-                ),
-                decoration:
-                    BoxDecoration(
-                  color: Colors.white,
-                  borderRadius:
-                      BorderRadius.circular(
-                    16,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color:
-                          Colors.black
-                              .withOpacity(
-                        0.04,
-                      ),
-                      blurRadius: 8,
-                      offset:
-                          const Offset(
-                        0,
-                        3,
-                      ),
-                    ),
-                  ],
-                ),
-  child: Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration:
-                          BoxDecoration(
-                        color: color
-                            .withOpacity(
-                          0.11,
-                        ),
-                        shape:
-                            BoxShape.circle,
-                      ),
-                      child: Icon(
-                        icon,
-                        color: color,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(
-                      width: 11,
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
-                        children: [
-                          Text(
-                            title,
-                            style:
-                                const TextStyle(
-                              fontSize: 14,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(
-                            height: 3,
-                          ),
-                          Text(
-                            (item['dateTime'] ??
-                                    item['resolvedAt'] ??
-                                    item['requestedAt'] ??
-                                    '')
-                                .toString(),
-                            style:
-                                const TextStyle(
-                              fontSize: 11,
-                              color:
-                                  Color(
-                                0xFF777777,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-  Text(
-                      '${isOut ? '-' : '+'}₹${amount.toStringAsFixed(0)}',
-                      style: TextStyle(
-                        fontWeight:
-                            FontWeight.bold,
-                        fontSize: 14,
-                        color: isOut
-                            ? Colors.red
-                            : Colors.green,
-                      ),
-                    ),
-                  ],
-                ),
-              );
+              return Card(
+  margin: const EdgeInsets.only(
+    bottom: 5,
+  ),
+  elevation: 0.5,
+  child: ListTile(
+    dense: true,
+    visualDensity: const VisualDensity(
+      vertical: -3,
+    ),
+    contentPadding:
+        const EdgeInsets.symmetric(
+      horizontal: 9,
+      vertical: 0,
+    ),
+    leading: CircleAvatar(
+      radius: 15,
+      backgroundColor:
+          color.withOpacity(0.11),
+      child: Icon(
+        icon,
+        color: color,
+        size: 17,
+      ),
+    ),
+    title: Text(
+      title,
+      maxLines: 1,
+      overflow:
+          TextOverflow.ellipsis,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+    subtitle: Text(
+      (item['dateTime'] ??
+              item['resolvedAt'] ??
+              item['requestedAt'] ??
+              '')
+          .toString(),
+      maxLines: 1,
+      overflow:
+          TextOverflow.ellipsis,
+      style: const TextStyle(
+        fontSize: 10,
+        color: Color(0xFF777777),
+      ),
+    ),
+    trailing: Text(
+      '${isOut ? '-' : '+'}₹${amount.toStringAsFixed(0)}',
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.bold,
+        color: isOut
+            ? Colors.red
+            : Colors.green,
+      ),
+    ),
+  ),
+);
+                    
+                  
             },
           ),
         ],
@@ -20529,82 +20666,117 @@ final txnNumber =
             }
 
             return Card(
-              margin:
-                  const EdgeInsets.only(
-                bottom: 10,
-              ),
-              child: Padding(
-                padding:
-                    const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const CircleAvatar(
-                          backgroundColor:
-                              Colors.purple,
-                          child: Icon(
-                            Icons.card_giftcard,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            (item['username'] ?? '@CricNovaPlay').toString(),
-                            style:
-                                const TextStyle(
-                              fontSize: 16,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '+₹${amount.toStringAsFixed(0)}',
-                          style:
-                              const TextStyle(
-                            fontSize: 18,
-                            fontWeight:
-                                FontWeight.bold,
-                            color: Colors.green,
-                          ),
-                        ),
-                      ],
-                    ),
-if (txnNumber.isNotEmpty)
-  Padding(
-    padding: const EdgeInsets.only(top: 8),
-    child: Text(
-      txnNumber,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.bold,
-        color: Colors.purple,
-      ),
-    ),
+  margin: const EdgeInsets.only(
+    bottom: 6,
   ),
-                    const SizedBox(height: 10),
-
-                Text(
-  '📝 Reason: ${(item['note'] ?? 'Admin reward bonus').toString()}',
-),
-
-                    if (dateText.isNotEmpty)
-                      Text(
-                        '⏰ $dateText',
-                      ),
-
-                    Text(
-  'Wallet: ₹${((item['balanceBefore'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)}'
-  ' → ₹${((item['balanceAfter'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)}',
-),
-                  ],
+  child: Padding(
+    padding:
+        const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 7,
+    ),
+    child: Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const CircleAvatar(
+              radius: 15,
+              backgroundColor:
+                  Colors.purple,
+              child: Icon(
+                Icons.card_giftcard,
+                size: 17,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                (item['username'] ??
+                        '@CricNovaPlay')
+                    .toString(),
+                maxLines: 1,
+                overflow:
+                    TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight:
+                      FontWeight.bold,
                 ),
               ),
-            );
+            ),
+            Text(
+              '+₹${amount.toStringAsFixed(0)}',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight:
+                    FontWeight.bold,
+                color: Colors.green,
+              ),
+            ),
+          ],
+        ),
+        if (txnNumber.isNotEmpty)
+          Padding(
+            padding:
+                const EdgeInsets.only(
+              top: 3,
+            ),
+            child: Text(
+              txnNumber,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight:
+                    FontWeight.bold,
+                color: Colors.purple,
+              ),
+            ),
+          ),
+        const SizedBox(height: 3),
+        Text(
+          '📝 ${(item['note'] ?? 'Admin reward bonus').toString()}',
+          maxLines: 1,
+          overflow:
+              TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 11,
+          ),
+        ),
+        Row(
+          children: [
+            if (dateText.isNotEmpty)
+              Expanded(
+                child: Text(
+                  '⏰ $dateText',
+                  maxLines: 1,
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            Text(
+              '₹${((item['balanceBefore'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)}'
+              ' → ₹${((item['balanceAfter'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)}',
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight:
+                    FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+);
+
+
+                        
           }),
       ],
     );
@@ -21466,41 +21638,64 @@ for (final item in filtered) {
   }
 }
 }
-          
 
-            Widget filterButton(
+         Widget filterButton(
   String text,
   String value,
 ) {
-  final selected = selectedFilter == value;
+  final selected =
+      selectedFilter == value;
 
   return Padding(
-    padding: const EdgeInsets.only(right: 8),
+    padding: const EdgeInsets.only(
+      right: 6,
+    ),
     child: SizedBox(
-      width: 125,
+      width: 106,
+      height: 40,
       child: ElevatedButton(
         onPressed: () {
           setState(() {
             selectedFilter = value;
           });
         },
-        style: ElevatedButton.styleFrom(
+        style:
+            ElevatedButton.styleFrom(
           backgroundColor:
-              selected ? Colors.pink : Colors.white,
+              selected
+                  ? Colors.pink
+                  : Colors.white,
           foregroundColor:
-              selected ? Colors.white : Colors.black87,
+              selected
+                  ? Colors.white
+                  : Colors.black87,
           elevation: selected ? 2 : 0,
+          padding:
+              const EdgeInsets.symmetric(
+            horizontal: 5,
+          ),
           side: BorderSide(
             color: selected
                 ? Colors.pink
                 : Colors.grey.shade300,
           ),
         ),
-        child: Text(text),
+        child: Text(
+          text,
+          maxLines: 1,
+          softWrap: false,
+          overflow:
+              TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 12.5,
+            fontWeight:
+                FontWeight.w600,
+          ),
+        ),
       ),
     ),
   );
-}
+         } 
 
 Widget bonusFilterButton(
   String text,
@@ -21886,107 +22081,139 @@ final selected = selectedHours == hours;
                       type == 'DEPOSIT';
 
                   return Card(
-                    margin:
-                        const EdgeInsets.only(
-                      bottom: 12,
-                    ),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor:
-                            isDeposit
-                                ? Colors.green
-                                    .shade50
-                                : Colors.red
-                                    .shade50,
-                        child: Icon(
-                          isDeposit
-                              ? Icons
-                                  .arrow_downward
-                              : Icons
-                                  .arrow_upward,
-                          color: isDeposit
-                              ? Colors.green
-                              : Colors.red,
-                        ),
-                      ),
-                      title: Text(
-  type == 'DEPOSIT'
-      ? 'Deposit'
-      : type == 'WITHDRAWAL'
-          ? 'Withdrawal'
-          : type == 'BONUS'
-              ? ((item['bonusType'] ?? '').toString().toUpperCase() ==
-                      'WELCOME_BONUS'
-                  ? 'Welcome Bonus 🎁'
-                  : (item['bonusType'] ?? '').toString().toUpperCase() ==
-                          'USER_BONUS'
-                      ? 'User Reward Bonus 🎁'
-                      : 'Bonus 🎁')
-              : type,
-                        style:
-                            const TextStyle(
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-                      subtitle: Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    const Text('APPROVED'),
-    const SizedBox(height: 4),
-    if (item['resolvedAt'] is DateTime)
-      Text(
-        'Approved: '
-        '${(item['resolvedAt'] as DateTime).day.toString().padLeft(2, '0')}/'
-        '${(item['resolvedAt'] as DateTime).month.toString().padLeft(2, '0')}/'
-        '${(item['resolvedAt'] as DateTime).year}  '
-        '${(item['resolvedAt'] as DateTime).hour.toString().padLeft(2, '0')}:'
-        '${(item['resolvedAt'] as DateTime).minute.toString().padLeft(2, '0')}',
-        style: const TextStyle(
-          fontSize: 13,
-        ),
+  margin: const EdgeInsets.only(
+    bottom: 6,
+  ),
+  child: ListTile(
+    dense: true,
+    visualDensity: const VisualDensity(
+      vertical: -3,
+    ),
+    minLeadingWidth: 32,
+    contentPadding:
+        const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 0,
+    ),
+    leading: CircleAvatar(
+      radius: 16,
+      backgroundColor:
+          type == 'BONUS'
+              ? Colors.purple.shade50
+              : isDeposit
+                  ? Colors.green.shade50
+                  : Colors.red.shade50,
+      child: Icon(
+        type == 'BONUS'
+            ? Icons.card_giftcard
+            : isDeposit
+                ? Icons.arrow_downward
+                : Icons.arrow_upward,
+        size: 17,
+        color: type == 'BONUS'
+            ? Colors.purple
+            : isDeposit
+                ? Colors.green
+                : Colors.red,
       ),
-  ],
-),
-                      trailing: Column(
-  mainAxisSize: MainAxisSize.min,
-  crossAxisAlignment: CrossAxisAlignment.end,
-  children: [
-    Text(
-      '₹${amount.toStringAsFixed(0)}',
+    ),
+    title: Text(
+      type == 'DEPOSIT'
+          ? 'Deposit'
+          : type == 'WITHDRAWAL'
+              ? 'Withdrawal'
+              : type == 'BONUS'
+                  ? ((item['bonusType'] ?? '')
+                              .toString()
+                              .toUpperCase() ==
+                          'WELCOME_BONUS'
+                      ? 'Welcome Bonus 🎁'
+                      : (item['bonusType'] ?? '')
+                                  .toString()
+                                  .toUpperCase() ==
+                              'USER_BONUS'
+                          ? 'User Reward Bonus 🎁'
+                          : 'Bonus 🎁')
+                  : type,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       style: const TextStyle(
-        fontSize: 18,
+        fontSize: 14,
         fontWeight: FontWeight.bold,
       ),
     ),
-    
-    
-    if (isDeposit)
-  TextButton(
-    style: TextButton.styleFrom(
-      padding: EdgeInsets.zero,
-      minimumSize: Size.zero,
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    ),
-    onPressed: () {
-      reversePayment(
-        context,
-        item,
-      );
-    },
-    child: const Text(
-      '◀ REVERSE',
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        color: Colors.red,
+    subtitle:
+        item['resolvedAt'] is DateTime
+            ? Text(
+                'APPROVED • '
+                '${(item['resolvedAt'] as DateTime).day.toString().padLeft(2, '0')}/'
+                '${(item['resolvedAt'] as DateTime).month.toString().padLeft(2, '0')}/'
+                '${(item['resolvedAt'] as DateTime).year} '
+                '${(item['resolvedAt'] as DateTime).hour.toString().padLeft(2, '0')}:'
+                '${(item['resolvedAt'] as DateTime).minute.toString().padLeft(2, '0')}',
+                maxLines: 1,
+                overflow:
+                    TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                ),
+              )
+            : const Text(
+                'APPROVED',
+                style: TextStyle(
+                  fontSize: 10.5,
+                ),
+              ),
+    trailing: SizedBox(
+      width: 72,
+      child: Column(
+        mainAxisSize:
+            MainAxisSize.min,
+        crossAxisAlignment:
+            CrossAxisAlignment.end,
+        children: [
+          Text(
+            '₹${amount.toStringAsFixed(0)}',
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight:
+                  FontWeight.bold,
+            ),
+          ),
+          if (isDeposit)
+            TextButton(
+              style:
+                  TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: Size.zero,
+                tapTargetSize:
+                    MaterialTapTargetSize
+                        .shrinkWrap,
+              ),
+              onPressed: () {
+                reversePayment(
+                  context,
+                  item,
+                );
+              },
+              child: const Text(
+                '◀ REVERSE',
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight:
+                      FontWeight.bold,
+                  color: Colors.red,
+                ),
+              ),
+            ),
+        ],
       ),
     ),
   ),
-  ],
-),
-                    ),
-                  );
+);
+    
+    
+      
                 }),
             ],
           );
