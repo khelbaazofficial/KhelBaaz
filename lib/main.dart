@@ -16898,7 +16898,91 @@ class UserActivityPage extends StatefulWidget {
 class _UserActivityPageState
     extends State<UserActivityPage> {
   int selectedDays = 7;
+List<Map<String, dynamic>> activityUsers = [];
 
+@override
+void initState() {
+  super.initState();
+  _loadActivityUsers();
+}
+
+Future<void> _loadActivityUsers() async {
+  try {
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .get();
+
+    final loadedUsers = snapshot.docs
+        .where((doc) {
+          final data = doc.data();
+
+          final role =
+              (data['role'] ?? 'USER')
+                  .toString()
+                  .trim()
+                  .toUpperCase();
+
+          return role != 'ADMIN';
+        })
+        .map((doc) {
+          final data =
+              Map<String, dynamic>.from(
+            doc.data(),
+          );
+
+          data['id'] = doc.id;
+
+          data['name'] =
+              (data['playerName'] ??
+                      data['name'] ??
+                      data['username'] ??
+                      'User')
+                  .toString();
+
+          final rawHistory =
+              data['transactionHistory'];
+
+          if (rawHistory is List) {
+            data['transactionHistory'] =
+                rawHistory
+                    .whereType<Map>()
+                    .map((raw) {
+              final item =
+                  Map<String, dynamic>.from(
+                raw,
+              );
+
+              final createdAt =
+                  item['createdAt'];
+
+              if (createdAt is Timestamp) {
+                item['createdAt'] =
+                    createdAt.toDate();
+              }
+
+              return item;
+            }).toList();
+          } else {
+            data['transactionHistory'] =
+                <Map<String, dynamic>>[];
+          }
+
+          return data;
+        })
+        .toList();
+
+    if (!mounted) return;
+
+    setState(() {
+      activityUsers = loadedUsers;
+    });
+  } catch (e) {
+    debugPrint(
+      'User Activity load error: $e',
+    );
+  }
+}
   
   final List<Map<String, dynamic>> filters = const [
     {
@@ -16952,7 +17036,9 @@ class _UserActivityPageState
     if (value is DateTime) {
       return value;
     }
-
+if (value is Timestamp) {
+  return value.toDate();
+}
     final text = value.toString().trim();
 
     if (text.isEmpty) {
@@ -17054,166 +17140,105 @@ final match = RegExp(
     return appUsers.value.length <= 1;
   }
 Map<String, dynamic> _calculateUserStats(
-    Map<String, dynamic> user,
-  ) {
-    int contestsJoined = 0;
+  Map<String, dynamic> user,
+) {
+  int contestsJoined = 0;
 
-    double totalEntry = 0;
-    double totalWinning = 0;
-    double totalDeposits = 0;
-    double totalWithdrawals = 0;
-    double totalBonus = 0;
+  double totalEntry = 0;
+  double totalWinning = 0;
+  double totalDeposits = 0;
+  double totalWithdrawals = 0;
+  double totalBonus = 0;
 
-    for (final raw in transactionHistory.value) {
-  final item =
-      Map<String, dynamic>.from(raw);
+  final rawHistory =
+      user['transactionHistory'];
 
-  if (!_belongsToUser(item, user)) {
-    continue;
-  }
+  final List<Map<String, dynamic>>
+      userHistory = rawHistory is List
+          ? rawHistory
+              .whereType<Map>()
+              .map(
+                (e) =>
+                    Map<String, dynamic>.from(e),
+              )
+              .toList()
+          : [];
 
-  if (!_insideSelectedDays(item)) {
-    continue;
-  }
+  for (final item in userHistory) {
+    if (!_insideSelectedDays(item)) {
+      continue;
+    }
 
-  final title =
-      (item['title'] ?? '')
-          .toString()
-          .toUpperCase();
+    final title =
+        (item['title'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
 
-  final type =
-      (item['type'] ?? '')
-          .toString()
-          .toUpperCase();
+    final type =
+        (item['type'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
 
-  final isContestEntry =
-      type == 'ENTRY' ||
-      type == 'CONTEST_ENTRY' ||
-      title == 'CONTEST ENTRY' ||
-      title.contains('ENTRY FEE');
-
-  if (isContestEntry) {
-    contestsJoined++;
-
-    totalEntry +=
+    final amount =
         _toDouble(item['amount']).abs();
+
+    final isContestEntry =
+        type == 'ENTRY' ||
+        type == 'CONTEST_ENTRY' ||
+        title == 'CONTEST ENTRY' ||
+        title.contains('ENTRY FEE');
+
+    if (isContestEntry) {
+      contestsJoined++;
+      totalEntry += amount;
+    }
+
+    if (type == 'WINNING' ||
+        type == 'WIN' ||
+        title == 'WINNING' ||
+        title == 'WINNING ENTRY') {
+      totalWinning += amount;
+    }
+
+    if (type == 'WELCOME_BONUS' ||
+        type == 'USER_BONUS' ||
+        title == 'WELCOME BONUS' ||
+        title == 'ADMIN BONUS') {
+      totalBonus += amount;
+    }
+
+    if (title == 'DEPOSIT APPROVED') {
+      totalDeposits += amount;
+    }
+
+    if (title == 'DEPOSIT REVERSED') {
+      totalDeposits -= amount;
+    }
+
+    if (title == 'WITHDRAW APPROVED') {
+      totalWithdrawals += amount;
+    }
   }
+
+  final currentWallet = _toDouble(
+    user['walletBalance'] ??
+        user['wallet'] ??
+        user['balance'],
+  );
+
+  return {
+    'user': user,
+    'wallet': currentWallet,
+    'contestsJoined': contestsJoined,
+    'winning': totalWinning,
+    'totalEntry': totalEntry,
+    'deposits': totalDeposits,
+    'withdrawals': totalWithdrawals,
+    'bonus': totalBonus,
+  };
 }
-
-    for (final raw in walletRequests.value) {
-      final item =
-          Map<String, dynamic>.from(raw);
-
-      if (!_belongsToUser(item, user)) {
-        continue;
-      }
-
-      if (!_insideSelectedDays(item)) {
-        continue;
-      }
-
-      final status =
-          (item['status'] ?? '')
-              .toString()
-              .toUpperCase();
-
-      final type =
-          (item['type'] ?? '')
-              .toString()
-              .toUpperCase();
-
-      final amount =
-    _toDouble(item['amount']).abs();
-
-      if (status == 'APPROVED' &&
-          type == 'DEPOSIT') {
-        totalDeposits += amount;
-      }
-      if (status == 'REVERSED' &&
-    type == 'DEPOSIT') {
-  totalDeposits -= amount;
-}
-
-      if (status == 'APPROVED' &&
-          (type == 'WITHDRAW' ||
-              type == 'WITHDRAWAL')) {
-        totalWithdrawals += amount;
-      }
-    }
-for (final raw in bonusHistory.value) {
-      final item =
-          Map<String, dynamic>.from(raw);
-
-      if (!_belongsToUser(item, user)) {
-        continue;
-      }
-
-      if (!_insideSelectedDays(item)) {
-        continue;
-      }
-
-      totalBonus +=
-          _toDouble(item['amount']);
-    }
-
-    for (final raw
-        in transactionHistory.value) {
-      final item =
-          Map<String, dynamic>.from(raw);
-
-      if (!_belongsToUser(item, user)) {
-        continue;
-      }
-
-      if (!_insideSelectedDays(item)) {
-        continue;
-      }
-
-      final title =
-          (item['title'] ?? '')
-              .toString()
-              .toUpperCase();
-final type =
-    (item['type'] ?? '')
-        .toString()
-        .toUpperCase();
-
-if (type == 'WELCOME_BONUS' ||
-    title == 'WELCOME BONUS') {
-  totalBonus +=
-      _toDouble(item['amount']);
-}
-      if (title == 'WINNING' ||
-          title == 'WINNING ENTRY') {
-        totalWinning +=
-            _toDouble(item['amount']);
-      }
-    }
-
-    double currentWallet = 0;
-
-    if (appUsers.value.length <= 1) {
-      currentWallet =
-          walletBalance.value.toDouble();
-    } else {
-      currentWallet = _toDouble(
-        user['walletBalance'] ??
-            user['wallet'] ??
-            user['balance'],
-      );
-    }
-
-    return {
-      'user': user,
-      'wallet': currentWallet,
-      'contestsJoined': contestsJoined,
-      'winning': totalWinning,
-      'totalEntry': totalEntry,
-      'deposits': totalDeposits,
-      'withdrawals': totalWithdrawals,
-      'bonus': totalBonus,
-    };
-  }
 
   Widget _filterChip(
     String label,
@@ -17374,12 +17399,12 @@ Widget _smallStat({
 @override
   Widget build(BuildContext context) {
     final List<Map<String, dynamic>>
-        users = appUsers.value
-            .map(
-              (e) =>
-                  Map<String, dynamic>.from(e),
-            )
-            .toList();
+    users = activityUsers
+        .map(
+          (e) =>
+              Map<String, dynamic>.from(e),
+        )
+        .toList();
 
     final List<Map<String, dynamic>>
         rankedUsers = users
@@ -18276,21 +18301,22 @@ Widget _detailBox({
     final List<Map<String, dynamic>>
         activities = [];
 
-    for (final raw
-        in transactionHistory.value) {
-      final item =
-          Map<String, dynamic>.from(raw);
+    final rawActivities =
+    user['transactionHistory'];
 
-      if (!_belongsToUser(item)) {
-        continue;
-      }
+if (rawActivities is List) {
+  for (final raw
+      in rawActivities.whereType<Map>()) {
+    final item =
+        Map<String, dynamic>.from(raw);
 
-      if (!_insidePeriod(item)) {
-        continue;
-      }
-
-      activities.add(item);
+    if (!_insidePeriod(item)) {
+      continue;
     }
+
+    activities.add(item);
+  }
+}
 
     activities.sort((a, b) {
       final da = _getDate(a);
