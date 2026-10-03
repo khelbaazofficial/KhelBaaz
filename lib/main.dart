@@ -1088,7 +1088,7 @@ final ValueNotifier<bool> hasUnreadNotification =
     ValueNotifier<bool>(false);
 final ValueNotifier<List<Map<String, dynamic>>> appNotifications =
     ValueNotifier<List<Map<String, dynamic>>>([]);
-Future<void> addWalletRequest({
+Future<bool> addWalletRequest({
   required String type,
   required double amount,
   String? screenshot,
@@ -1096,7 +1096,7 @@ Future<void> addWalletRequest({
   final user =
       FirebaseAuth.instance.currentUser;
 
-  if (user == null) return;
+  if (user == null) return false;
 
   try {
     final userRef =
@@ -1110,7 +1110,7 @@ Future<void> addWalletRequest({
     final data =
         userDoc.data();
 
-    if (data == null) return;
+    if (data == null) return false;
 
     final role =
         (data['role'] ?? 'USER')
@@ -1118,7 +1118,9 @@ Future<void> addWalletRequest({
             .trim()
             .toUpperCase();
 
-    if (role == 'ADMIN') return;
+    if (role == 'ADMIN') {
+      return false;
+    }
 
     final rawRequests =
         data['walletRequests'];
@@ -1138,6 +1140,25 @@ Future<void> addWalletRequest({
             : <Map<String,
                 dynamic>>[];
 
+    // पुराने resolved requests की
+    // screenshots दोबारा Firebase में
+    // जमा नहीं रखनी हैं।
+    for (final oldRequest
+        in savedRequests) {
+      final oldStatus =
+          (oldRequest['status'] ??
+                  'PENDING')
+              .toString()
+              .trim()
+              .toUpperCase();
+
+      if (oldStatus != 'PENDING') {
+        oldRequest.remove(
+          'screenshot',
+        );
+      }
+    }
+
     final now = DateTime.now();
 
     final requestId =
@@ -1155,7 +1176,9 @@ Future<void> addWalletRequest({
       'amount': amount,
       'status': 'PENDING',
       'createdAt': now,
-      'screenshot': screenshot,
+      if (screenshot != null &&
+          screenshot.trim().isNotEmpty)
+        'screenshot': screenshot,
     };
 
     savedRequests.add(
@@ -1171,13 +1194,21 @@ Future<void> addWalletRequest({
     );
 
     walletRequests.value =
-        savedRequests;
+        _storedMapList(
+      savedRequests,
+    );
+
+    return true;
   } catch (e) {
     debugPrint(
       'Wallet Request save error: $e',
     );
+
+    return false;
   }
 }
+    
+
 
 Future<void> giveWelcomeBonusIfNeeded() async {
   final user = FirebaseAuth.instance.currentUser;
@@ -13338,7 +13369,7 @@ void showWithdrawRequestDialog(BuildContext context) {
   backgroundColor: Colors.red,
   foregroundColor: Colors.white,
 ),
-            onPressed: () {
+                        onPressed: () async {
               final double? amount =
                   double.tryParse(amountController.text);
 
@@ -13405,16 +13436,36 @@ if (amount > availableBalance) {
   return;
 }
 
-              addWalletRequest(
+                            final saved =
+                  await addWalletRequest(
                 type: 'WITHDRAW',
                 amount: amount,
               );
 
+              if (!context.mounted) {
+                return;
+              }
+
+              if (!saved) {
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Withdraw request save नहीं हुई • फिर कोशिश करें',
+                    ),
+                  ),
+                );
+                return;
+              }
+
               Navigator.pop(context);
 
-              ScaffoldMessenger.of(context).showSnackBar(
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(
                 const SnackBar(
-                  content: Text('Withdraw request sent'),
+                  content: Text(
+                    'Withdraw request sent',
+                  ),
                 ),
               );
             },
@@ -17031,10 +17082,37 @@ class AdminWalletRequestsPage
 class _AdminWalletRequestsPageState
     extends State<
         AdminWalletRequestsPage> {
+    StreamSubscription<
+          QuerySnapshot<
+              Map<String, dynamic>>>?
+      _walletRequestsSubscription;
+
   @override
   void initState() {
     super.initState();
+
     _loadWalletRequests();
+
+    _walletRequestsSubscription =
+        FirebaseFirestore.instance
+            .collection('users')
+            .snapshots()
+            .listen(
+      (_) {
+        _loadWalletRequests();
+      },
+      onError: (error) {
+        debugPrint(
+          'Admin wallet requests realtime error: $error',
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _walletRequestsSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void>
