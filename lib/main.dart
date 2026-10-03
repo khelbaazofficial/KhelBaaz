@@ -19744,7 +19744,126 @@ class _AdminWalletPageState
    String selectedFilter = 'ALL';
 int selectedHours = 24;
  String selectedBonusFilter = 'ALL_BONUS';
-  
+  List<Map<String, dynamic>>
+    adminWalletTransactions = [];
+
+@override
+void initState() {
+  super.initState();
+  _loadAdminWalletTransactions();
+}
+
+DateTime? _adminWalletDate(dynamic value) {
+  if (value is DateTime) {
+    return value;
+  }
+
+  if (value is Timestamp) {
+    return value.toDate();
+  }
+
+  if (value == null) {
+    return null;
+  }
+
+  final text = value.toString().trim();
+
+  final normal =
+      DateTime.tryParse(text);
+
+  if (normal != null) {
+    return normal;
+  }
+
+  final match = RegExp(
+    r'^(\d{1,2})/(\d{1,2})/(\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?',
+  ).firstMatch(text);
+
+  if (match == null) {
+    return null;
+  }
+
+  return DateTime(
+    int.tryParse(match.group(3) ?? '') ??
+        2000,
+    int.tryParse(match.group(2) ?? '') ??
+        1,
+    int.tryParse(match.group(1) ?? '') ??
+        1,
+    int.tryParse(match.group(4) ?? '') ??
+        0,
+    int.tryParse(match.group(5) ?? '') ??
+        0,
+  );
+}
+
+Future<void>
+    _loadAdminWalletTransactions() async {
+  try {
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .get();
+
+    final loaded =
+        <Map<String, dynamic>>[];
+
+    for (final doc in snapshot.docs) {
+      final user =
+          Map<String, dynamic>.from(
+        doc.data(),
+      );
+
+      final role =
+          (user['role'] ?? 'USER')
+              .toString()
+              .trim()
+              .toUpperCase();
+
+      if (role == 'ADMIN') {
+        continue;
+      }
+
+      final rawHistory =
+          user['transactionHistory'];
+
+      if (rawHistory is! List) {
+        continue;
+      }
+
+      for (final raw
+          in rawHistory.whereType<Map>()) {
+        final item =
+            Map<String, dynamic>.from(raw);
+
+        item['userId'] ??= doc.id;
+        item['username'] ??=
+            user['username'];
+
+        final createdAt =
+            item['createdAt'];
+
+        if (createdAt is Timestamp) {
+          item['createdAt'] =
+              createdAt.toDate();
+        }
+
+        loaded.add(item);
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      adminWalletTransactions =
+          loaded;
+    });
+  } catch (e) {
+    debugPrint(
+      'Admin Wallet load error: $e',
+    );
+  }
+}
   Future<void> reversePayment(
   BuildContext context,
   Map<String, dynamic> item,
@@ -20017,47 +20136,126 @@ walletRequests.value = updated;
     )
     .toList();
 
-for (final bonus in bonusHistory.value) {
-  approved.add({
-    ...bonus,
-    'bonusType':
-        (bonus['type'] ?? 'USER_BONUS')
-            .toString()
-            .toUpperCase(),
-    'type': 'BONUS',
-    'status': 'APPROVED',
-    'resolvedAt': bonus['createdAt'],
-  });
-}
-for (final tx in transactionHistory.value) {
+final reversedTxnNumbers =
+    adminWalletTransactions
+        .where((tx) {
+          final title =
+              (tx['title'] ?? '')
+                  .toString()
+                  .trim()
+                  .toUpperCase();
+
+          return title ==
+              'DEPOSIT REVERSED';
+        })
+        .map(
+          (tx) =>
+              (tx['txnNumber'] ?? '')
+                  .toString(),
+        )
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+for (final tx in adminWalletTransactions) {
   final title =
       (tx['title'] ?? '')
           .toString()
+          .trim()
           .toUpperCase();
 
-  if (title == 'WELCOME BONUS') {
-    approved.add({
-      ...tx,
-      'bonusType': 'WELCOME_BONUS',
-      'type': 'BONUS',
-      'status': 'APPROVED',
-      'resolvedAt': (() {
-  final rawDate =
-      tx['createdAt'] ??
-      tx['dateTimeValue'] ??
-      tx['date'];
+  final type =
+      (tx['type'] ?? '')
+          .toString()
+          .trim()
+          .toUpperCase();
 
-  if (rawDate is DateTime) {
-    return rawDate;
+  final txnNumber =
+      (tx['txnNumber'] ?? '')
+          .toString();
+
+  final amount =
+      double.tryParse(
+        (tx['amount'] ?? 0).toString(),
+      ) ??
+      0;
+
+  final resolvedAt =
+      _adminWalletDate(
+        tx['createdAt'] ??
+            tx['resolvedAt'] ??
+            tx['dateTimeValue'] ??
+            tx['dateTime'] ??
+            tx['date'],
+      );
+
+  if (resolvedAt == null) {
+    continue;
   }
 
-  return DateTime.tryParse(
-    rawDate?.toString() ?? '',
-  );
-})(),
+  if (title == 'DEPOSIT REVERSED') {
+    continue;
+  }
+
+  if (title == 'DEPOSIT APPROVED' ||
+      type == 'DEPOSIT') {
+    if (txnNumber.isNotEmpty &&
+        reversedTxnNumbers
+            .contains(txnNumber)) {
+      continue;
+    }
+
+    approved.add({
+      ...tx,
+      'type': 'DEPOSIT',
+      'status': 'APPROVED',
+      'amount': amount.abs(),
+      'resolvedAt': resolvedAt,
+    });
+
+    continue;
+  }
+
+  if (title == 'WITHDRAW APPROVED' ||
+      type == 'WITHDRAW' ||
+      type == 'WITHDRAWAL') {
+    approved.add({
+      ...tx,
+      'type': 'WITHDRAWAL',
+      'status': 'APPROVED',
+      'amount': amount.abs(),
+      'resolvedAt': resolvedAt,
+    });
+
+    continue;
+  }
+
+  if (title == 'WELCOME BONUS' ||
+      type == 'WELCOME_BONUS') {
+    approved.add({
+      ...tx,
+      'type': 'BONUS',
+      'bonusType': 'WELCOME_BONUS',
+      'status': 'APPROVED',
+      'amount': amount.abs(),
+      'resolvedAt': resolvedAt,
+    });
+
+    continue;
+  }
+
+  if (title == 'ADMIN BONUS' ||
+      type == 'USER_BONUS') {
+    approved.add({
+      ...tx,
+      'type': 'BONUS',
+      'bonusType': 'USER_BONUS',
+      'status': 'APPROVED',
+      'amount': amount.abs(),
+      'resolvedAt': resolvedAt,
     });
   }
 }
+
           approved.sort((a, b) {
             final aTime = a['resolvedAt'];
             final bTime = b['resolvedAt'];
@@ -20727,15 +20925,126 @@ class WalletSummaryPage extends StatefulWidget {
 
 class _WalletSummaryPageState extends State<WalletSummaryPage> {
   int selectedDays = 30;
+List<Map<String, dynamic>> summaryUsers = [];
 
-  DateTime? _readDate(dynamic value) {
-    if (value is DateTime) return value;
+@override
+void initState() {
+  super.initState();
+  _loadSummaryUsers();
+}
 
-    if (value is String) {
-      return DateTime.tryParse(value);
+Future<void> _loadSummaryUsers() async {
+  try {
+    final snapshot =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .get();
+
+    final loadedUsers =
+        <Map<String, dynamic>>[];
+
+    for (final doc in snapshot.docs) {
+      final data =
+          Map<String, dynamic>.from(
+        doc.data(),
+      );
+
+      final role =
+          (data['role'] ?? 'USER')
+              .toString()
+              .trim()
+              .toUpperCase();
+
+      if (role == 'ADMIN') {
+        continue;
+      }
+
+      data['id'] = doc.id;
+
+      final rawHistory =
+          data['transactionHistory'];
+
+      if (rawHistory is List) {
+        data['transactionHistory'] =
+            rawHistory
+                .whereType<Map>()
+                .map((raw) {
+          final item =
+              Map<String, dynamic>.from(
+            raw,
+          );
+
+          final createdAt =
+              item['createdAt'];
+
+          if (createdAt is Timestamp) {
+            item['createdAt'] =
+                createdAt.toDate();
+          }
+
+          return item;
+        }).toList();
+      } else {
+        data['transactionHistory'] =
+            <Map<String, dynamic>>[];
+      }
+
+      loadedUsers.add(data);
     }
 
+    if (!mounted) return;
+
+    setState(() {
+      summaryUsers = loadedUsers;
+    });
+  } catch (e) {
+    debugPrint(
+      'Wallet Summary load error: $e',
+    );
+  }
+}
+  DateTime? _readDate(dynamic value) {
+  if (value is DateTime) {
+    return value;
+  }
+
+  if (value is Timestamp) {
+    return value.toDate();
+  }
+
+  if (value == null) {
     return null;
+  }
+
+  final text = value.toString().trim();
+
+  final normal =
+      DateTime.tryParse(text);
+
+  if (normal != null) {
+    return normal;
+  }
+
+  final match = RegExp(
+    r'^(\d{1,2})/(\d{1,2})/(\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?',
+  ).firstMatch(text);
+
+  if (match == null) {
+    return null;
+  }
+
+  return DateTime(
+    int.tryParse(match.group(3) ?? '') ??
+        2000,
+    int.tryParse(match.group(2) ?? '') ??
+        1,
+    int.tryParse(match.group(1) ?? '') ??
+        1,
+    int.tryParse(match.group(4) ?? '') ??
+        0,
+    int.tryParse(match.group(5) ?? '') ??
+        0,
+  );
   }
 
   bool _insideSelectedDays(DateTime? date) {
@@ -20777,11 +21086,43 @@ class _WalletSummaryPageState extends State<WalletSummaryPage> {
 
       body: ValueListenableBuilder<double>(
         valueListenable: walletBalance,
-        builder: (context, userWallet, _) {
+        builder: (context, _ignoredWallet, _) {
           return ValueListenableBuilder<
               List<Map<String, dynamic>>>(
             valueListenable: transactionHistory,
-            builder: (context, history, _) {
+            builder: (context, _ignoredHistory, _) {
+  final double userWallet =
+      summaryUsers.fold<double>(
+    0,
+    (sum, user) =>
+        sum +
+        _amount(
+          user['walletBalance'] ??
+              user['wallet'] ??
+              user['balance'],
+        ),
+  );
+
+  final List<Map<String, dynamic>>
+      history = [];
+
+  for (final user in summaryUsers) {
+    final rawHistory =
+        user['transactionHistory'];
+
+    if (rawHistory is List) {
+      history.addAll(
+        rawHistory
+            .whereType<Map>()
+            .map(
+              (item) =>
+                  Map<String, dynamic>.from(
+                item,
+              ),
+            ),
+      );
+    }
+  }
               double contestEntry = 0;
               double winning = 0;
 
