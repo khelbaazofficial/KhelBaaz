@@ -10896,6 +10896,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   fontSize: 16,
                 ),
               ),
+              const SizedBox(height: 5),
+Text(
+  FirebaseAuth.instance.currentUser?.email ?? '',
+  style: const TextStyle(
+    fontSize: 14,
+  ),
+),
             ],
           ),
         ),
