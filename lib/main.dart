@@ -10,7 +10,23 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp();
+try {
+  final bonusDoc = await FirebaseFirestore.instance
+      .collection('settings')
+      .doc('welcome_bonus')
+      .get();
 
+  if (bonusDoc.exists) {
+    final data = bonusDoc.data();
+    final savedAmount = (data?['amount'] as num?)?.toDouble();
+
+    if (savedAmount != null) {
+      welcomeBonusAmount.value = savedAmount;
+    }
+  }
+} catch (e) {
+  debugPrint('Welcome Bonus load error: $e');
+}
   runApp(const FantasyApp());
 }
 
@@ -763,46 +779,96 @@ void addWalletRequest({
   walletRequests.value = updated;
 }
 
-void giveWelcomeBonusIfNeeded() {
-  if (welcomeBonusClaimed.value) return;
+Future<void> giveWelcomeBonusIfNeeded() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
 
-  final double amount = welcomeBonusAmount.value;
+  try {
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
 
-  // Admin ने Welcome Bonus ₹0 रखा है तो bonus नहीं देना
-  if (amount <= 0) {
+    final userDoc = await userRef.get();
+    final data = userDoc.data();
+
+    if (data == null) return;
+
+    // Admin को Welcome Bonus नहीं देना
+    final role =
+        (data['role'] ?? 'USER').toString().trim().toUpperCase();
+
+    if (role == 'ADMIN') return;
+
+    // Firebase में पहले से saved wallet load करो
+    final double savedBalance =
+        (data['walletBalance'] as num?)?.toDouble() ?? 0;
+
+    walletBalance.value = savedBalance;
+
+    // यह user पहले Welcome Bonus ले चुका है
+    if (data['welcomeBonusClaimed'] == true) {
+      welcomeBonusClaimed.value = true;
+      return;
+    }
+
+    final double amount = welcomeBonusAmount.value;
+
+    if (amount <= 0) {
+      await userRef.set(
+        {
+          'welcomeBonusClaimed': true,
+        },
+        SetOptions(merge: true),
+      );
+
+      welcomeBonusClaimed.value = true;
+      return;
+    }
+
+    final String txnNumber =
+        generateTxnNumber('WELCOME_BONUS');
+
+    final now = DateTime.now();
+
+    final updatedHistory =
+        List<Map<String, dynamic>>.from(
+      transactionHistory.value,
+    );
+
+    updatedHistory.add({
+      'title': 'Welcome Bonus',
+      'subtitle': 'Wallet Balance Bonus',
+      'description': 'Welcome Bonus added to wallet',
+      'amount': amount,
+      'type': 'WELCOME_BONUS',
+      'txnNumber': txnNumber,
+      'createdAt': now,
+      'dateTime':
+          '${now.day.toString().padLeft(2, '0')}/'
+          '${now.month.toString().padLeft(2, '0')}/'
+          '${now.year} '
+          '${now.hour.toString().padLeft(2, '0')}:'
+          '${now.minute.toString().padLeft(2, '0')}',
+    });
+
+    final double newBalance = savedBalance + amount;
+
+    await userRef.set(
+      {
+        'walletBalance': newBalance,
+        'welcomeBonusClaimed': true,
+        'welcomeBonusAmount': amount,
+        'transactionHistory': updatedHistory,
+      },
+      SetOptions(merge: true),
+    );
+
+    walletBalance.value = newBalance;
+    transactionHistory.value = updatedHistory;
     welcomeBonusClaimed.value = true;
-    return;
+  } catch (e) {
+    debugPrint('Welcome Bonus error: $e');
   }
-
-  final String txnNumber = generateTxnNumber('WELCOME_BONUS');
-  final double oldBalance = walletBalance.value;
-
-  walletBalance.value = oldBalance + amount;
-
-  final updatedHistory =
-      List<Map<String, dynamic>>.from(transactionHistory.value);
-
-  final now = DateTime.now();
-
-updatedHistory.add({
-  'title': 'Welcome Bonus',
-  'subtitle': 'Wallet Balance Bonus',
-  'description': 'Welcome Bonus added to wallet',
-  'amount': amount,
-  'type': 'WELCOME_BONUS',
-  'txnNumber': txnNumber,
-  'createdAt': now,
-  'dateTime':
-      '${now.day.toString().padLeft(2, '0')}/'
-      '${now.month.toString().padLeft(2, '0')}/'
-      '${now.year} '
-      '${now.hour.toString().padLeft(2, '0')}:'
-      '${now.minute.toString().padLeft(2, '0')}',
-});
-
-  transactionHistory.value = updatedHistory;
-
-  welcomeBonusClaimed.value = true;
 }
 
 final ValueNotifier<bool> authNavigationBlocked =
@@ -971,6 +1037,7 @@ final lookupData = lookupDoc.data();
         );
         return;
       }
+      await giveWelcomeBonusIfNeeded();
     }
 // Successful login के बाद कुछ navigate नहीं करना.
     // FantasyApp का authStateChanges अपने-आप MainPage खोलेगा.
@@ -18899,42 +18966,55 @@ const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      final newAmount =
-                          double.tryParse(
-                        amountController.text
-                            .trim(),
-                      );
+                    onPressed: () async {
+  final newAmount = double.tryParse(
+    amountController.text.trim(),
+  );
 
-                      if (newAmount == null ||
-                          newAmount < 0) {
-                        ScaffoldMessenger.of(
-                                context)
-                            .showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Valid bonus amount enter करें',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
+  if (newAmount == null || newAmount < 0) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Valid bonus amount enter करें',
+        ),
+      ),
+    );
+    return;
+  }
 
-                      welcomeBonusAmount.value =
-                          newAmount;
+  try {
+    await FirebaseFirestore.instance
+        .collection('settings')
+        .doc('welcome_bonus')
+        .set({
+      'amount': newAmount,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
-                      amountController.clear();
+    welcomeBonusAmount.value = newAmount;
+    amountController.clear();
 
-                      ScaffoldMessenger.of(
-                              context)
-                          .showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Welcome Bonus ₹${newAmount.toStringAsFixed(0)} set हो गया',
-                          ),
-                        ),
-                      );
-                    },
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Welcome Bonus ₹${newAmount.toStringAsFixed(0)} saved',
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Welcome Bonus save नहीं हुआ: $e',
+        ),
+      ),
+    );
+  }
+},
                     icon: const Icon(
                       Icons.save,
                     ),
@@ -18965,7 +19045,39 @@ class _GiveUserBonusPageState
     extends State<GiveUserBonusPage> {
 
   String? selectedBonusUsername;
+  String? selectedBonusUserId;
 String userSearchText = '';
+  List<Map<String, dynamic>> bonusSearchUsers = [];
+
+  Future<void> _loadBonusSearchUsers() async {
+  final snapshot =
+      await FirebaseFirestore.instance.collection('users').get();
+
+  final loadedUsers = snapshot.docs
+      .where((doc) {
+        final data = doc.data();
+        final role =
+            (data['role'] ?? 'USER').toString().toUpperCase();
+        return role != 'ADMIN';
+      })
+      .map((doc) {
+        final data = Map<String, dynamic>.from(doc.data());
+        data['id'] = doc.id;
+        return data;
+      })
+      .toList();
+
+  if (!mounted) return;
+
+  setState(() {
+    bonusSearchUsers = loadedUsers;
+  });
+  }
+  @override
+void initState() {
+  super.initState();
+  _loadBonusSearchUsers();
+}
   @override
   Widget build(BuildContext context) {
     final TextEditingController amountController =
@@ -19058,7 +19170,7 @@ String userSearchText = '';
 
       const SizedBox(height: 10),
 if (userSearchText.isNotEmpty)
-  ...appUsers.value.where((user) {
+  ...bonusSearchUsers.where((user) {
     final name =
         (user['name'] ?? '').toString().toLowerCase();
 
@@ -19093,8 +19205,10 @@ if (userSearchText.isNotEmpty)
         ),
         onTap: () {
           setState(() {
+            
             selectedBonusUsername = username;
-            userSearchText = '';
+selectedBonusUserId = (user['id'] ?? '').toString();
+userSearchText = '';
           });
         },
       ),
@@ -19155,6 +19269,7 @@ if (userSearchText.isNotEmpty)
           onPressed: () {
             setState(() {
               selectedBonusUsername = null;
+              selectedBonusUserId = null;
             });
           },
           icon: const Icon(Icons.close),
@@ -19194,7 +19309,7 @@ TextField(
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
+                onPressed: () async {
                   final amount = double.tryParse(
                     amountController.text.trim(),
                   );
@@ -19227,14 +19342,42 @@ final note =
     noteController.text.trim().isEmpty
         ? 'Admin reward bonus'
         : noteController.text.trim();
+final lookupUsername =
+    selectedBonusUsername!
+        .trim()
+        .replaceFirst('@', '')
+        .toLowerCase();
+
+final userQuery = await FirebaseFirestore.instance
+    .collection('users')
+    .where('username', isEqualTo: lookupUsername)
+    .limit(1)
+    .get();
+
+if (userQuery.docs.isEmpty) {
+  if (!context.mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Selected user Firebase में नहीं मिला'),
+    ),
+  );
+  return;
+}
+
+final selectedUserDoc = userQuery.docs.first;
+final selectedUserRef = selectedUserDoc.reference;
+final selectedUserData = selectedUserDoc.data();
+
+selectedBonusUserId = selectedUserDoc.id;
 
 final double balanceBefore =
-    walletBalance.value;
+    (selectedUserData['walletBalance'] as num?)
+            ?.toDouble() ??
+        0;
 
 final double balanceAfter =
     balanceBefore + amount;
-
-walletBalance.value = balanceAfter;
 
 final bonusList =
     List<Map<String, dynamic>>.from(
@@ -19242,6 +19385,37 @@ final bonusList =
 );
 final txnNumber =
     generateTxnNumber('BONUS');
+                  final selectedUserHistory =
+    List<Map<String, dynamic>>.from(
+  ((selectedUserData['transactionHistory'] as List?) ?? [])
+      .map(
+        (item) => Map<String, dynamic>.from(item as Map),
+      ),
+);
+
+selectedUserHistory.add({
+  'title': 'Admin Bonus',
+  'txnNumber': txnNumber,
+  'subtitle': note,
+  'description': 'Admin reward bonus added to wallet',
+  'amount': amount,
+  'type': 'USER_BONUS',
+  'createdAt': now,
+  'dateTime':
+      '${now.day.toString().padLeft(2, '0')}/'
+      '${now.month.toString().padLeft(2, '0')}/'
+      '${now.year} '
+      '${now.hour.toString().padLeft(2, '0')}:'
+      '${now.minute.toString().padLeft(2, '0')}',
+});
+
+await selectedUserRef.set(
+  {
+    'walletBalance': balanceAfter,
+    'transactionHistory': selectedUserHistory,
+  },
+  SetOptions(merge: true),
+);
 bonusList.add({
   'type': 'USER_BONUS',
   'txnNumber': txnNumber,
@@ -19254,23 +19428,21 @@ bonusList.add({
 });
 
 bonusHistory.value = bonusList;
-
-                  transactionHistory.value = [
-                    ...transactionHistory.value,
-                    {
-                      'title': 'Admin Bonus',
-                      'txnNumber': txnNumber,
-                      'subtitle': note,
-                      'dateTime':
-                          '${now.day.toString().padLeft(2, '0')}/'
-                          '${now.month.toString().padLeft(2, '0')}/'
-                          '${now.year}  '
-                          '${now.hour.toString().padLeft(2, '0')}:'
-                          '${now.minute.toString().padLeft(2, '0')}',
-                      'amount': amount,
-                    },
-                  ];
-
+                  
+await FirebaseFirestore.instance
+    .collection('admin_bonus_history')
+    .doc(txnNumber)
+    .set({
+  'type': 'USER_BONUS',
+  'txnNumber': txnNumber,
+  'userId': selectedBonusUserId,
+  'username': selectedBonusUsername,
+  'amount': amount,
+  'note': note,
+  'balanceBefore': balanceBefore,
+  'balanceAfter': balanceAfter,
+  'createdAt': FieldValue.serverTimestamp(),
+});
                   amountController.clear();
                   noteController.clear();
 
