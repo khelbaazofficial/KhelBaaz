@@ -18156,7 +18156,7 @@ Map<String, dynamic> _calculateUserStats(
               ? Colors.white
               : const Color(0xFF555555),
           fontWeight: FontWeight.w700,
-          fontSize: 12,fontWeight: FontWeight.w700,
+          fontSize: 12,
         ),
         side: BorderSide(
           color: selected
