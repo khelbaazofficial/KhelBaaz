@@ -18270,42 +18270,37 @@ Widget _smallStat({
   required Color color,
 }) {
   return Container(
-    width: 103,
-    padding:
-        const EdgeInsets.symmetric(
-      horizontal: 6,
-      vertical: 5,
+    width: 72,
+    padding: const EdgeInsets.symmetric(
+      horizontal: 4,
+      vertical: 3,
     ),
     decoration: BoxDecoration(
-      color: Colors.white
-          .withOpacity(0.72),
-      borderRadius:
-          BorderRadius.circular(10),
+      color: Colors.white.withOpacity(0.72),
+      borderRadius: BorderRadius.circular(8),
     ),
     child: Row(
       children: [
         Icon(
           icon,
           color: color,
-          size: 15,
+          size: 13,
         ),
-        const SizedBox(width: 4),
+        const SizedBox(width: 3),
         Expanded(
           child: Column(
             crossAxisAlignment:
                 CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 label,
                 maxLines: 1,
                 overflow:
                     TextOverflow.ellipsis,
-                style:
-                    const TextStyle(
-                  fontSize: 8.5,
-                  color: Color(
-                    0xFF666666,
-                  ),
+                style: const TextStyle(
+                  fontSize: 7.8,
+                  color: Color(0xFF666666),
                   fontWeight:
                       FontWeight.w600,
                 ),
@@ -18315,14 +18310,11 @@ Widget _smallStat({
                 maxLines: 1,
                 overflow:
                     TextOverflow.ellipsis,
-                style:
-                    const TextStyle(
-                  fontSize: 11,
+                style: const TextStyle(
+                  fontSize: 10,
                   fontWeight:
                       FontWeight.bold,
-                  color: Color(
-                    0xFF252525,
-                  ),
+                  color: Color(0xFF252525),
                 ),
               ),
             ],
@@ -18332,6 +18324,8 @@ Widget _smallStat({
     ),
   );
 }
+  
+                
 
   Color _cardColor(int rank) {
     if (rank == 1) {
@@ -22180,8 +22174,8 @@ final selected = selectedHours == hours;
   child: ListTile(
     dense: true,
     visualDensity: const VisualDensity(
-      vertical: -3,
-    ),
+  vertical: -1,
+),
     minLeadingWidth: 32,
     contentPadding:
         const EdgeInsets.symmetric(
