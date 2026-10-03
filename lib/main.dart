@@ -13719,34 +13719,49 @@ Center(
     borderRadius: BorderRadius.circular(24),
   ),
 ),
-  onPressed: () {
-    if (selectedPaymentScreenshot.value == null) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text(
-        'पहले payment screenshot upload करें',
-      ),
-    ),
-  );
-  return;
-}
-
-addWalletRequest(
-  type: 'DEPOSIT',
-  amount: amount,
-  screenshot: selectedPaymentScreenshot.value,
-);
-
+  onPressed: () async {
+  if (selectedPaymentScreenshot.value == null) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      const SnackBar(
         content: Text(
-          '₹${amount.toStringAsFixed(0)} deposit request sent to admin',
+          'पहले payment screenshot upload करें',
         ),
       ),
     );
+    return;
+  }
 
-    Navigator.pop(context);
-  },
+  final saved = await addWalletRequest(
+    type: 'DEPOSIT',
+    amount: amount,
+    screenshot: selectedPaymentScreenshot.value,
+  );
+
+  if (!context.mounted) return;
+
+  if (!saved) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Deposit request save नहीं हुई • फिर कोशिश करें',
+        ),
+      ),
+    );
+    return;
+  }
+
+  selectedPaymentScreenshot.value = null;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        '₹${amount.toStringAsFixed(0)} deposit request sent to admin',
+      ),
+    ),
+  );
+
+  Navigator.pop(context);
+},
   icon: const Icon(Icons.check),
   label: const Text('SUBMIT PAYMENT'),
           ),
