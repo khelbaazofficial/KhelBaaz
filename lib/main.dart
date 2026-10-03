@@ -19085,10 +19085,35 @@ String userSearchText = '';
     bonusSearchUsers = loadedUsers;
   });
   }
+  Future<void> _loadBonusHistory() async {
+  try {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('admin_bonus_history')
+        .get();
+
+    final loadedHistory = snapshot.docs.map((doc) {
+      final data =
+          Map<String, dynamic>.from(doc.data());
+
+      final createdAt = data['createdAt'];
+
+      if (createdAt is Timestamp) {
+        data['createdAt'] = createdAt.toDate();
+      }
+
+      return data;
+    }).toList();
+
+    bonusHistory.value = loadedHistory;
+  } catch (e) {
+    debugPrint('Bonus History load error: $e');
+  }
+  }
   @override
 void initState() {
   super.initState();
   _loadBonusSearchUsers();
+  _loadBonusHistory();
 }
   @override
   Widget build(BuildContext context) {
