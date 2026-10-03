@@ -10,6 +10,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp();
+  startDepositSettingsListener();
 try {
   final bonusDoc = await FirebaseFirestore.instance
       .collection('settings')
@@ -715,8 +716,16 @@ String generateTxnNumber(String type) {
   final dd =
       now.day.toString().padLeft(2, '0');
 
-  final serialText =
-      serial.toString().padLeft(5, '0');
+  final secondsOfDay =
+    (now.hour * 3600) +
+        (now.minute * 60) +
+        now.second;
+
+final serialText =
+    ((secondsOfDay + serial) %
+            100000)
+        .toString()
+        .padLeft(5, '0');
 
   return '$prefix-$yy$mm$dd-$serialText';
 }
@@ -735,16 +744,190 @@ final ValueNotifier<String?> depositPaymentImage =
     ValueNotifier<String?>(null);
 
 final ValueNotifier<String?> selectedPaymentScreenshot =
-    ValueNotifier<String?>(null);
+   ValueNotifier<String?>(null);
+StreamSubscription<
+        DocumentSnapshot<
+            Map<String, dynamic>>>?
+    _depositSettingsSubscription;
+
+StreamSubscription<
+        DocumentSnapshot<
+            Map<String, dynamic>>>?
+    _userDataSubscription;
+
+List<Map<String, dynamic>>
+    _storedMapList(dynamic raw) {
+  if (raw is! List) {
+    return <Map<String, dynamic>>[];
+  }
+
+  return raw.whereType<Map>().map(
+    (rawItem) {
+      final item =
+          Map<String, dynamic>.from(
+        rawItem,
+      );
+
+      for (final key in [
+        'createdAt',
+        'resolvedAt',
+        'reversedAt',
+      ]) {
+        final value = item[key];
+
+        if (value is Timestamp) {
+          item[key] =
+              value.toDate();
+        }
+      }
+
+      return item;
+    },
+  ).toList();
+}
+
+Widget buildStoredImage(
+  String image, {
+  BoxFit fit = BoxFit.contain,
+}) {
+  try {
+    final cleanImage =
+        image.contains(',')
+            ? image.split(',').last
+            : image;
+
+    final bytes =
+        base64Decode(cleanImage);
+
+    return Image.memory(
+      bytes,
+      fit: fit,
+    );
+  } catch (e) {
+    return const Center(
+      child: Text(
+        'Image load नहीं हुई',
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+}
+
+void startDepositSettingsListener() {
+  _depositSettingsSubscription
+      ?.cancel();
+
+  _depositSettingsSubscription =
+      FirebaseFirestore.instance
+          .collection('settings')
+          .doc('deposit_settings')
+          .snapshots()
+          .listen(
+    (snapshot) {
+      final data = snapshot.data();
+
+      if (data == null) return;
+
+      final paymentText =
+          (data['paymentText'] ?? '')
+              .toString()
+              .trim();
+
+      final warningText =
+          (data['warningText'] ?? '')
+              .toString()
+              .trim();
+
+      final paymentImage =
+          (data['paymentImage'] ?? '')
+              .toString()
+              .trim();
+
+      if (paymentText.isNotEmpty) {
+        depositPaymentText.value =
+            paymentText;
+      }
+
+      if (warningText.isNotEmpty) {
+        depositWarningText.value =
+            warningText;
+      }
+
+      depositPaymentImage.value =
+          paymentImage.isEmpty
+              ? null
+              : paymentImage;
+    },
+    onError: (error) {
+      debugPrint(
+        'Deposit settings listener error: $error',
+      );
+    },
+  );
+}
+
+void startUserDataListener(
+  String uid,
+) {
+  _userDataSubscription?.cancel();
+
+  _userDataSubscription =
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .snapshots()
+          .listen(
+    (snapshot) {
+      final data = snapshot.data();
+
+      if (data == null) return;
+
+      final role =
+          (data['role'] ?? 'USER')
+              .toString()
+              .trim()
+              .toUpperCase();
+
+      if (role == 'ADMIN') return;
+
+      walletBalance.value =
+          (data['walletBalance']
+                      as num?)
+                  ?.toDouble() ??
+              0;
+
+      transactionHistory.value =
+          _storedMapList(
+        data['transactionHistory'],
+      );
+
+      walletRequests.value =
+          _storedMapList(
+        data['walletRequests'],
+      );
+
+      welcomeBonusClaimed.value =
+          data['welcomeBonusClaimed'] ==
+              true;
+    },
+    onError: (error) {
+      debugPrint(
+        'User realtime listener error: $error',
+      );
+    },
+  );
+}
 Future<void> pickImageFromGallery(
   ValueNotifier<String?> target,
 ) async {
   final picker = ImagePicker();
 
-  final image = await picker.pickImage(
-    source: ImageSource.gallery,
-    imageQuality: 70,
-  );
+  final image =
+    await picker.pickImage(
+  source: ImageSource.gallery,
+  maxWidth: 1200,
+  imageQuality: 60,
+);
 
   if (image == null) return;
 
@@ -870,7 +1053,7 @@ Future<void> giveWelcomeBonusIfNeeded() async {
         (data['role'] ?? 'USER').toString().trim().toUpperCase();
 
     if (role == 'ADMIN') return;
-
+startUserDataListener(user.uid);
     // Firebase में पहले से saved wallet load करो
     final double savedBalance =
         (data['walletBalance'] as num?)?.toDouble() ?? 0;
@@ -12693,7 +12876,11 @@ final requestedText = requestedAt == null
       '${requestedAt.hour.toString().padLeft(2, '0')}:'
       '${requestedAt.minute.toString().padLeft(2, '0')}';
               
-final rawResolved = r['resolvedAt'];
+final rawResolved =
+    status.toUpperCase() == 'REVERSED'
+        ? (r['reversedAt'] ??
+            r['resolvedAt'])
+        : r['resolvedAt'];
 
 DateTime? resolvedAt;
 if (rawResolved is DateTime) {
@@ -13164,7 +13351,7 @@ class DepositPaymentPage extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.qr_code_2,
-                      size: 100,
+                      size: 88,
                       color: Colors.black87,
                     ),
                     SizedBox(height: 10),
@@ -13176,10 +13363,10 @@ class DepositPaymentPage extends StatelessWidget {
                 )
               : ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    image,
-                    fit: BoxFit.contain,
-                  ),
+                  child: buildStoredImage(
+  image,
+  fit: BoxFit.contain,
+),
                 ),
         ),
       ),
@@ -13270,18 +13457,41 @@ ElevatedButton.icon(
   ),
 ),
           ValueListenableBuilder<String?>(
-  valueListenable: selectedPaymentScreenshot,
-  builder: (context, screenshot, _) {
+  valueListenable:
+      selectedPaymentScreenshot,
+  builder:
+      (context, screenshot, _) {
     if (screenshot == null) {
-      return const SizedBox.shrink();
+      return const SizedBox
+          .shrink();
     }
 
-    return Container(
-      height: 180,
-      margin: const EdgeInsets.only(top: 12),
-      child: Image.network(
-        screenshot,
-        fit: BoxFit.contain,
+    return Padding(
+      padding:
+          const EdgeInsets.only(
+        top: 12,
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    PaymentScreenshotPage(
+                  screenshot:
+                      screenshot,
+                ),
+              ),
+            );
+          },
+          icon:
+              const Icon(Icons.image),
+          label: const Text(
+            'VIEW PAYMENT SCREENSHOT',
+          ),
+        ),
       ),
     );
   },
@@ -16784,62 +16994,88 @@ class _AdminWalletRequestsPageState
     return;
   }
 
-  final noteController =
-      TextEditingController(
-    text: 'Verified payment',
-  );
+  String adminNoteText =
+    'Verified payment';
 
-  final adminNote =
-      await showDialog<String>(
-    context: context,
-    builder: (dialogContext) {
-      return AlertDialog(
-        title:
-            const Text('Admin Note'),
-        content: TextField(
-          controller: noteController,
-          decoration:
-              const InputDecoration(
-            labelText: 'Note',
-            hintText:
-                'Verified payment',
-            border:
-                OutlineInputBorder(),
-          ),
+final adminNote =
+    await showDialog<String>(
+  context: context,
+  builder: (dialogContext) {
+    return AlertDialog(
+      title:
+          const Text('Admin Note'),
+      content: TextFormField(
+        initialValue:
+            'Verified payment',
+        onChanged: (value) {
+          adminNoteText = value;
+        },
+        decoration:
+            const InputDecoration(
+          labelText: 'Note',
+          hintText:
+              'Verified payment',
+          border:
+              OutlineInputBorder(),
         ),
-        actions: [
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(
+      ),
+      actions: [
+        TextButton(
+          onPressed: () async {
+            FocusScope.of(dialogContext)
+                .unfocus();
+
+            await Future.delayed(
+              const Duration(
+                milliseconds: 120,
+              ),
+            );
+
+            if (!dialogContext.mounted) {
+              return;
+            }
+
+            Navigator.pop(
               dialogContext,
-            ),
-            child:
-                const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final note =
-                  noteController.text
-                      .trim();
+            );
+          },
+          child:
+              const Text('CANCEL'),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            final note =
+                adminNoteText.trim();
 
-              Navigator.pop(
-                dialogContext,
-                note.isEmpty
-                    ? 'Verified payment'
-                    : note,
-              );
-            },
-            child:
-                const Text('APPROVE'),
-          ),
-        ],
-      );
-    },
-  );
+            FocusScope.of(dialogContext)
+                .unfocus();
 
-  noteController.dispose();
+            await Future.delayed(
+              const Duration(
+                milliseconds: 120,
+              ),
+            );
 
-  if (adminNote == null) return;
+            if (!dialogContext.mounted) {
+              return;
+            }
+
+            Navigator.pop(
+              dialogContext,
+              note.isEmpty
+                  ? 'Verified payment'
+                  : note,
+            );
+          },
+          child:
+              const Text('APPROVE'),
+        ),
+      ],
+    );
+  },
+);
+
+if (adminNote == null) return;
 
   final type =
       (request['type'] ?? '')
@@ -19562,7 +19798,11 @@ class _GiveUserBonusPageState
   String? selectedBonusUserId;
 String userSearchText = '';
   List<Map<String, dynamic>> bonusSearchUsers = [];
+late final TextEditingController
+    amountController;
 
+late final TextEditingController
+    noteController;
   Future<void> _loadBonusSearchUsers() async {
   final snapshot =
       await FirebaseFirestore.instance.collection('users').get();
@@ -19589,43 +19829,204 @@ String userSearchText = '';
   }
   Future<void> _loadBonusHistory() async {
   try {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('admin_bonus_history')
-        .get();
+    DateTime? readBonusDate(
+      Map<String, dynamic> item,
+    ) {
+      final raw = item['createdAt'];
 
-    final loadedHistory = snapshot.docs.map((doc) {
-      final data =
-          Map<String, dynamic>.from(doc.data());
-
-      final createdAt = data['createdAt'];
-
-      if (createdAt is Timestamp) {
-        data['createdAt'] = createdAt.toDate();
+      if (raw is Timestamp) {
+        return raw.toDate();
       }
 
-      return data;
-    }).toList();
+      if (raw is DateTime) {
+        return raw;
+      }
 
-    bonusHistory.value = loadedHistory;
+      final text =
+          (item['dateTime'] ?? '')
+              .toString()
+              .trim();
+
+      final match = RegExp(
+        r'^(\d{1,2})/(\d{1,2})/(\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?',
+      ).firstMatch(text);
+
+      if (match == null) {
+        return null;
+      }
+
+      return DateTime(
+        int.tryParse(
+              match.group(3) ?? '',
+            ) ??
+            2000,
+        int.tryParse(
+              match.group(2) ?? '',
+            ) ??
+            1,
+        int.tryParse(
+              match.group(1) ?? '',
+            ) ??
+            1,
+        int.tryParse(
+              match.group(4) ?? '',
+            ) ??
+            0,
+        int.tryParse(
+              match.group(5) ?? '',
+            ) ??
+            0,
+      );
+    }
+
+    final usersSnapshot =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .get();
+
+    final loadedHistory =
+        <Map<String, dynamic>>[];
+
+    for (final doc
+        in usersSnapshot.docs) {
+      final userData =
+          Map<String, dynamic>.from(
+        doc.data(),
+      );
+
+      final role =
+          (userData['role'] ?? 'USER')
+              .toString()
+              .trim()
+              .toUpperCase();
+
+      if (role == 'ADMIN') {
+        continue;
+      }
+
+      final rawHistory =
+          userData['transactionHistory'];
+
+      if (rawHistory is! List) {
+        continue;
+      }
+
+      double runningBalance = 0;
+
+      for (final raw
+          in rawHistory.whereType<Map>()) {
+        final item =
+            Map<String, dynamic>.from(
+          raw,
+        );
+
+        final signedAmount =
+            item['amount'] is num
+                ? (item['amount'] as num)
+                    .toDouble()
+                : double.tryParse(
+                      (item['amount'] ?? 0)
+                          .toString(),
+                    ) ??
+                    0;
+
+        final balanceBefore =
+            runningBalance;
+
+        runningBalance +=
+            signedAmount;
+
+        final type =
+            (item['type'] ?? '')
+                .toString()
+                .trim()
+                .toUpperCase();
+
+        final title =
+            (item['title'] ?? '')
+                .toString()
+                .trim()
+                .toUpperCase();
+
+        final isUserBonus =
+            type == 'USER_BONUS' ||
+            title == 'ADMIN BONUS';
+
+        if (!isUserBonus) {
+          continue;
+        }
+
+        loadedHistory.add({
+          'type': 'USER_BONUS',
+          'txnNumber':
+              (item['txnNumber'] ?? '')
+                  .toString(),
+          'username':
+              (userData['username'] ??
+                      'User')
+                  .toString(),
+          'amount':
+              signedAmount.abs(),
+          'note':
+              (item['subtitle'] ??
+                      'Admin reward bonus')
+                  .toString(),
+          'createdAt':
+              readBonusDate(item) ??
+                  DateTime(2000),
+          'balanceBefore':
+              balanceBefore,
+          'balanceAfter':
+              runningBalance,
+        });
+      }
+    }
+
+    loadedHistory.sort((a, b) {
+      final aDate = a['createdAt'];
+      final bDate = b['createdAt'];
+
+      if (aDate is DateTime &&
+          bDate is DateTime) {
+        return bDate.compareTo(aDate);
+      }
+
+      return 0;
+    });
+
+    bonusHistory.value =
+        loadedHistory;
   } catch (e) {
-    debugPrint('Bonus History load error: $e');
+    debugPrint(
+      'Bonus History load error: $e',
+    );
   }
-  }
-  @override
+}
+
+@override
 void initState() {
   super.initState();
+
+  amountController =
+      TextEditingController();
+
+  noteController =
+      TextEditingController();
+
   _loadBonusSearchUsers();
   _loadBonusHistory();
 }
-  @override
-  Widget build(BuildContext context) {
-    final TextEditingController amountController =
-        TextEditingController();
 
-    final TextEditingController noteController =
-        TextEditingController();
+@override
+void dispose() {
+  amountController.dispose();
+  noteController.dispose();
+  super.dispose();
+}
 
-    return Scaffold(
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
       appBar: AppBar(
         title: const Text('Give User Bonus'),
       ),
@@ -20027,7 +20428,20 @@ ValueListenableBuilder<List<Map<String, dynamic>>>(
       totalBonus +=
           (item['amount'] as num?)?.toDouble() ?? 0;
     }
-
+final int rewardedUsers = list
+    .map(
+      (item) =>
+          (item['username'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase(),
+    )
+    .where(
+      (username) =>
+          username.isNotEmpty,
+    )
+    .toSet()
+    .length;
     return Column(
       crossAxisAlignment:
           CrossAxisAlignment.start,
@@ -20061,7 +20475,7 @@ ValueListenableBuilder<List<Map<String, dynamic>>>(
               ),
               const SizedBox(height: 4),
               Text(
-                'Users Rewarded: ${list.length}',
+                'Users Rewarded: $rewardedUsers',
               ),
             ],
           ),
@@ -20385,76 +20799,101 @@ Future<void>
     return;
   }
 
-  final noteController =
-      TextEditingController();
+  String reverseNoteText = '';
 
-  final reverseNote =
-      await showDialog<String>(
-    context: context,
-    builder: (dialogContext) {
-      return AlertDialog(
-        scrollable: true,
-        title: const Text(
-          'Reverse Deposit',
+final reverseNote =
+    await showDialog<String>(
+  context: context,
+  builder: (dialogContext) {
+    return AlertDialog(
+      scrollable: true,
+      title: const Text(
+        'Reverse Deposit',
+      ),
+      content: TextFormField(
+        initialValue: '',
+        maxLines: 3,
+        onChanged: (value) {
+          reverseNoteText = value;
+        },
+        decoration:
+            const InputDecoration(
+          labelText:
+              'Admin Note / Reason',
+          hintText:
+              'Deposit reverse karne ka reason likhiye',
+          border:
+              OutlineInputBorder(),
         ),
-        content: TextField(
-          controller: noteController,
-          maxLines: 3,
-          decoration:
-              const InputDecoration(
-            labelText:
-                'Admin Note / Reason',
-            hintText:
-                'Deposit reverse karne ka reason likhiye',
-            border:
-                OutlineInputBorder(),
-          ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () async {
+            FocusScope.of(dialogContext)
+                .unfocus();
+
+            await Future.delayed(
+              const Duration(
+                milliseconds: 120,
+              ),
+            );
+
+            if (!dialogContext.mounted) {
+              return;
+            }
+
+            Navigator.pop(
+              dialogContext,
+            );
+          },
+          child:
+              const Text('CANCEL'),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(
+        ElevatedButton(
+          onPressed: () async {
+            final note =
+                reverseNoteText.trim();
+
+            if (note.isEmpty) {
+              ScaffoldMessenger.of(
                 dialogContext,
-              );
-            },
-            child:
-                const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final note =
-                  noteController.text
-                      .trim();
-
-              if (note.isEmpty) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Reverse reason likhna zaroori hai',
-                    ),
+              ).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Reverse reason likhna zaroori hai',
                   ),
-                );
-                return;
-              }
-
-              Navigator.pop(
-                dialogContext,
-                note,
+                ),
               );
-            },
-            child:
-                const Text('REVERSE'),
-          ),
-        ],
-      );
-    },
-  );
+              return;
+            }
 
-  noteController.dispose();
+            FocusScope.of(dialogContext)
+                .unfocus();
 
-  if (reverseNote == null) return;
+            await Future.delayed(
+              const Duration(
+                milliseconds: 120,
+              ),
+            );
+
+            if (!dialogContext.mounted) {
+              return;
+            }
+
+            Navigator.pop(
+              dialogContext,
+              note,
+            );
+          },
+          child:
+              const Text('REVERSE'),
+        ),
+      ],
+    );
+  },
+);
+
+if (reverseNote == null) return;
 
   try {
     final userRef =
@@ -22591,10 +23030,10 @@ class _AdminDepositSettingsPageState
           Text('No payment image set'),
         ],
       )
-    : Image.network(
-        image,
-        fit: BoxFit.contain,
-      ),
+    : buildStoredImage(
+    image,
+    fit: BoxFit.contain,
+  ),
               );
             },
           ),
@@ -22633,25 +23072,77 @@ class _AdminDepositSettingsPageState
           ),
 
           const SizedBox(height: 20),
+ElevatedButton(
+  onPressed: () async {
+    FocusManager.instance.primaryFocus
+        ?.unfocus();
 
-          ElevatedButton(
-            onPressed: () {
-              depositPaymentText.value =
-                  paymentController.text.trim();
+    final paymentText =
+        paymentController.text.trim();
 
-              depositWarningText.value =
-                  warningController.text.trim();
+    final warningText =
+        warningController.text.trim();
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Deposit settings saved',
-                  ),
-                ),
-              );
-            },
-            child: const Text('SAVE SETTINGS'),
+    if (paymentText.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'UPI / Payment ID डालें',
           ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('settings')
+          .doc('deposit_settings')
+          .set(
+        {
+          'paymentText': paymentText,
+          'warningText': warningText,
+          'paymentImage':
+              depositPaymentImage.value,
+          'updatedAt':
+              FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      depositPaymentText.value =
+          paymentText;
+
+      depositWarningText.value =
+          warningText;
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Deposit settings saved',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            'Deposit settings save नहीं हुई: $e',
+          ),
+        ),
+      );
+    }
+  },
+  child: const Text('SAVE SETTINGS'),
+),
+          
         ],
       ),
     );
