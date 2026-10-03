@@ -804,7 +804,19 @@ Future<void> giveWelcomeBonusIfNeeded() async {
         (data['walletBalance'] as num?)?.toDouble() ?? 0;
 
     walletBalance.value = savedBalance;
+final savedHistoryRaw = data['transactionHistory'];
 
+if (savedHistoryRaw is List) {
+  transactionHistory.value = savedHistoryRaw
+      .whereType<Map>()
+      .map(
+        (item) => Map<String, dynamic>.from(item),
+      )
+      .toList();
+} else {
+  transactionHistory.value = [];
+}
+    
     // यह user पहले Welcome Bonus ले चुका है
     if (data['welcomeBonusClaimed'] == true) {
       welcomeBonusClaimed.value = true;
