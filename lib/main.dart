@@ -3690,7 +3690,14 @@ void startUserDataListener(
       if (role == 'ADMIN') {
         return;
       }
+      // Admin ने account block किया तो
+      // logged-in user तुरंत logout होगा.
+      if (data['active'] == false) {
+        FirebaseAuth.instance
+            .signOut();
 
+        return;
+      }
       walletBalance.value =
           (data['walletBalance']
                       as num?)
@@ -20449,94 +20456,619 @@ class _AdminNotificationsPageState
   }
 }
 
-final ValueNotifier<List<Map<String, dynamic>>> appUsers =
-    ValueNotifier<List<Map<String, dynamic>>>([
-  {
-    'id': 'USER001',
-    'name': 'Fantasy Player',
-    'username': '@CricNovaPlay',
-    'mobile': '9876543210',
-    'walletBalance': 0.0,
-    'isBlocked': false,
-  },
-]);
-    
-class AdminUsersPage extends StatefulWidget {
-  const AdminUsersPage({super.key});
+final ValueNotifier<
+        List<Map<String, dynamic>>>
+    appUsers =
+    ValueNotifier<
+        List<Map<String, dynamic>>>(
+  <Map<String, dynamic>>[],
+);
+
+class AdminUsersPage
+    extends StatefulWidget {
+  const AdminUsersPage({
+    super.key,
+  });
 
   @override
-  State<AdminUsersPage> createState() => _AdminUsersPageState();
+  State<AdminUsersPage>
+      createState() =>
+          _AdminUsersPageState();
 }
 
-class _AdminUsersPageState extends State<AdminUsersPage> {
-  bool isUserBlocked = false;
+class _AdminUsersPageState
+    extends State<AdminUsersPage> {
+  StreamSubscription<
+          QuerySnapshot<
+              Map<String, dynamic>>>?
+      _usersSubscription;
+
+  final TextEditingController
+      _searchController =
+      TextEditingController();
+
+  bool _searching = false;
+  String _searchQuery = '';
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Users'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: ListTile(
-              leading: const CircleAvatar(
-                child: Icon(Icons.person),
-              ),
-              title: const Text('Fantasy Player'),
-              subtitle: const Text(
-                '@CricNovaPlay\nMobile: 9876543210',
-              ),
-              isThreeLine: true,
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (context) {
-                    return AlertDialog(
-                      title: const Text('User Details'),
-                      content: const Text(
-                        'Name: Fantasy Player\n'
-                        'Username: @CricNovaPlay\n'
-                        'Mobile: 9876543210',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                          child: const Text('CLOSE'),
-                        ),
-                        ElevatedButton(
-  onPressed: () {
-    setState(() {
-      isUserBlocked = !isUserBlocked;
-    });
+  void initState() {
+    super.initState();
 
-    Navigator.pop(context);
+    _usersSubscription =
+        FirebaseFirestore.instance
+            .collection('users')
+            .snapshots()
+            .listen(
+      (snapshot) {
+        final loaded =
+            <Map<String, dynamic>>[];
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          isUserBlocked ? 'User blocked' : 'User unblocked',
-        ),
-      ),
+        for (final doc
+            in snapshot.docs) {
+          final data =
+              Map<String, dynamic>.from(
+            doc.data(),
+          );
+
+          final role =
+              (data['role'] ?? 'USER')
+                  .toString()
+                  .trim()
+                  .toUpperCase();
+
+          // Admin account list में नहीं आएगा.
+          if (role == 'ADMIN') {
+            continue;
+          }
+
+          data['id'] = doc.id;
+
+          // Old user में active missing हो
+          // तो active मानेंगे.
+          data['active'] =
+              data['active'] != false;
+
+          loaded.add(data);
+        }
+
+        loaded.sort(
+          (a, b) {
+            final aUsername =
+                (a['username'] ?? '')
+                    .toString()
+                    .toLowerCase();
+
+            final bUsername =
+                (b['username'] ?? '')
+                    .toString()
+                    .toLowerCase();
+
+            return aUsername.compareTo(
+              bUsername,
+            );
+          },
+        );
+
+        appUsers.value = loaded;
+      },
+      onError: (error) {
+        debugPrint(
+          'Manage Users realtime error: $error',
+        );
+      },
     );
-  },
-  child: Text(
-    isUserBlocked ? 'UNBLOCK' : 'BLOCK',
-  ),
-),
-                      ],
-                    );
-                  },
-                );
-              },
+  }
+
+  @override
+  void dispose() {
+    _usersSubscription?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String _usernameLabel(
+    dynamic value,
+  ) {
+    final username =
+        (value ?? '')
+            .toString()
+            .trim();
+
+    if (username.isEmpty) {
+      return '-';
+    }
+
+    return username.startsWith('@')
+        ? username
+        : '@$username';
+  }
+
+  String _createdText(
+    dynamic value,
+  ) {
+    DateTime? date;
+
+    if (value is Timestamp) {
+      date = value.toDate();
+    } else if (value is DateTime) {
+      date = value;
+    } else if (value != null) {
+      date =
+          DateTime.tryParse(
+        value.toString(),
+      );
+    }
+
+    if (date == null) {
+      return '-';
+    }
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year} '
+        '${date.hour.toString().padLeft(2, '0')}:'
+        '${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _setUserActive(
+    Map<String, dynamic> user,
+    bool active,
+  ) async {
+    final uid =
+        (user['id'] ?? '')
+            .toString()
+            .trim();
+
+    if (uid.isEmpty) {
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set(
+        {
+          'active': active,
+          'updatedAt':
+              FieldValue.serverTimestamp(),
+        },
+        SetOptions(
+          merge: true,
+        ),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            active
+                ? 'User unblocked ✅'
+                : 'User blocked',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'User status update नहीं हुआ',
+          ),
+        ),
+      );
+    }
+  }
+
+  void _showUserDetails(
+    Map<String, dynamic> user,
+  ) {
+    final username =
+        _usernameLabel(
+      user['username'],
+    );
+
+    final mobile =
+        (user['mobile'] ?? '')
+            .toString()
+            .trim();
+
+    final email =
+        (user['email'] ?? '')
+            .toString()
+            .trim();
+
+    final uid =
+        (user['id'] ?? '')
+            .toString()
+            .trim();
+
+    final active =
+        user['active'] != false;
+
+    final created =
+        _createdText(
+      user['createdAt'],
+    );
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            username,
+            style: const TextStyle(
+              fontWeight:
+                  FontWeight.bold,
             ),
           ),
+          content: Column(
+            mainAxisSize:
+                MainAxisSize.min,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Mobile Number',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+              Text(
+                mobile.isEmpty
+                    ? '-'
+                    : mobile,
+                style:
+                    const TextStyle(
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              const Text(
+                'Email',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+              Text(
+                email.isEmpty
+                    ? '-'
+                    : email,
+              ),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              const Text(
+                'Account Created',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+              Text(created),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              const Text(
+                'Status',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+              Text(
+                active
+                    ? 'ACTIVE'
+                    : 'BLOCKED',
+                style: TextStyle(
+                  color: active
+                      ? Colors.green
+                      : Colors.red,
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              const Text(
+                'User UID',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+              SelectableText(
+                uid.isEmpty
+                    ? '-'
+                    : uid,
+                style:
+                    const TextStyle(
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                );
+              },
+              child: const Text(
+                'CLOSE',
+              ),
+            ),
+
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(
+                  dialogContext,
+                );
+
+                await _setUserActive(
+                  user,
+                  !active,
+                );
+              },
+              style:
+                  ElevatedButton.styleFrom(
+                backgroundColor:
+                    active
+                        ? Colors.red
+                        : Colors.green,
+                foregroundColor:
+                    Colors.white,
+              ),
+              icon: Icon(
+                active
+                    ? Icons.block
+                    : Icons
+                        .check_circle,
+              ),
+              label: Text(
+                active
+                    ? 'BLOCK USER'
+                    : 'UNBLOCK USER',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _closeSearch() {
+    _searchController.clear();
+
+    setState(() {
+      _searching = false;
+      _searchQuery = '';
+    });
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Scaffold(
+      appBar: AppBar(
+        title: _searching
+            ? TextField(
+                controller:
+                    _searchController,
+                autofocus: true,
+                keyboardType:
+                    TextInputType.text,
+                decoration:
+                    const InputDecoration(
+                  hintText:
+                      'Username या Mobile search करें',
+                  border:
+                      InputBorder.none,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery =
+                        value
+                            .trim()
+                            .toLowerCase()
+                            .replaceAll(
+                              '@',
+                              '',
+                            );
+                  });
+                },
+              )
+            : const Text(
+                'Manage Users',
+              ),
+        actions: [
+          if (!_searching)
+            IconButton(
+              tooltip:
+                  'Search User',
+              icon: const Icon(
+                Icons.search,
+              ),
+              onPressed: () {
+                setState(() {
+                  _searching = true;
+                });
+              },
+            )
+          else
+            IconButton(
+              tooltip:
+                  'Close Search',
+              icon: const Icon(
+                Icons.close,
+              ),
+              onPressed:
+                  _closeSearch,
+            ),
         ],
+      ),
+
+      body: ValueListenableBuilder<
+          List<Map<String, dynamic>>>(
+        valueListenable:
+            appUsers,
+        builder:
+            (context, users, _) {
+          final filteredUsers =
+              users.where(
+            (user) {
+              if (_searchQuery
+                  .isEmpty) {
+                return true;
+              }
+
+              final username =
+                  (user['username'] ??
+                          '')
+                      .toString()
+                      .trim()
+                      .toLowerCase()
+                      .replaceAll(
+                        '@',
+                        '',
+                      );
+
+              final mobile =
+                  (user['mobile'] ??
+                          '')
+                      .toString()
+                      .trim();
+
+              return username
+                      .contains(
+                    _searchQuery,
+                  ) ||
+                  mobile.contains(
+                    _searchQuery,
+                  );
+            },
+          ).toList();
+
+          if (filteredUsers
+              .isEmpty) {
+            return Center(
+              child: Text(
+                _searchQuery.isEmpty
+                    ? 'No users found'
+                    : 'कोई matching user नहीं मिला',
+              ),
+            );
+          }
+
+          return ListView.separated(
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 6,
+            ),
+            itemCount:
+                filteredUsers.length,
+
+            separatorBuilder:
+                (context, index) =>
+                    const Divider(
+              height: 1,
+              indent: 12,
+              endIndent: 12,
+            ),
+
+            itemBuilder:
+                (context, index) {
+              final user =
+                  filteredUsers[
+                      index];
+
+              final username =
+                  _usernameLabel(
+                user['username'],
+              );
+
+              final mobile =
+                  (user['mobile'] ??
+                          '')
+                      .toString()
+                      .trim();
+
+              return ListTile(
+                dense: true,
+                minVerticalPadding: 0,
+                visualDensity:
+                    const VisualDensity(
+                  vertical: -3,
+                ),
+                contentPadding:
+                    const EdgeInsets
+                        .symmetric(
+                  horizontal: 12,
+                  vertical: 0,
+                ),
+
+                title: Text(
+                  username,
+                  maxLines: 1,
+                  overflow:
+                      TextOverflow
+                          .ellipsis,
+                  style:
+                      const TextStyle(
+                    fontSize: 15,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                subtitle: Text(
+                  mobile.isEmpty
+                      ? '-'
+                      : mobile,
+                  maxLines: 1,
+                  style:
+                      const TextStyle(
+                    fontSize: 12,
+                  ),
+                ),
+
+                trailing:
+                    const Icon(
+                  Icons
+                      .chevron_right,
+                  size: 22,
+                ),
+
+                onTap: () {
+                  _showUserDetails(
+                    user,
+                  );
+                },
+              );
+            },
+          );
+        },
       ),
     );
   }
