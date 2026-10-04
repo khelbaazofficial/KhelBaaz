@@ -10,7 +10,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp();
-  startDepositSettingsListener();
+
+startDepositSettingsListener();
+startAdminMatchesFirebaseSync();
 try {
   final bonusDoc = await FirebaseFirestore.instance
       .collection('settings')
@@ -3462,7 +3464,345 @@ class BottomNavCurvePainter extends CustomPainter {
 }
 final ValueNotifier<List<Map<String, String>>> adminMatches =
     ValueNotifier<List<Map<String, String>>>([]);
-final Map<String, Map<String, Map<String, int>>> savedPlayerStats = {};
+
+final Map<String, Map<String, Map<String, int>>>
+    savedPlayerStats = {};
+
+// ======================================================
+// ADMIN MATCHES FIREBASE REALTIME SYNC
+// Admin Create / Edit / Status / Score / Delete
+//                  ↓
+//               Firebase
+//                  ↓
+//        Admin + All User Home Pages
+// ======================================================
+
+StreamSubscription<
+        DocumentSnapshot<Map<String, dynamic>>>?
+    _adminMatchesSubscription;
+
+StreamSubscription<User?>?
+    _adminMatchesAuthSubscription;
+
+bool _adminMatchesApplyingFirebase = false;
+
+bool _adminMatchesListenerAdded = false;
+
+bool _adminMatchesSaveInProgress = false;
+
+bool _adminMatchesSaveQueued = false;
+
+
+// ======================================================
+// FIREBASE DATA -> EXISTING APP FORMAT
+// ======================================================
+
+List<Map<String, String>>
+    _firebaseAdminMatchesToLocal(
+  dynamic raw,
+) {
+  if (raw is! List) {
+    return <Map<String, String>>[];
+  }
+
+  final matches =
+      <Map<String, String>>[];
+
+  for (final rawMatch in raw) {
+    if (rawMatch is! Map) {
+      continue;
+    }
+
+    final match =
+        <String, String>{};
+
+    rawMatch.forEach(
+      (key, value) {
+        if (key == null ||
+            value == null) {
+          return;
+        }
+
+        match[key.toString()] =
+            value.toString();
+      },
+    );
+
+    if (match.isNotEmpty) {
+      matches.add(match);
+    }
+  }
+
+  return matches;
+}
+
+
+// ======================================================
+// APPLY FIREBASE MATCHES LOCALLY
+// ======================================================
+
+void _applyAdminMatchesFromFirebase(
+  dynamic raw,
+) {
+  _adminMatchesApplyingFirebase =
+      true;
+
+  try {
+    adminMatches.value =
+        _firebaseAdminMatchesToLocal(
+      raw,
+    );
+  } finally {
+    _adminMatchesApplyingFirebase =
+        false;
+  }
+}
+
+
+// ======================================================
+// CHECK CURRENT USER IS REAL ACTIVE ADMIN
+// Normal user ko global matches write nahi karne dena
+// ======================================================
+
+Future<bool>
+    _currentUserCanSaveAdminMatches()
+    async {
+  final user =
+      FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    return false;
+  }
+
+  try {
+    final adminDoc =
+        await FirebaseFirestore.instance
+            .collection('admins')
+            .doc(user.uid)
+            .get();
+
+    final data =
+        adminDoc.data();
+
+    if (data == null) {
+      return false;
+    }
+
+    final role =
+        (data['role'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
+
+    final active =
+        data['active'] == true;
+
+    return role == 'ADMIN' &&
+        active;
+  } catch (e) {
+    debugPrint(
+      'Admin match permission check error: $e',
+    );
+
+    return false;
+  }
+}
+
+
+// ======================================================
+// SAVE COMPLETE adminMatches LIST TO FIREBASE
+// ======================================================
+
+Future<void>
+    _saveAdminMatchesToFirebase()
+    async {
+  if (_adminMatchesApplyingFirebase) {
+    return;
+  }
+
+  // एक save पहले से चल रहा है तो
+  // latest change queue में रखेंगे.
+  if (_adminMatchesSaveInProgress) {
+    _adminMatchesSaveQueued = true;
+    return;
+  }
+
+  _adminMatchesSaveInProgress = true;
+
+  try {
+    do {
+      _adminMatchesSaveQueued =
+          false;
+
+      final canSave =
+          await _currentUserCanSaveAdminMatches();
+
+      if (!canSave) {
+        return;
+      }
+
+      final currentMatches =
+          adminMatches.value
+              .map(
+                (match) =>
+                    Map<String, String>.from(
+                  match,
+                ),
+              )
+              .toList();
+
+      await FirebaseFirestore.instance
+          .collection('settings')
+          .doc('admin_matches')
+          .set(
+        {
+          'matches': currentMatches,
+
+          'updatedAt':
+              FieldValue.serverTimestamp(),
+
+          'updatedBy':
+              FirebaseAuth
+                      .instance
+                      .currentUser
+                      ?.uid ??
+                  '',
+        },
+        SetOptions(
+          merge: true,
+        ),
+      );
+
+      debugPrint(
+        'Admin matches Firebase saved: '
+        '${currentMatches.length}',
+      );
+    } while (
+        _adminMatchesSaveQueued);
+  } catch (e) {
+    debugPrint(
+      'Admin matches Firebase save error: $e',
+    );
+  } finally {
+    _adminMatchesSaveInProgress =
+        false;
+  }
+}
+// ======================================================
+// EXISTING LOCAL adminMatches CHANGE DETECTOR
+//
+// Important:
+// Existing Create Match
+// Edit Match
+// Automatic Status
+// Final Score
+// Delete Match
+//
+// सभी already adminMatches.value बदलते हैं.
+// इसलिए उन functions को अलग-अलग edit करने की जरूरत नहीं.
+// ======================================================
+
+void _onAdminMatchesChanged() {
+  if (_adminMatchesApplyingFirebase) {
+    return;
+  }
+
+  _saveAdminMatchesToFirebase();
+}
+
+
+// ======================================================
+// FIREBASE REALTIME LISTENER
+// ======================================================
+
+void _startAdminMatchesRealtimeListener() {
+  _adminMatchesSubscription
+      ?.cancel();
+
+  _adminMatchesSubscription =
+      FirebaseFirestore.instance
+          .collection('settings')
+          .doc('admin_matches')
+          .snapshots()
+          .listen(
+    (snapshot) {
+      final data =
+          snapshot.data();
+
+      if (data == null) {
+        _applyAdminMatchesFromFirebase(
+          const <dynamic>[],
+        );
+
+        return;
+      }
+
+      _applyAdminMatchesFromFirebase(
+        data['matches'],
+      );
+    },
+    onError: (error) {
+      debugPrint(
+        'Admin matches realtime error: $error',
+      );
+    },
+  );
+}
+
+
+// ======================================================
+// START COMPLETE ADMIN MATCH FIREBASE SYSTEM
+// Login / Logout दोनों handle होंगे
+// ======================================================
+
+void startAdminMatchesFirebaseSync() {
+  // Local notifier listener सिर्फ एक बार add होगा.
+  if (!_adminMatchesListenerAdded) {
+    adminMatches.addListener(
+      _onAdminMatchesChanged,
+    );
+
+    _adminMatchesListenerAdded =
+        true;
+  }
+
+  _adminMatchesAuthSubscription
+      ?.cancel();
+
+  _adminMatchesAuthSubscription =
+      FirebaseAuth.instance
+          .authStateChanges()
+          .listen(
+    (user) {
+      _adminMatchesSubscription
+          ?.cancel();
+
+      _adminMatchesSubscription =
+          null;
+
+      if (user == null) {
+        _adminMatchesApplyingFirebase =
+            true;
+
+        try {
+          adminMatches.value =
+              <Map<String, String>>[];
+        } finally {
+          _adminMatchesApplyingFirebase =
+              false;
+        }
+
+        return;
+      }
+
+      // Admin हो या normal user:
+      // दोनों Firebase global matches पढ़ेंगे.
+      _startAdminMatchesRealtimeListener();
+    },
+  );
+}
+
+
 // ================= HOME PAGE =================
 
 class HomePage extends StatefulWidget {
