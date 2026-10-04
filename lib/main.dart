@@ -12,7 +12,12 @@ Future<void> main() async {
   await Firebase.initializeApp();
 
 startDepositSettingsListener();
+
 startAdminMatchesFirebaseSync();
+
+startAdminContestsFirebaseSync();
+
+startUserGameAuthGuard();
 try {
   final bonusDoc = await FirebaseFirestore.instance
       .collection('settings')
@@ -1013,10 +1018,1325 @@ void startDepositSettingsListener() {
   );
 }
 
+// ======================================================
+// USER GAME DATA FIREBASE SYSTEM
+// Joined Contests / My Matches / My Teams
+// ======================================================
+
+StreamSubscription<User?>?
+    _userGameAuthSubscription;
+
+bool _userAdminMatchSyncListenerAdded =
+    false;
+
+bool _userAdminContestSyncListenerAdded =
+    false;
+
+
+// ======================================================
+// BASIC CONVERTERS
+// ======================================================
+
+DateTime? _userGameDate(
+  dynamic value,
+) {
+  if (value is Timestamp) {
+    return value.toDate();
+  }
+
+  if (value is DateTime) {
+    return value;
+  }
+
+  if (value is String) {
+    return DateTime.tryParse(
+      value,
+    );
+  }
+
+  return null;
+}
+
+int _userGameInt(
+  dynamic value,
+) {
+  if (value is num) {
+    return value.toInt();
+  }
+
+  return int.tryParse(
+        value?.toString() ?? '',
+      ) ??
+      0;
+}
+
+int? _userGameNullableInt(
+  dynamic value,
+) {
+  if (value == null) {
+    return null;
+  }
+
+  final text =
+      value.toString().trim();
+
+  if (text.isEmpty) {
+    return null;
+  }
+
+  return int.tryParse(
+    text,
+  );
+}
+
+double _userGameDouble(
+  dynamic value,
+) {
+  if (value is num) {
+    return value.toDouble();
+  }
+
+  return double.tryParse(
+        value?.toString() ?? '',
+      ) ??
+      0;
+}
+
+
+// ======================================================
+// PLAYER SAVE / RESTORE
+// ======================================================
+
+Map<String, dynamic>
+    _userPlayerToFirebase(
+  Player player,
+) {
+  return {
+    'name': player.name,
+    'role': player.role,
+    'team': player.team,
+    'credit': player.credit,
+    'playing': player.playing,
+    'runs': player.runs,
+    'balls': player.balls,
+    'fours': player.fours,
+    'sixes': player.sixes,
+    'wickets': player.wickets,
+    'catches': player.catches,
+  };
+}
+
+Player? _userPlayerFromFirebase(
+  dynamic raw,
+) {
+  if (raw is! Map) {
+    return null;
+  }
+
+  final data =
+      Map<String, dynamic>.from(
+    raw,
+  );
+
+  final name =
+      (data['name'] ?? '')
+          .toString()
+          .trim();
+
+  if (name.isEmpty) {
+    return null;
+  }
+
+  return Player(
+    name: name,
+    role:
+        (data['role'] ?? '')
+            .toString(),
+    team:
+        (data['team'] ?? '')
+            .toString(),
+    credit:
+        _userGameDouble(
+      data['credit'],
+    ),
+    playing:
+        data['playing'] !=
+            false,
+    runs:
+        _userGameInt(
+      data['runs'],
+    ),
+    balls:
+        _userGameInt(
+      data['balls'],
+    ),
+    fours:
+        _userGameInt(
+      data['fours'],
+    ),
+    sixes:
+        _userGameInt(
+      data['sixes'],
+    ),
+    wickets:
+        _userGameInt(
+      data['wickets'],
+    ),
+    catches:
+        _userGameInt(
+      data['catches'],
+    ),
+  );
+}
+
+List<Player>
+    _userPlayersFromFirebase(
+  dynamic raw,
+) {
+  if (raw is! List) {
+    return <Player>[];
+  }
+
+  final result =
+      <Player>[];
+
+  for (final item in raw) {
+    final player =
+        _userPlayerFromFirebase(
+      item,
+    );
+
+    if (player != null) {
+      result.add(
+        player,
+      );
+    }
+  }
+
+  return result;
+}
+
+
+// ======================================================
+// MATCH SAVE / RESTORE
+// ======================================================
+Map<String, dynamic>
+    _userMatchToFirebase(
+  MatchModel match,
+) {
+  return {
+    'team1': match.team1,
+    'team2': match.team2,
+    'team1Flag':
+        match.team1Flag,
+    'team2Flag':
+        match.team2Flag,
+    'title': match.title,
+    'time': match.time,
+    'matchFormat':
+        match.matchFormat,
+    'status': match.status,
+    'userRank':
+        match.userRank,
+    'userPoints':
+        match.userPoints,
+    'startTime':
+        match.startTime,
+    'liveDurationSeconds':
+        match.liveDuration
+            .inSeconds,
+    'completedAt':
+        match.completedAt,
+    'winner':
+        match.winner,
+    'team1Score':
+        match.team1Score,
+    'team2Score':
+        match.team2Score,
+    'team1Wickets':
+        match.team1Wickets,
+    'team2Wickets':
+        match.team2Wickets,
+    'entryFee':
+        match.entryFee,
+    'prizePool':
+        match.prizePool,
+    'contestName':
+        match.contestName,
+    'contestSpots':
+        match.contestSpots,
+    'team1Players':
+        match.team1Players,
+    'team2Players':
+        match.team2Players,
+  };
+}
+
+MatchModel?
+    _userMatchFromFirebase(
+  dynamic raw,
+) {
+  if (raw is! Map) {
+    return null;
+  }
+
+  final data =
+      Map<String, dynamic>.from(
+    raw,
+  );
+
+  final team1 =
+      (data['team1'] ?? '')
+          .toString();
+
+  final team2 =
+      (data['team2'] ?? '')
+          .toString();
+
+  if (team1.trim().isEmpty ||
+      team2.trim().isEmpty) {
+    return null;
+  }
+
+  final restored =
+      MatchModel(
+    team1: team1,
+    team2: team2,
+
+    team1Flag:
+        (data['team1Flag'] ??
+                '')
+            .toString(),
+
+    team2Flag:
+        (data['team2Flag'] ??
+                '')
+            .toString(),
+
+    title:
+        (data['title'] ??
+                '$team1 vs $team2')
+            .toString(),
+
+    time:
+        (data['time'] ?? '')
+            .toString(),
+
+    matchFormat:
+        (data['matchFormat'] ??
+                'T20')
+            .toString(),
+
+    status:
+        (data['status'] ??
+                'UPCOMING')
+            .toString(),
+
+    userRank:
+        _userGameInt(
+      data['userRank'],
+    ),
+
+    userPoints:
+        _userGameInt(
+      data['userPoints'],
+    ),
+
+    startTime:
+        _userGameDate(
+      data['startTime'],
+    ),
+
+    liveDuration:
+        Duration(
+      seconds:
+          _userGameInt(
+        data[
+            'liveDurationSeconds'],
+      ),
+    ),
+
+    completedAt:
+        _userGameDate(
+      data['completedAt'],
+    ),
+
+    winner:
+        data['winner']
+            ?.toString(),
+
+    team1Score:
+        _userGameNullableInt(
+      data['team1Score'],
+    ),
+
+    team2Score:
+        _userGameNullableInt(
+      data['team2Score'],
+    ),
+
+    entryFee:
+        _userGameDouble(
+      data['entryFee'],
+    ),
+
+    prizePool:
+        _userGameDouble(
+      data['prizePool'],
+    ),
+
+    contestName:
+        (data['contestName'] ??
+                'Default Contest')
+            .toString(),
+
+    contestSpots:
+        _userGameInt(
+      data['contestSpots'],
+    ),
+
+    team1Players:
+        (data['team1Players'] ??
+                '')
+            .toString(),
+
+    team2Players:
+        (data['team2Players'] ??
+                '')
+            .toString(),
+  );
+
+  restored.team1Wickets =
+      _userGameNullableInt(
+    data['team1Wickets'],
+  );
+
+  restored.team2Wickets =
+      _userGameNullableInt(
+    data['team2Wickets'],
+  );
+
+  return restored;
+}
+
+
+// ======================================================
+// JOINED CONTEST SAVE / RESTORE
+// ======================================================
+
+Map<String, dynamic>
+    _userContestToFirebase(
+  Map<String, dynamic> contest,
+) {
+  final stored =
+      Map<String, dynamic>.from(
+    contest,
+  );
+
+  stored.remove(
+    'joinedNotifier',
+  );
+
+  final rawPlayers =
+      stored['selectedPlayers'];
+
+  if (rawPlayers is List) {
+    stored['selectedPlayers'] =
+        rawPlayers
+            .map((item) {
+              if (item is Player) {
+                return _userPlayerToFirebase(
+                  item,
+                );
+              }
+
+              if (item is Map) {
+                return Map<String,
+                    dynamic>.from(
+                  item,
+                );
+              }
+
+              return null;
+            })
+            .whereType<
+                Map<String, dynamic>>()
+            .toList();
+  }
+
+  return stored;
+}
+
+List<Map<String, dynamic>>
+    _userContestsFromFirebase(
+  dynamic raw,
+) {
+  if (raw is! List) {
+    return <Map<String, dynamic>>[];
+  }
+
+  final result =
+      <Map<String, dynamic>>[];
+
+  for (final rawContest in raw) {
+    if (rawContest is! Map) {
+      continue;
+    }
+
+    final contest =
+        Map<String, dynamic>.from(
+      rawContest,
+    );
+
+    final joinedAt =
+        _userGameDate(
+      contest['joinedAt'],
+    );
+
+    if (joinedAt != null) {
+      contest['joinedAt'] =
+          joinedAt;
+    }
+
+    contest['selectedPlayers'] =
+        _userPlayersFromFirebase(
+      contest['selectedPlayers'],
+    );
+
+    result.add(
+      contest,
+    );
+  }
+
+  return result;
+}
+
+
+// ======================================================
+// SAVED TEAMS
+// ======================================================
+
+List<Map<String, dynamic>>
+    _userSavedTeamsForFirebase() {
+  final result =
+      <Map<String, dynamic>>[];
+
+  for (int i = 0;
+      i < savedTeams.value.length;
+      i++) {
+    result.add({
+      'players':
+          savedTeams.value[i]
+              .map(
+                _userPlayerToFirebase,
+              )
+              .toList(),
+
+      'captainName':
+          i <
+                  savedCaptainNames
+                      .length
+              ? savedCaptainNames[i]
+              : '',
+
+      'viceCaptainName':
+          i <
+                  savedViceCaptainNames
+                      .length
+              ? savedViceCaptainNames[i]
+              : '',
+
+      'matchKey':
+          i <
+                  savedTeamMatchKeys
+                      .length
+              ? savedTeamMatchKeys[i]
+              : '',
+    });
+  }
+
+  return result;
+}
+
+
+// ======================================================
+// ADMIN MATCH MAP DATE/TIME
+// ======================================================
+
+DateTime? _userAdminMatchDateTime(
+  Map<String, String> match,
+) {
+  try {
+    final date =
+        (match['date'] ?? '')
+            .trim();
+
+    final time =
+        (match['time'] ?? '')
+            .trim();
+
+    final d =
+        date.split('/');
+
+    if (d.length != 3) {
+      return null;
+    }
+
+    final timeParts =
+        time.split(' ');
+
+    final hm =
+        timeParts.first
+            .split(':');
+
+    if (hm.length != 2) {
+      return null;
+    }
+
+    int hour =
+        int.parse(hm[0]);
+
+    final minute =
+        int.parse(hm[1]);
+
+    final period =
+        timeParts.length > 1
+            ? timeParts[1]
+                .toUpperCase()
+            : '';
+
+    if (period == 'PM' &&
+        hour != 12) {
+      hour += 12;
+    }
+
+    if (period == 'AM' &&
+        hour == 12) {
+      hour = 0;
+    }
+
+    return DateTime(
+      int.parse(d[2]),
+      int.parse(d[1]),
+      int.parse(d[0]),
+      hour,
+      minute,
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+
+// ======================================================
+// KEEP MY MATCHES IN SYNC WITH ADMIN MATCH
+// ======================================================
+
+void _syncJoinedMatchesFromAdminMatches() {
+  if (joinedMatches.value
+          .isEmpty ||
+      adminMatches.value
+          .isEmpty) {
+    return;
+  }
+
+  final synced =
+      <MatchModel>[];
+
+  for (final oldMatch
+      in joinedMatches.value) {
+    final candidates =
+        adminMatches.value.where(
+      (admin) =>
+          admin['team1'] ==
+              oldMatch.team1 &&
+          admin['team2'] ==
+              oldMatch.team2,
+    );
+
+    if (candidates.isEmpty) {
+      synced.add(
+        oldMatch,
+      );
+
+      continue;
+    }
+
+    Map<String, String>
+        admin =
+        candidates.first;
+
+    final oldTimeText =
+        oldMatch.time
+            .toLowerCase();
+
+    for (final candidate
+        in candidates) {
+      final date =
+          (candidate['date'] ?? '')
+              .toLowerCase();
+
+      final time =
+          (candidate['time'] ?? '')
+              .toLowerCase();
+
+      if (date.isNotEmpty &&
+          time.isNotEmpty &&
+          oldTimeText.contains(
+            date,
+          ) &&
+          oldTimeText.contains(
+            time,
+          )) {
+        admin = candidate;
+        break;
+      }
+    }
+final startTime =
+        _userAdminMatchDateTime(
+              admin,
+            ) ??
+            oldMatch.startTime;
+
+    final durationMinutes =
+        int.tryParse(
+              admin[
+                      'durationMinutes'] ??
+                  '',
+            ) ??
+            oldMatch.liveDuration
+                .inMinutes;
+
+    final dateText =
+        admin['date'] ?? '';
+
+    final timeText =
+        admin['time'] ?? '';
+
+    final modelTime =
+        dateText.isNotEmpty
+            ? '$dateText • $timeText'
+            : timeText;
+
+    final syncedMatch =
+        MatchModel(
+      team1:
+          admin['team1'] ??
+              oldMatch.team1,
+
+      team2:
+          admin['team2'] ??
+              oldMatch.team2,
+
+      team1Flag:
+          admin['team1Logo'] ??
+              oldMatch.team1Flag,
+
+      team2Flag:
+          admin['team2Logo'] ??
+              oldMatch.team2Flag,
+
+      title:
+          '${admin['team1'] ?? oldMatch.team1} vs '
+          '${admin['team2'] ?? oldMatch.team2}',
+
+      time:
+          modelTime.isNotEmpty
+              ? modelTime
+              : oldMatch.time,
+
+      matchFormat:
+          admin['matchFormat'] ??
+              oldMatch.matchFormat,
+
+      status:
+          admin['currentStatus'] ??
+              admin['status'] ??
+              oldMatch.status,
+
+      userRank:
+          oldMatch.userRank,
+
+      userPoints:
+          oldMatch.userPoints,
+
+      startTime:
+          startTime,
+
+      liveDuration:
+          Duration(
+        minutes:
+            durationMinutes,
+      ),
+
+      completedAt:
+          _userGameDate(
+                admin['completedAt'],
+              ) ??
+              oldMatch.completedAt,
+
+      winner:
+          oldMatch.winner,
+
+      team1Score:
+          _userGameNullableInt(
+                admin['team1Score'],
+              ) ??
+              oldMatch.team1Score,
+
+      team2Score:
+          _userGameNullableInt(
+                admin['team2Score'],
+              ) ??
+              oldMatch.team2Score,
+
+      entryFee:
+          oldMatch.entryFee,
+
+      prizePool:
+          oldMatch.prizePool,
+
+      contestName:
+          oldMatch.contestName,
+
+      contestSpots:
+          oldMatch.contestSpots,
+
+      team1Players:
+          admin['team1Players'] ??
+              oldMatch.team1Players,
+
+      team2Players:
+          admin['team2Players'] ??
+              oldMatch.team2Players,
+    );
+
+    syncedMatch.team1Wickets =
+        _userGameNullableInt(
+              admin[
+                  'team1Wickets'],
+            ) ??
+            oldMatch.team1Wickets;
+
+    syncedMatch.team2Wickets =
+        _userGameNullableInt(
+              admin[
+                  'team2Wickets'],
+            ) ??
+            oldMatch.team2Wickets;
+
+    synced.add(
+      syncedMatch,
+    );
+  }
+
+  joinedMatches.value =
+      synced;
+}
+
+
+// ======================================================
+// ADMIN CONTEST EDIT -> USER JOINED CONTEST VIEW SYNC
+// ======================================================
+
+void _syncJoinedContestDefinitionsFromAdmin() {
+  if (joinedContests.value
+          .isEmpty ||
+      createdContests.isEmpty) {
+    return;
+  }
+
+  final updated =
+      joinedContests.value
+          .map(
+            (contest) =>
+                Map<String,
+                    dynamic>.from(
+              contest,
+            ),
+          )
+          .toList();
+
+  bool changed = false;
+
+  for (final joined in updated) {
+    final joinedId =
+        (joined['contestId'] ??
+                '')
+            .toString();
+
+    if (joinedId.isEmpty) {
+      continue;
+    }
+
+    Map<String, dynamic>?
+        adminContest;
+
+    for (final contest
+        in createdContests) {
+      if ((contest['id'] ?? '')
+              .toString() ==
+          joinedId) {
+        adminContest =
+            contest;
+
+        break;
+      }
+    }
+
+    if (adminContest == null) {
+      continue;
+    }
+
+    joined['contestName'] =
+        (adminContest['name'] ??
+                joined[
+                    'contestName'])
+            .toString();
+
+    joined['winningType'] =
+        (adminContest[
+                    'h2hWinningType'] ??
+                adminContest[
+                    'winningType'] ??
+                joined[
+                    'winningType'] ??
+                '')
+            .toString();
+
+    joined['h2hWinningType'] =
+        joined['winningType'];
+
+    joined['spots'] =
+        _userGameInt(
+      adminContest['spots'],
+    );
+
+    joined['totalSpots'] =
+        _userGameInt(
+      adminContest['spots'],
+    );
+
+    joined['prizePool'] =
+        _userGameDouble(
+      adminContest['prize'],
+    );
+
+    if (adminContest[
+            'prizeSlabs']
+        is List) {
+      joined['prizeSlabs'] =
+          List<dynamic>.from(
+        adminContest[
+            'prizeSlabs'],
+      );
+    }
+
+    final newMatchKey =
+        (adminContest[
+                    'matchKey'] ??
+                '')
+            .toString();
+
+    if (newMatchKey.isNotEmpty) {
+      joined['matchKey'] =
+          newMatchKey;
+    }
+
+    changed = true;
+  }
+
+  if (changed) {
+    joinedContests.value =
+        updated;
+  }
+}
+
+
+// ======================================================
+// RESTORE USER DATA
+// ======================================================
+
+void _restoreUserGameState(
+  Map<String, dynamic> data,
+) {
+  joinedContests.value =
+      _userContestsFromFirebase(
+    data['joinedContests'],
+  );
+
+  final restoredMatches =
+      <MatchModel>[];
+
+  final rawMatches =
+      data['joinedMatches'];
+
+  if (rawMatches is List) {
+    for (final rawMatch
+        in rawMatches) {
+      final restored =
+          _userMatchFromFirebase(
+        rawMatch,
+      );
+
+      if (restored != null) {
+        restoredMatches.add(
+          restored,
+        );
+      }
+    }
+  }
+joinedMatches.value =
+      restoredMatches;
+
+  final restoredTeams =
+      <List<Player>>[];
+
+  savedCaptainNames.clear();
+
+  savedViceCaptainNames.clear();
+
+  savedTeamMatchKeys.clear();
+
+  final rawTeams =
+      data['savedTeamsData'];
+
+  if (rawTeams is List) {
+    for (final rawTeam
+        in rawTeams) {
+      if (rawTeam is! Map) {
+        continue;
+      }
+
+      final teamData =
+          Map<String,
+              dynamic>.from(
+        rawTeam,
+      );
+
+      restoredTeams.add(
+        _userPlayersFromFirebase(
+          teamData['players'],
+        ),
+      );
+
+      savedCaptainNames.add(
+        (teamData[
+                    'captainName'] ??
+                '')
+            .toString(),
+      );
+
+      savedViceCaptainNames.add(
+        (teamData[
+                    'viceCaptainName'] ??
+                '')
+            .toString(),
+      );
+
+      savedTeamMatchKeys.add(
+        (teamData[
+                    'matchKey'] ??
+                '')
+            .toString(),
+      );
+    }
+  }
+
+  savedTeams.value =
+      restoredTeams;
+
+  _syncJoinedMatchesFromAdminMatches();
+
+  _syncJoinedContestDefinitionsFromAdmin();
+}
+
+
+// ======================================================
+// ENTRY TOTAL
+// ======================================================
+
+double _userTotalEntryFromHistory(
+  List<Map<String, dynamic>> history,
+) {
+  double total = 0;
+
+  for (final transaction
+      in history) {
+    final title =
+        (transaction['title'] ??
+                '')
+            .toString()
+            .trim()
+            .toUpperCase();
+
+    final type =
+        (transaction['type'] ??
+                '')
+            .toString()
+            .trim()
+            .toUpperCase();
+
+    final isEntry =
+        type ==
+                'CONTEST_ENTRY' ||
+            type == 'ENTRY' ||
+            type ==
+                'ENTRY_FEE' ||
+            title ==
+                'CONTEST ENTRY' ||
+            title.contains(
+              'ENTRY FEE',
+            );
+
+    if (!isEntry) {
+      continue;
+    }
+
+    total +=
+        _userGameDouble(
+          transaction['amount'],
+        ).abs();
+  }
+
+  return total;
+}
+
+
+// ======================================================
+// SAVE USER GAME STATE + OPTIONAL JOIN RECORD
+// ======================================================
+
+Future<bool>
+    _saveUserContestStateToFirebase(
+  String uid, {
+  Map<String, dynamic>?
+      joinRecord,
+}) async {
+  final firestore =
+      FirebaseFirestore.instance;
+
+  final userRef =
+      firestore
+          .collection('users')
+          .doc(uid);
+
+  try {
+    final batch =
+        firestore.batch();
+
+    batch.set(
+      userRef,
+      {
+        'walletBalance':
+            walletBalance.value,
+
+        'transactionHistory':
+            transactionHistory.value,
+
+        'joinedContests':
+            joinedContests.value
+                .map(
+                  _userContestToFirebase,
+                )
+                .toList(),
+
+        'joinedMatches':
+            joinedMatches.value
+                .map(
+                  _userMatchToFirebase,
+                )
+                .toList(),
+
+        'savedTeamsData':
+            _userSavedTeamsForFirebase(),
+
+        'joinedContestsCount':
+            joinedContests
+                .value
+                .length,
+
+        'totalEntryAmount':
+            _userTotalEntryFromHistory(
+          transactionHistory.value,
+        ),
+
+        'contestDataUpdatedAt':
+            FieldValue
+                .serverTimestamp(),
+      },
+      SetOptions(
+        merge: true,
+      ),
+    );
+
+    if (joinRecord != null) {
+      final contestId =
+          (joinRecord[
+                      'contestId'] ??
+                  '')
+              .toString()
+              .trim();
+
+      if (contestId.isEmpty) {
+        return false;
+      }
+
+      final joinRef =
+          firestore
+              .collection(
+                'contest_joins',
+              )
+              .doc(
+                '${contestId}_$uid',
+              );
+
+      batch.set(
+        joinRef,
+        {
+          ...joinRecord,
+          'contestId':
+              contestId,
+          'userId':
+              uid,
+        },
+      );
+    }
+
+    await batch.commit();
+
+    return true;
+  } catch (e) {
+    debugPrint(
+      'User contest Firebase save error: $e',
+    );
+
+    // Local deduction को गलत state में
+    // रहने नहीं देंगे.
+    try {
+      final fresh =
+          await userRef.get();
+
+      final freshData =
+          fresh.data();
+
+      if (freshData != null) {
+        walletBalance.value =
+            (freshData[
+                        'walletBalance']
+                    as num?)
+                ?.toDouble() ??
+                0;
+
+        transactionHistory.value =
+            _storedMapList(
+          freshData[
+              'transactionHistory'],
+        );
+
+        _restoreUserGameState(
+          freshData,
+        );
+      }
+    } catch (_) {}
+
+    return false;
+  }
+}
+
+
+// ======================================================
+// CLEAR PREVIOUS USER DATA
+// ======================================================
+
+void _clearLocalUserGameState() {
+  joinedContests.value =
+      <Map<String, dynamic>>[];
+
+  joinedMatches.value =
+      <MatchModel>[];
+
+  savedTeams.value =
+      <List<Player>>[];
+
+  savedCaptainNames.clear();
+
+  savedViceCaptainNames.clear();
+
+  savedTeamMatchKeys.clear();
+}
+
+
+// ======================================================
+// LOGOUT GUARD
+// ======================================================
+
+void startUserGameAuthGuard() {
+  _userGameAuthSubscription
+      ?.cancel();
+
+  _userGameAuthSubscription =
+      FirebaseAuth.instance
+          .authStateChanges()
+          .listen(
+    (user) {
+      if (user != null) {
+        return;
+      }
+
+      _userDataSubscription
+          ?.cancel();
+
+      _userDataSubscription =
+          null;
+
+      _clearLocalUserGameState();
+
+      walletBalance.value = 0;
+
+      transactionHistory.value =
+          <Map<String, dynamic>>[];
+
+      walletRequests.value =
+          <Map<String, dynamic>>[];
+
+      welcomeBonusClaimed.value =
+          false;
+    },
+  );
+}
+
+
+// ======================================================
+// REALTIME USER LISTENER
+// ======================================================
+
 void startUserDataListener(
   String uid,
 ) {
-  _userDataSubscription?.cancel();
+  _userDataSubscription
+      ?.cancel();
+
+  _clearLocalUserGameState();
+
+  if (!_userAdminMatchSyncListenerAdded) {
+    adminMatches.addListener(
+      _syncJoinedMatchesFromAdminMatches,
+    );
+
+    _userAdminMatchSyncListenerAdded =
+        true;
+  }
+
+  if (!_userAdminContestSyncListenerAdded) {
+    createdContestsVersion
+        .addListener(
+      _syncJoinedContestDefinitionsFromAdmin,
+    );
+
+    _userAdminContestSyncListenerAdded =
+        true;
+  }
 
   _userDataSubscription =
       FirebaseFirestore.instance
@@ -1025,17 +2345,23 @@ void startUserDataListener(
           .snapshots()
           .listen(
     (snapshot) {
-      final data = snapshot.data();
+      final data =
+          snapshot.data();
 
-      if (data == null) return;
+      if (data == null) {
+        return;
+      }
 
       final role =
-          (data['role'] ?? 'USER')
+          (data['role'] ??
+                  'USER')
               .toString()
               .trim()
               .toUpperCase();
 
-      if (role == 'ADMIN') return;
+      if (role == 'ADMIN') {
+        return;
+      }
 
       walletBalance.value =
           (data['walletBalance']
@@ -1054,8 +2380,13 @@ void startUserDataListener(
       );
 
       welcomeBonusClaimed.value =
-          data['welcomeBonusClaimed'] ==
+          data[
+                  'welcomeBonusClaimed'] ==
               true;
+
+      _restoreUserGameState(
+        data,
+      );
     },
     onError: (error) {
       debugPrint(
@@ -1064,6 +2395,9 @@ void startUserDataListener(
     },
   );
 }
+
+  
+
 Future<void> pickImageFromGallery(
   ValueNotifier<String?> target,
 ) async {
@@ -6011,11 +7345,20 @@ double get liveTeamPoints {
 
   int rank = 1;
 
-  for (final contest
-      in sameContestUsers) {
-    if (contest['userId'] == 'user1') {
-      continue;
-    }
+final currentUserId =
+    FirebaseAuth.instance
+            .currentUser
+            ?.uid ??
+        '';
+
+for (final contest
+    in sameContestUsers) {
+  if (currentUserId.isNotEmpty &&
+      (contest['userId'] ?? '')
+              .toString() ==
+          currentUserId) {
+    continue;
+  }
 
     final double opponentPoints =
         calculateContestPoints(contest);
@@ -7482,271 +8825,544 @@ int get contestRank {
       ) +
       1;
 }
-
-  void joinContest(
+Future<void> joinContest(
   BuildContext context,
   double entryFee,
   String contestName,
   int contestSpots,
   double prizePool, {
   String contestId = '',
-    String winningType = '',
+  String winningType = '',
   List<dynamic>? prizeSlabs,
-}) {
-    if (match.status != 'UPCOMING') {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Match शुरू हो चुका है, अब contest join नहीं कर सकते'),
-    ),
-  );
-  return;
-}
-    // Same contest ko ek user dobara join na kar sake
-final bool alreadyJoinedThisContest =
-    joinedContests.value.any((c) {
-  final bool sameMatch =
-      (c['matchKey'] ?? '').toString() == matchKey;
+}) async {
+  final user =
+      FirebaseAuth.instance.currentUser;
 
-  if (!sameMatch) return false;
-
-  final String oldContestId =
-      (c['contestId'] ?? '').toString();
-
-  // Contest ID available hai to wahi strongest check hai
-  if (contestId.isNotEmpty && oldContestId.isNotEmpty) {
-    return oldContestId == contestId;
-  }
-
-  // Fallback for old/empty contest ID
-  final String oldWinningType =
-      (c['h2hWinningType'] ??
-              c['winningType'] ??
-              '')
-          .toString()
-          .trim();
-
-  return (c['contestName'] ?? '').toString() ==
-          contestName &&
-      oldWinningType == winningType.trim();
-});
-
-if (alreadyJoinedThisContest) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text(
-        'You have already joined this contest',
-      ),
-    ),
-  );
-  return;
-}
-    final current =
-    List<MatchModel>.from(joinedMatches.value);
-
-final alreadyJoined = current.any(
-  (m) => m.team1 == match.team1 && m.team2 == match.team2,
-);
-
-
-    // हर contest join पर entry fee कटेगी
-if (walletBalance.value < entryFee) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(
-        'Insufficient Wallet Balance • Available ₹${walletBalance.value.toStringAsFixed(0)}',
-      ),
-    ),
-  );
-  return;
-}
-
-
-walletBalance.value -= entryFee;
-
-final history =
-    List<Map<String, dynamic>>.from(transactionHistory.value);
-
-final now = DateTime.now();
-String shortTeamName(String name) {
-  final parts = name.trim().split(RegExp(r'\s+'));
-
-  if (parts.length == 1) {
-    final word = parts.first.toUpperCase();
-    return word.length <= 3
-        ? word
-        : word.substring(0, 3);
-  }
-
-  return parts
-      .take(3)
-      .map((e) => e[0].toUpperCase())
-      .join();
-}
-    final txnNumber =
-    generateTxnNumber('ENTRY');
-history.add({
-  'title': 'Contest Entry',
-  'txnNumber': txnNumber,
-  'subtitle': contestName,
-'winningType': winningType,
-  'description':
-    '${match.team1Flag} ${shortTeamName(match.team1)} '
-    'vs ${shortTeamName(match.team2)} ${match.team2Flag} '
-    '• ${match.matchFormat}',
-   'dateTime':
-  '${now.day.toString().padLeft(2, '0')}/'
-      '${now.month.toString().padLeft(2, '0')}/'
-      '${now.year}  '
-      '${now.hour.toString().padLeft(2, '0')}:'
-      '${now.minute.toString().padLeft(2, '0')}',
-  'team1': match.team1,
-  'team2': match.team2,
-  'amount': -entryFee,
-});
-
-transactionHistory.value = history;
-
-// My Matches में same match केवल एक बार add होगा
-if (!alreadyJoined) {
-  current.add(
-    MatchModel(
-      team1: match.team1,
-      team2: match.team2,
-      team1Flag: match.team1Flag,
-      team2Flag: match.team2Flag,
-      title: match.title,
-      time: match.time,
-      status: match.status,
-      startTime: match.startTime,
-      liveDuration: match.liveDuration,
-      userRank: contestRank,
-      userPoints: totalPoints.round(),
-      contestName: contestName,
-      contestSpots: contestSpots,
-      entryFee: entryFee,
-      
-    ),
-  );
-
-  joinedMatches.value = current;
-}
-
-// लेकिन My Contests में हर join अलग save होगा
-final contestList =
-    List<Map<String, dynamic>>.from(joinedContests.value);
-int joinedTeamNumber = 1;
-int sameMatchTeamCount = 0;
-int existingTeamIndex = -1;
-
-for (int i = 0; i < savedTeams.value.length; i++) {
-  if (i < savedTeamMatchKeys.length &&
-      savedTeamMatchKeys[i] == matchKey) {
-    sameMatchTeamCount++;
-
-    final savedTeam = savedTeams.value[i];
-
-    final isSameTeam =
-        savedTeam.length == selected.length &&
-        savedTeam.every(
-          (p) => selected.any((s) => s.name == p.name),
-        );
-
-    if (isSameTeam) {
-      joinedTeamNumber = sameMatchTeamCount;
-      existingTeamIndex = i;
-      break;
-    }
-  }
-}
-
-if (existingTeamIndex == -1) {
-  joinedTeamNumber = sameMatchTeamCount + 1;
-
-  final newTeams =
-      List<List<Player>>.from(savedTeams.value);
-
-  newTeams.add(
-    selected.map((p) {
-      return Player(
-        name: p.name,
-        role: p.role,
-        team: p.team,
-        credit: p.credit,
-        playing: p.playing,
-        runs: 0,
-        fours: 0,
-        sixes: 0,
-        wickets: 0,
-        catches: 0,
-      );
-    }).toList(),
-  );
-
-  savedCaptainNames.add(captain?.name ?? '');
-  savedViceCaptainNames.add(viceCaptain?.name ?? '');
-  savedTeamMatchKeys.add(matchKey);
-  savedTeams.value = newTeams;
-  final drafts =
-    Map<String, Map<String, dynamic>>.from(draftTeams.value);
-
-drafts.remove(matchKey);
-draftTeams.value = drafts;
-}
-contestList.add({
-  'joinedAt': DateTime.now(),
-   'joinId':
-    '${match.team1}_${match.team2}_${contestName}_${DateTime.now().microsecondsSinceEpoch}',
-'contestId': contestId,
-
-  // जिस team से यह contest join किया है वही team इसमें lock रहेगी
-  'selectedPlayers': List<Player>.from(selected),
-'joinedTeamName': 'Team $joinedTeamNumber',
-  'captainName': captain?.name ?? '',
-  'viceCaptainName': viceCaptain?.name ?? '',
-
-  'match': '${match.team1} vs ${match.team2}',
-  'team1': match.team1,
-  'team2': match.team2,
-'matchKey': matchKey,
-  'contestName': contestName,
-'winningType': contestName == 'Head to Head'
-    ? winningType
-    : '',
-'h2hWinningType': contestName == 'Head to Head'
-    ? winningType
-    : '',
-  'entryFee': entryFee,
-  'spots': contestSpots,
-'prizePool': prizePool,
-  'prizeSlabs': List<dynamic>.from(
-  prizeSlabs ?? const [],
-),
-  
-  'userId': 'user1',
-  'userPoints': totalPoints,
-});
-
-joinedContests.value = contestList;
-    
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('🎉 Joined Successfully'),
-        content: const Text(
-  'आपकी team contest में join हो गई है.',
-),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: const Text('OK'),
-          ),
-        ],
+  if (user == null) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Contest join करने के लिए Login जरूरी है',
+        ),
       ),
     );
+
+    return;
   }
+
+  if (contestId.trim().isEmpty) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Contest ID नहीं मिला',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  if (match.currentStatus !=
+      'UPCOMING') {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Match शुरू हो चुका है, अब contest join नहीं कर सकते',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  final alreadyJoinedThisContest =
+      joinedContests.value.any(
+    (contest) {
+      return (contest['contestId'] ??
+                  '')
+              .toString() ==
+          contestId;
+    },
+  );
+
+  if (alreadyJoinedThisContest) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'You have already joined this contest',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  final globalJoined =
+      _globalContestJoinedCount(
+    contestId,
+  );
+
+  if (contestSpots > 0 &&
+      globalJoined >= contestSpots) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Contest is full',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  if (walletBalance.value <
+      entryFee) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(
+          'Insufficient Wallet Balance • Available ₹${walletBalance.value.toStringAsFixed(0)}',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  final currentMatches =
+      List<MatchModel>.from(
+    joinedMatches.value,
+  );
+
+  final alreadyJoinedMatch =
+      currentMatches.any(
+    (oldMatch) =>
+        oldMatch.team1 ==
+            match.team1 &&
+        oldMatch.team2 ==
+            match.team2 &&
+        oldMatch.time ==
+            match.time,
+  );
+
+  walletBalance.value -=
+      entryFee;
+
+  final history =
+      List<Map<String, dynamic>>.from(
+    transactionHistory.value,
+  );
+
+  final now =
+      DateTime.now();
+
+  String shortTeamName(
+    String name,
+  ) {
+    final parts =
+        name
+            .trim()
+            .split(
+              RegExp(r'\s+'),
+            );
+
+    if (parts.length == 1) {
+      final word =
+          parts.first.toUpperCase();
+
+      return word.length <= 3
+          ? word
+          : word
+              .substring(0, 3);
+    }
+return parts
+        .take(3)
+        .map(
+          (part) =>
+              part[0]
+                  .toUpperCase(),
+        )
+        .join();
+  }
+
+  final txnNumber =
+      generateTxnNumber(
+    'ENTRY',
+  );
+
+  history.add({
+    'title':
+        'Contest Entry',
+
+    'type':
+        'CONTEST_ENTRY',
+
+    'txnNumber':
+        txnNumber,
+
+    'subtitle':
+        contestName,
+
+    'winningType':
+        winningType,
+
+    'description':
+        '${match.team1Flag} ${shortTeamName(match.team1)} '
+        'vs ${shortTeamName(match.team2)} ${match.team2Flag} '
+        '• ${match.matchFormat}',
+
+    'dateTime':
+        '${now.day.toString().padLeft(2, '0')}/'
+        '${now.month.toString().padLeft(2, '0')}/'
+        '${now.year} '
+        '${now.hour.toString().padLeft(2, '0')}:'
+        '${now.minute.toString().padLeft(2, '0')}',
+
+    'createdAt':
+        now,
+
+    'userId':
+        user.uid,
+
+    'team1':
+        match.team1,
+
+    'team2':
+        match.team2,
+
+    'matchKey':
+        matchKey,
+
+    'contestId':
+        contestId,
+
+    'amount':
+        -entryFee,
+  });
+
+  transactionHistory.value =
+      history;
+
+  // My Matches में same scheduled match
+  // सिर्फ एक बार add होगा.
+  if (!alreadyJoinedMatch) {
+    currentMatches.add(
+      MatchModel(
+        team1:
+            match.team1,
+
+        team2:
+            match.team2,
+
+        team1Flag:
+            match.team1Flag,
+
+        team2Flag:
+            match.team2Flag,
+
+        title:
+            match.title,
+
+        time:
+            match.time,
+
+        matchFormat:
+            match.matchFormat,
+
+        status:
+            match.status,
+
+        startTime:
+            match.startTime,
+
+        liveDuration:
+            match.liveDuration,
+
+        userRank:
+            contestRank,
+
+        userPoints:
+            totalPoints.round(),
+
+        contestName:
+            contestName,
+
+        contestSpots:
+            contestSpots,
+
+        entryFee:
+            entryFee,
+
+        prizePool:
+            prizePool,
+
+        team1Players:
+            match.team1Players,
+
+        team2Players:
+            match.team2Players,
+      ),
+    );
+
+    joinedMatches.value =
+        currentMatches;
+  }
+
+  final contestList =
+      List<Map<String, dynamic>>.from(
+    joinedContests.value,
+  );
+
+  int joinedTeamNumber = 1;
+  int sameMatchTeamCount = 0;
+  int existingTeamIndex = -1;
+
+  for (int i = 0;
+      i < savedTeams.value.length;
+      i++) {
+    if (i <
+            savedTeamMatchKeys
+                .length &&
+        savedTeamMatchKeys[i] ==
+            matchKey) {
+      sameMatchTeamCount++;
+
+      final savedTeam =
+          savedTeams.value[i];
+
+      final sameTeam =
+          savedTeam.length ==
+                  selected.length &&
+              savedTeam.every(
+                (player) =>
+                    selected.any(
+                  (selectedPlayer) =>
+                      selectedPlayer
+                          .name ==
+                      player.name,
+                ),
+              );
+
+      if (sameTeam) {
+        joinedTeamNumber =
+            sameMatchTeamCount;
+
+        existingTeamIndex = i;
+
+        break;
+      }
+    }
+  }
+
+  if (existingTeamIndex == -1) {
+    joinedTeamNumber =
+        sameMatchTeamCount + 1;
+
+    final newTeams =
+        List<List<Player>>.from(
+      savedTeams.value,
+    );
+
+    newTeams.add(
+      selected.map(
+        (player) {
+          return Player(
+            name:
+                player.name,
+            role:
+                player.role,
+            team:
+                player.team,
+            credit:
+                player.credit,
+            playing:
+                player.playing,
+            runs: 0,
+            balls: 0,
+            fours: 0,
+            sixes: 0,
+            wickets: 0,
+            catches: 0,
+          );
+        },
+      ).toList(),
+    );
+
+    savedCaptainNames.add(
+      captain?.name ?? '',
+    );
+
+    savedViceCaptainNames.add(
+      viceCaptain?.name ?? '',
+    );
+
+    savedTeamMatchKeys.add(
+      matchKey,
+    );
+
+    savedTeams.value =
+        newTeams;
+
+    final drafts =
+        Map<String,
+            Map<String, dynamic>>.from(
+      draftTeams.value,
+    );
+
+    drafts.remove(
+      matchKey,
+    );
+
+    draftTeams.value =
+        drafts;
+  }
+
+  contestList.add({
+    'joinedAt':
+        now,
+
+    'joinId':
+        '${contestId}_${user.uid}',
+
+    'contestId':
+        contestId,
+
+    'selectedPlayers':
+        List<Player>.from(
+      selected,
+    ),
+
+    'joinedTeamName':
+        'Team $joinedTeamNumber',
+
+    'captainName':
+        captain?.name ?? '',
+
+    'viceCaptainName':
+        viceCaptain?.name ?? '',
+
+    'match':
+        '${match.team1} vs ${match.team2}',
+
+    'team1':
+        match.team1,
+
+    'team2':
+        match.team2,
+
+    'matchKey':
+        matchKey,
+
+    'contestName':
+        contestName,
+
+    'winningType':
+        contestName ==
+                'Head to Head'
+            ? winningType
+            : '',
+
+    'h2hWinningType':
+        contestName ==
+                'Head to Head'
+            ? winningType
+            : '',
+
+    'entryFee':
+        entryFee,
+
+    'spots':
+        contestSpots,
+
+    'totalSpots':
+        contestSpots,
+
+    'prizePool':
+        prizePool,
+
+    'prizeSlabs':
+        List<dynamic>.from(
+      prizeSlabs ??
+          const [],
+    ),
+    'userId':
+        user.uid,
+
+    'userPoints':
+        totalPoints,
+  });
+
+  joinedContests.value =
+      contestList;
+
+  final saved =
+      await _saveUserContestStateToFirebase(
+    user.uid,
+    joinRecord: {
+      'contestId':
+          contestId,
+
+      'matchKey':
+          matchKey,
+
+      'entryFee':
+          entryFee,
+
+      'joinedAt':
+          now,
+    },
+  );
+
+  if (!saved) {
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Contest Firebase में save नहीं हुआ • फिर try करें',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  if (!context.mounted) {
+    return;
+  }
+
+  showDialog(
+    context: context,
+    builder: (_) =>
+        AlertDialog(
+      title: const Text(
+        '🎉 Joined Successfully',
+      ),
+      content: const Text(
+        'आपकी team contest में join हो गई है.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(
+              context,
+            );
+          },
+          child:
+              const Text('OK'),
+        ),
+      ],
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -7871,127 +9487,269 @@ const SizedBox(height: 16),
     ],
   ),
 ),
-...createdContests.where((contest) {
-  final contestMatch = contest['match'];
+ValueListenableBuilder<int>(
+  valueListenable:
+      createdContestsVersion,
+  builder:
+      (context, contestVersion, _) {
+    return ValueListenableBuilder<
+        Map<String, int>>(
+      valueListenable:
+          contestJoinCounts,
+      builder:
+          (context, joinCounts, _) {
+        return ValueListenableBuilder<
+            List<Map<String, dynamic>>>(
+          valueListenable:
+              joinedContests,
+          builder:
+              (context, myJoined, _) {
+            final availableContests =
+                createdContests.where(
+              (contest) {
+                final storedMatchKey =
+                    (contest[
+                                'matchKey'] ??
+                            '')
+                        .toString();
 
-  final cTeam1 = (
-    contest['team1'] ??
-    (contestMatch is Map ? contestMatch['team1'] : null)
-  )?.toString().trim().toLowerCase();
+                if (storedMatchKey
+                    .isNotEmpty) {
+                  return storedMatchKey ==
+                      matchKey;
+                }
 
-  final cTeam2 = (
-    contest['team2'] ??
-    (contestMatch is Map ? contestMatch['team2'] : null)
-  )?.toString().trim().toLowerCase();
+                // Old contest fallback
+                final contestMatch =
+                    contest['match'];
 
-  return cTeam1 == match.team1.trim().toLowerCase() &&
-      cTeam2 == match.team2.trim().toLowerCase();
-}).map((contest) {
-  final totalSpots =
-      int.tryParse(contest['spots'].toString()) ?? 0;
+                final cTeam1 =
+                    (contest['team1'] ??
+                            (contestMatch
+                                    is Map
+                                ? contestMatch[
+                                    'team1']
+                                : null))
+                        ?.toString()
+                        .trim()
+                        .toLowerCase();
 
-  final fee =
-    double.tryParse(contest['fee'].toString()) ?? 0.0;
+                final cTeam2 =
+                    (contest['team2'] ??
+                            (contestMatch
+                                    is Map
+                                ? contestMatch[
+                                    'team2']
+                                : null))
+                        ?.toString()
+                        .trim()
+                        .toLowerCase();
 
-final prizePool =
-    double.tryParse(contest['prize'].toString()) ?? 0.0;
+                return cTeam1 ==
+                        match.team1
+                            .trim()
+                            .toLowerCase() &&
+                    cTeam2 ==
+                        match.team2
+                            .trim()
+                            .toLowerCase();
+              },
+            ).toList();
 
-  final joinedNotifier =
-    contest['joinedNotifier'] as ValueNotifier<int>? ??
-        ValueNotifier<int>(0);
-
-contest['joinedNotifier'] = joinedNotifier;
-final currentContestId =
-    (contest['id'] ?? '').toString();
-
-final currentWinningType =
-    (contest['h2hWinningType'] ??
-            contest['winningType'] ??
-            '')
-        .toString();
-
-
-return ValueListenableBuilder<int>(
-  valueListenable: joinedNotifier,
-  builder: (context, joined, _) {
-    
-
-    final alreadyJoinedThisContest =
-        joinedContests.value.any((joinedContest) {
-      final sameMatch =
-          joinedContest['matchKey'] == matchKey;
-
-      final joinedContestId =
-          (joinedContest['contestId'] ?? '')
-              .toString();
-
-      if (currentContestId.isNotEmpty &&
-          joinedContestId.isNotEmpty) {
-        return sameMatch &&
-            joinedContestId == currentContestId;
-      }
-
-      return sameMatch &&
-          joinedContest['contestName'] ==
-              contest['name'] &&
-          (joinedContest['h2hWinningType'] ??
-                  joinedContest['winningType'] ??
-                  '')
-              .toString() ==
-              currentWinningType;
-    });
-
-    return ContestCard(
-      showJoinButton: teamSaved,
-      name: contest['name'] == 'Head to Head' &&
-        ((contest['h2hWinningType'] ??
-                contest['winningType'] ??
-                '')
-            .toString()
-            .trim()
-            .isNotEmpty)
-    ? '${contest['name']} • ${contest['h2hWinningType'] ?? contest['winningType']}'
-    : contest['name'].toString(),
-      prize: '₹${contest['prize']}',
-      entry: '₹${contest['fee']}',
-      spots: '${contest['spots']} Spots',
-      joinedCount: joined,
-      totalSpots: totalSpots,
-      prizeSlabs: contest['prizeSlabs'] is List
-    ? List<dynamic>.from(contest['prizeSlabs'])
-    : const [],
-      onJoin: teamSaved &&
-    match.status == 'UPCOMING' &&
-    joined < totalSpots &&
-    !alreadyJoinedThisContest
-          ? () {
-              final beforeJoinCount = joinedContests.value.length;
-            joinContest(
-  context,
-  fee,
-  contest['name'].toString(),
-  totalSpots,
-  prizePool,
-  contestId: (contest['id'] ?? '').toString(),
-  winningType:
-    (contest['h2hWinningType'] ??
-     contest['winningType'] ??
-     '').toString(),
-                prizeSlabs: contest['prizeSlabs'] is List
-      ? List<dynamic>.from(contest['prizeSlabs'])
-      : const [],
-);
-
-              if (joinedContests.value.length > beforeJoinCount) {
-  joinedNotifier.value++;
-}
+            if (availableContests
+                .isEmpty) {
+              return const Padding(
+                padding:
+                    EdgeInsets.symmetric(
+                  vertical: 22,
+                ),
+                child: Center(
+                  child: Text(
+                    'इस match के लिए अभी कोई contest available नहीं है',
+                    textAlign:
+                        TextAlign.center,
+                    style: TextStyle(
+                      color:
+                          Colors.grey,
+                      fontWeight:
+                          FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
             }
-          : null,
+return Column(
+              children:
+                  availableContests.map(
+                (contest) {
+                  final contestId =
+                      (contest['id'] ??
+                              '')
+                          .toString();
+
+                  final totalSpots =
+                      int.tryParse(
+                            (contest[
+                                        'spots'] ??
+                                    0)
+                                .toString(),
+                          ) ??
+                          0;
+
+                  final fee =
+                      double.tryParse(
+                            (contest[
+                                        'fee'] ??
+                                    0)
+                                .toString(),
+                          ) ??
+                          0;
+
+                  final prizePool =
+                      double.tryParse(
+                            (contest[
+                                        'prize'] ??
+                                    0)
+                                .toString(),
+                          ) ??
+                          0;
+
+                  final joined =
+                      joinCounts[
+                              contestId] ??
+                          0;
+
+                  final winningType =
+                      (contest[
+                                  'h2hWinningType'] ??
+                              contest[
+                                  'winningType'] ??
+                              '')
+                          .toString();
+
+                  final alreadyJoined =
+                      myJoined.any(
+                    (joinedContest) {
+                      final oldId =
+                          (joinedContest[
+                                      'contestId'] ??
+                                  '')
+                              .toString();
+
+                      if (contestId
+                              .isNotEmpty &&
+                          oldId.isNotEmpty) {
+                        return oldId ==
+                            contestId;
+                      }
+
+                      return joinedContest[
+                                  'matchKey'] ==
+                              matchKey &&
+                          joinedContest[
+                                  'contestName'] ==
+                              contest[
+                                  'name'] &&
+                          (joinedContest[
+                                      'h2hWinningType'] ??
+                                  joinedContest[
+                                      'winningType'] ??
+                                  '')
+                              .toString() ==
+                              winningType;
+                    },
+                  );
+
+                  final displayName =
+                      contest['name'] ==
+                                  'Head to Head' &&
+                              winningType
+                                  .trim()
+                                  .isNotEmpty
+                          ? '${contest['name']} • $winningType'
+                          : (contest[
+                                      'name'] ??
+                                  'Contest')
+                              .toString();
+
+                  return ContestCard(
+                    showJoinButton:
+                        teamSaved,
+
+                    isJoined:
+                        alreadyJoined,
+
+                    name:
+                        displayName,
+
+                    prize:
+                        '₹${contest['prize']}',
+
+                    entry:
+                        '₹${contest['fee']}',
+
+                    spots:
+                        '${contest['spots']} Spots',
+
+                    joinedCount:
+                        joined,
+
+                    totalSpots:
+                        totalSpots,
+
+                    prizeSlabs:
+                        contest[
+                                    'prizeSlabs']
+                                is List
+                            ? List<dynamic>.from(
+                                contest[
+                                    'prizeSlabs'],
+                              )
+                            : const [],
+
+                    onJoin:
+                        teamSaved &&
+                                match.currentStatus ==
+                                    'UPCOMING' &&
+                                joined <
+                                    totalSpots &&
+                                !alreadyJoined
+                            ? () async {
+                                await joinContest(
+                                  context,
+                                  fee,
+                                  (contest[
+                                              'name'] ??
+                                          '')
+                                      .toString(),
+                                  totalSpots,
+                                  prizePool,
+                                  contestId:
+                                      contestId,
+                                  winningType:
+                                      winningType,
+                                  prizeSlabs:
+                                      contest[
+                                                  'prizeSlabs']
+                                              is List
+                                          ? List<dynamic>.from(
+                                              contest[
+                                                  'prizeSlabs'],
+                                            )
+                                          : const [],
+                                );
+                              }
+                            : null,
+                  );
+                },
+              ).toList(),
+            );
+          },
+        );
+      },
     );
   },
-);
-}).toList(),
-
+),
           
           const SizedBox(height: 10),
           const Text(
@@ -8007,16 +9765,26 @@ return ValueListenableBuilder<int>(
 
 // ================= CONTEST CARD =================
 
-class ContestCard extends StatelessWidget {
+class ContestCard
+    extends StatelessWidget {
   final String name;
   final String prize;
   final String entry;
   final String spots;
+
   final VoidCallback? onJoin;
+
   final bool showJoinButton;
-final int joinedCount;
-final int totalSpots;
-  final List<dynamic> prizeSlabs;
+
+  final bool isJoined;
+
+  final int joinedCount;
+
+  final int totalSpots;
+
+  final List<dynamic>
+      prizeSlabs;
+
   const ContestCard({
     super.key,
     required this.name,
@@ -8025,16 +9793,27 @@ final int totalSpots;
     required this.spots,
     required this.onJoin,
     required this.showJoinButton,
+    required this.isJoined,
     required this.prizeSlabs,
     this.joinedCount = 0,
-this.totalSpots = 0,
+    this.totalSpots = 0,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final bool isFull = totalSpots > 0 && joinedCount >= totalSpots;
-    final int spotsLeft = totalSpots - joinedCount;
-    final bool isJoined = joinedCount > 0;
+  Widget build(
+    BuildContext context,
+  ) {
+    final bool isFull =
+        totalSpots > 0 &&
+            joinedCount >=
+                totalSpots;
+
+    final int spotsLeft =
+        totalSpots > joinedCount
+            ? totalSpots -
+                joinedCount
+            : 0;
+
 
     final lowerName = name.toLowerCase();
 
@@ -16196,7 +17975,330 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     );
   }
 }
-final List<Map<String, dynamic>> createdContests = [];
+// ======================================================
+// ADMIN CONTESTS FIREBASE REALTIME SYSTEM
+// Admin Create / Edit / Delete
+//                ↓
+//             Firebase
+//                ↓
+//       All Logged-in Users
+// ======================================================
+
+final List<Map<String, dynamic>>
+    createdContests = [];
+
+final ValueNotifier<int>
+    createdContestsVersion =
+    ValueNotifier<int>(0);
+
+final ValueNotifier<Map<String, int>>
+    contestJoinCounts =
+    ValueNotifier<Map<String, int>>(
+  <String, int>{},
+);
+
+StreamSubscription<
+        DocumentSnapshot<
+            Map<String, dynamic>>>?
+    _adminContestsSubscription;
+
+StreamSubscription<
+        QuerySnapshot<
+            Map<String, dynamic>>>?
+    _contestJoinsSubscription;
+
+StreamSubscription<User?>?
+    _adminContestsAuthSubscription;
+
+
+// ======================================================
+// CONTEST -> FIREBASE SAFE MAP
+// ======================================================
+
+Map<String, dynamic>
+    _adminContestForFirebase(
+  Map<String, dynamic> contest,
+) {
+  final stored =
+      Map<String, dynamic>.from(
+    contest,
+  );
+
+  // ValueNotifier Firestore में save नहीं हो सकता.
+  stored.remove(
+    'joinedNotifier',
+  );
+
+  final rawMatch =
+      stored['match'];
+
+  if (rawMatch is Map) {
+    stored['match'] =
+        Map<String, dynamic>.from(
+      rawMatch,
+    );
+  }
+
+  final rawSlabs =
+      stored['prizeSlabs'];
+
+  if (rawSlabs is List) {
+    stored['prizeSlabs'] =
+        rawSlabs
+            .whereType<Map>()
+            .map(
+              (slab) =>
+                  Map<String,
+                      dynamic>.from(
+                slab,
+              ),
+            )
+            .toList();
+  }
+
+  return stored;
+}
+
+
+// ======================================================
+// FIREBASE -> LOCAL CONTEST LIST
+// ======================================================
+
+List<Map<String, dynamic>>
+    _firebaseAdminContestsToLocal(
+  dynamic raw,
+) {
+  if (raw is! List) {
+    return <Map<String, dynamic>>[];
+  }
+
+  return raw
+      .whereType<Map>()
+      .map(
+        (item) =>
+            Map<String, dynamic>.from(
+          item,
+        ),
+      )
+      .toList();
+}
+
+void _applyAdminContestsFromFirebase(
+  dynamic raw,
+) {
+  createdContests
+    ..clear()
+    ..addAll(
+      _firebaseAdminContestsToLocal(
+        raw,
+      ),
+    );
+
+  createdContestsVersion.value =
+      createdContestsVersion.value + 1;
+}
+
+
+// ======================================================
+// SAVE COMPLETE ADMIN CONTEST LIST
+// ======================================================
+
+Future<bool>
+    _saveAdminContestsToFirebase()
+    async {
+  final canSave =
+      await _currentUserCanSaveAdminMatches();
+
+  if (!canSave) {
+    return false;
+  }
+
+  try {
+    final contests =
+        createdContests
+            .map(
+              _adminContestForFirebase,
+            )
+            .toList();
+
+    await FirebaseFirestore.instance
+        .collection('settings')
+        .doc('admin_contests')
+        .set(
+      {
+        'contests': contests,
+
+        'updatedAt':
+            FieldValue.serverTimestamp(),
+
+        'updatedBy':
+            FirebaseAuth
+                    .instance
+                    .currentUser
+                    ?.uid ??
+                '',
+      },
+      SetOptions(
+        merge: true,
+      ),
+    );
+
+    return true;
+  } catch (e) {
+    debugPrint(
+      'Admin contests Firebase save error: $e',
+    );
+
+    return false;
+  }
+}
+// ======================================================
+// GLOBAL JOINED COUNT
+// ======================================================
+
+int _globalContestJoinedCount(
+  String contestId,
+) {
+  if (contestId.isEmpty) {
+    return 0;
+  }
+
+  return contestJoinCounts
+          .value[contestId] ??
+      0;
+}
+
+
+// ======================================================
+// ADMIN CONTEST REALTIME LISTENER
+// ======================================================
+
+void _startAdminContestsRealtimeListener() {
+  _adminContestsSubscription
+      ?.cancel();
+
+  _adminContestsSubscription =
+      FirebaseFirestore.instance
+          .collection('settings')
+          .doc('admin_contests')
+          .snapshots()
+          .listen(
+    (snapshot) {
+      final data =
+          snapshot.data();
+
+      if (data == null) {
+        _applyAdminContestsFromFirebase(
+          const <dynamic>[],
+        );
+
+        return;
+      }
+
+      _applyAdminContestsFromFirebase(
+        data['contests'],
+      );
+    },
+    onError: (error) {
+      debugPrint(
+        'Admin contests realtime error: $error',
+      );
+    },
+  );
+}
+
+
+// ======================================================
+// ALL CONTEST JOINS -> GLOBAL COUNTS
+// ======================================================
+
+void _startContestJoinCountsListener() {
+  _contestJoinsSubscription
+      ?.cancel();
+
+  _contestJoinsSubscription =
+      FirebaseFirestore.instance
+          .collection('contest_joins')
+          .snapshots()
+          .listen(
+    (snapshot) {
+      final counts =
+          <String, int>{};
+
+      for (final doc
+          in snapshot.docs) {
+        final contestId =
+            (doc.data()['contestId'] ??
+                    '')
+                .toString()
+                .trim();
+
+        if (contestId.isEmpty) {
+          continue;
+        }
+
+        counts[contestId] =
+            (counts[contestId] ?? 0) +
+                1;
+      }
+
+      contestJoinCounts.value =
+          counts;
+    },
+    onError: (error) {
+      debugPrint(
+        'Contest join count realtime error: $error',
+      );
+    },
+  );
+}
+
+
+// ======================================================
+// START COMPLETE ADMIN CONTEST SYSTEM
+// ======================================================
+
+void startAdminContestsFirebaseSync() {
+  _adminContestsAuthSubscription
+      ?.cancel();
+
+  _adminContestsAuthSubscription =
+      FirebaseAuth.instance
+          .authStateChanges()
+          .listen(
+    (user) {
+      _adminContestsSubscription
+          ?.cancel();
+
+      _contestJoinsSubscription
+          ?.cancel();
+
+      _adminContestsSubscription =
+          null;
+
+      _contestJoinsSubscription =
+          null;
+
+      if (user == null) {
+        createdContests.clear();
+
+        createdContestsVersion.value =
+            createdContestsVersion.value +
+                1;
+
+        contestJoinCounts.value =
+            <String, int>{};
+
+        return;
+      }
+
+      _startAdminContestsRealtimeListener();
+
+      _startContestJoinCountsListener();
+    },
+  );
+}
+
 class AdminContestsPage extends StatefulWidget {
   const AdminContestsPage({super.key});
 
@@ -16205,6 +18307,29 @@ class AdminContestsPage extends StatefulWidget {
 }
 
 class _AdminContestsPageState extends State<AdminContestsPage> {
+void _refreshAdminContestPage() {
+  if (!mounted) return;
+
+  setState(() {});
+}
+
+@override
+void initState() {
+  super.initState();
+
+  createdContestsVersion.addListener(
+    _refreshAdminContestPage,
+  );
+}
+
+@override
+void dispose() {
+  createdContestsVersion.removeListener(
+    _refreshAdminContestPage,
+  );
+
+  super.dispose();
+}
   String makeShortName(String name) {
   final words = name.trim().split(RegExp(r'\s+'));
 
@@ -16608,7 +18733,7 @@ OutlinedButton.icon(
             child: const Text('CANCEL'),
           ),
           ElevatedButton(
-  onPressed: () {
+  onPressed: () async {
     
     if (selectedMatch == null ||
     !_isMatchStillUpcoming(selectedMatch!)) {
@@ -16731,27 +18856,110 @@ if (prizePoolAmount == null ||
   );
   return;
 }
-    setState(() {
-      createdContests.add({
-  'match': selectedMatch!,
-        'team1': selectedMatch!['team1'],
-'team2': selectedMatch!['team2'],
-        'id': DateTime.now().microsecondsSinceEpoch.toString(),
-  'type': selectedContestType,
-        'h2hWinningType': h2hWinningType,
+    final newContest =
+    <String, dynamic>{
+  'match':
+      Map<String, String>.from(
+    selectedMatch!,
+  ),
+
+  'matchKey':
+      '${selectedMatch!['team1']}_'
+      '${selectedMatch!['team2']}_'
+      '${selectedMatch!['date']}_'
+      '${selectedMatch!['time']}',
+
+  'team1':
+      selectedMatch!['team1'],
+
+  'team2':
+      selectedMatch!['team2'],
+
+  'id':
+      DateTime.now()
+          .microsecondsSinceEpoch
+          .toString(),
+
+  'type':
+      selectedContestType,
+
+  'h2hWinningType':
+      selectedContestType ==
+              'Head to Head'
+          ? h2hWinningType
+          : '',
+
   'name': name,
+
   'fee': fee,
+
   'prize': prize,
+
+  'prizePool': prize,
+
   'spots': spots,
-        'prizeSlabs': prizeSlabControllers.map((slab) {
-  return {
-    'from': slab['from']!.text.trim(),
-    'to': slab['to']!.text.trim(),
-    'amount': slab['amount']!.text.trim(),
-  };
-}).toList(),
+
+  'totalSpots': spots,
+
+  'createdAt':
+      DateTime.now(),
+
+  'prizeSlabs':
+      prizeSlabControllers
+          .map((slab) {
+    return {
+      'from':
+          slab['from']!
+              .text
+              .trim(),
+
+      'to':
+          slab['to']!
+              .text
+              .trim(),
+
+      'amount':
+          slab['amount']!
+              .text
+              .trim(),
+    };
+  }).toList(),
+};
+
+setState(() {
+  createdContests.add(
+    newContest,
+  );
 });
-    });
+
+createdContestsVersion.value++;
+
+final contestSaved =
+    await _saveAdminContestsToFirebase();
+
+if (!contestSaved) {
+  if (!mounted) return;
+
+  setState(() {
+    createdContests.remove(
+      newContest,
+    );
+  });
+
+  createdContestsVersion.value++;
+
+  ScaffoldMessenger.of(
+    this.context,
+  ).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Contest Firebase में save नहीं हुआ',
+      ),
+    ),
+  );
+
+  return;
+}
 
     Navigator.pop(context);
 
@@ -16941,12 +19149,14 @@ final rightTeam = team2Flag.isNotEmpty
  onPressed: () async {
   Navigator.pop(context);
 
-  final joinedNotifier =
-      contest['joinedNotifier']
-          as ValueNotifier<int>?;
+  final String globalContestId =
+    (contest['id'] ?? '')
+        .toString();
 
-  final int joinedSpots =
-      joinedNotifier?.value ?? 0;
+final int joinedSpots =
+    _globalContestJoinedCount(
+  globalContestId,
+);
 
   final double entryFee =
       double.tryParse(
@@ -17325,7 +19535,7 @@ final rightTeam = team2Flag.isNotEmpty
               ),
 
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   final prizePool =
                       double.tryParse(
                     editPrizeController.text
@@ -17557,14 +19767,42 @@ final updatedSlabs =
 }).toList();
 
 setState(() {
-  contest['prize'] = updatedPrize;
-  contest['prizePool'] = updatedPrize;
+  contest['prize'] =
+      updatedPrize;
 
-  contest['spots'] = updatedSpots;
-  contest['totalSpots'] = updatedSpots;
+  contest['prizePool'] =
+      updatedPrize;
 
-  contest['prizeSlabs'] = updatedSlabs;
+  contest['spots'] =
+      updatedSpots;
+
+  contest['totalSpots'] =
+      updatedSpots;
+
+  contest['prizeSlabs'] =
+      updatedSlabs;
 });
+
+createdContestsVersion.value++;
+
+final contestSaved =
+    await _saveAdminContestsToFirebase();
+
+if (!contestSaved) {
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(
+    this.context,
+  ).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Contest update Firebase में save नहीं हुआ',
+      ),
+    ),
+  );
+
+  return;
+}
 
 final String editedContestId =
     (contest['id'] ?? '').toString();
@@ -17631,19 +19869,94 @@ joinedContests.value = [
   child: const Text('EDIT'),
 ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
+            onPressed: () async {
+  final contestId =
+      (contest['id'] ?? '').toString();
 
-              setState(() {
-                createdContests.remove(contest);
-              });
+  final joinedCount =
+      _globalContestJoinedCount(
+    contestId,
+  );
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Contest deleted'),
-                ),
-              );
-            },
+  Navigator.pop(context);
+
+  if (joinedCount > 0) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      this.context,
+    ).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$joinedCount users इस contest में joined हैं • Delete नहीं कर सकते',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  final oldIndex =
+      createdContests.indexOf(
+    contest,
+  );
+
+  setState(() {
+    createdContests.remove(
+      contest,
+    );
+  });
+
+  createdContestsVersion.value++;
+
+  final saved =
+      await _saveAdminContestsToFirebase();
+
+  if (!saved) {
+    if (!mounted) return;
+
+    setState(() {
+      if (oldIndex >= 0 &&
+          oldIndex <=
+              createdContests.length) {
+        createdContests.insert(
+          oldIndex,
+          contest,
+        );
+      } else {
+        createdContests.add(
+          contest,
+        );
+      }
+    });
+
+    createdContestsVersion.value++;
+
+    ScaffoldMessenger.of(
+      this.context,
+    ).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Contest delete Firebase में save नहीं हुआ',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(
+    this.context,
+  ).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Contest deleted',
+      ),
+    ),
+  );
+},
             child: const Text('DELETE'),
           ),
         ],
@@ -27624,7 +29937,41 @@ if (index != -1) {
 }
 
 adminMatches.value = updated;
+bool contestMatchChanged = false;
 
+for (final contest in createdContests) {
+  final sameOldMatch =
+      (contest['team1'] ?? '') ==
+              oldTeam1 &&
+          (contest['team2'] ?? '') ==
+              oldTeam2;
+
+  if (!sameOldMatch) continue;
+
+  contest['team1'] =
+      team1Controller.text.trim();
+
+  contest['team2'] =
+      team2Controller.text.trim();
+
+  contest['matchKey'] =
+      newSavedTeamKey;
+
+  if (index != -1) {
+    contest['match'] =
+        Map<String, dynamic>.from(
+      updated[index],
+    );
+  }
+
+  contestMatchChanged = true;
+}
+
+if (contestMatchChanged) {
+  createdContestsVersion.value++;
+
+  _saveAdminContestsToFirebase();
+}
 final syncedJoinedMatches = joinedMatches.value.map((j) {
   if (j.team1 == (match['team1'] ?? '') &&
       j.team2 == (match['team2'] ?? '')) {
@@ -27986,17 +30333,63 @@ subtitle: Padding(
               onTap: () {
                 Navigator.pop(context);
 
-                final updated =
-                    List<Map<String, String>>.from(adminMatches.value);
+                final deletedTeam1 =
+    match['team1'] ?? '';
 
-                updated.remove(match);
-                adminMatches.value = updated;
-final deletedTeam1 = match['team1'] ?? '';
-final deletedTeam2 = match['team2'] ?? '';
-createdContests.removeWhere((c) {
-  return (c['team1'] ?? '') == deletedTeam1 &&
-      (c['team2'] ?? '') == deletedTeam2;
+final deletedTeam2 =
+    match['team2'] ?? '';
+
+final relatedContests =
+    createdContests.where((contest) {
+  return (contest['team1'] ?? '') ==
+          deletedTeam1 &&
+      (contest['team2'] ?? '') ==
+          deletedTeam2;
+}).toList();
+
+final hasJoinedContest =
+    relatedContests.any((contest) {
+  final contestId =
+      (contest['id'] ?? '').toString();
+
+  return _globalContestJoinedCount(
+        contestId,
+      ) >
+      0;
 });
+
+if (hasJoinedContest) {
+  ScaffoldMessenger.of(this.context)
+      .showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Joined contest वाले match को delete नहीं कर सकते',
+      ),
+    ),
+  );
+
+  return;
+}
+
+final updated =
+    List<Map<String, String>>.from(
+  adminMatches.value,
+);
+
+updated.remove(match);
+adminMatches.value = updated;
+
+createdContests.removeWhere((contest) {
+  return (contest['team1'] ?? '') ==
+          deletedTeam1 &&
+      (contest['team2'] ?? '') ==
+          deletedTeam2;
+});
+
+createdContestsVersion.value++;
+
+_saveAdminContestsToFirebase();
+                
 final deletedMatchName =
     '$deletedTeam1 vs $deletedTeam2'
         .trim()
