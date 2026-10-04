@@ -1088,15 +1088,32 @@ final ValueNotifier<bool> hasUnreadNotification =
     ValueNotifier<bool>(false);
 final ValueNotifier<List<Map<String, dynamic>>> appNotifications =
     ValueNotifier<List<Map<String, dynamic>>>([]);
+
+bool _walletRequestSaveInProgress =
+    false;
+
 Future<bool> addWalletRequest({
   required String type,
   required double amount,
   String? screenshot,
 }) async {
+  if (_walletRequestSaveInProgress) {
+    debugPrint(
+      'Wallet request blocked: save already in progress',
+    );
+    return false;
+  }
+
+  _walletRequestSaveInProgress = true;
+
   final user =
       FirebaseAuth.instance.currentUser;
 
-  if (user == null) return false;
+  if (user == null) {
+    _walletRequestSaveInProgress =
+        false;
+    return false;
+  }
 
   try {
     final userRef =
@@ -1110,7 +1127,9 @@ Future<bool> addWalletRequest({
     final data =
         userDoc.data();
 
-    if (data == null) return false;
+    if (data == null) {
+      return false;
+    }
 
     final role =
         (data['role'] ?? 'USER')
@@ -1140,9 +1159,6 @@ Future<bool> addWalletRequest({
             : <Map<String,
                 dynamic>>[];
 
-    // पुराने resolved requests की
-    // screenshots दोबारा Firebase में
-    // जमा नहीं रखनी हैं।
     for (final oldRequest
         in savedRequests) {
       final oldStatus =
@@ -1161,6 +1177,74 @@ Future<bool> addWalletRequest({
 
     final now = DateTime.now();
 
+    final normalizedType =
+        type.trim().toUpperCase();
+
+    final recentDuplicate =
+        savedRequests.any(
+      (item) {
+        final oldStatus =
+            (item['status'] ??
+                    'PENDING')
+                .toString()
+                .trim()
+                .toUpperCase();
+
+        final oldType =
+            (item['type'] ?? '')
+                .toString()
+                .trim()
+                .toUpperCase();
+
+        final oldAmount =
+            double.tryParse(
+                  (item['amount'] ?? 0)
+                      .toString(),
+                ) ??
+                0;
+
+        DateTime? oldTime;
+
+        final rawCreatedAt =
+            item['createdAt'];
+
+        if (rawCreatedAt
+            is Timestamp) {
+          oldTime =
+              rawCreatedAt.toDate();
+        } else if (rawCreatedAt
+            is DateTime) {
+          oldTime = rawCreatedAt;
+        }
+
+        if (oldTime == null) {
+          return false;
+        }
+
+        final seconds =
+            now
+                .difference(oldTime)
+                .inSeconds
+                .abs();
+
+        return oldStatus ==
+                'PENDING' &&
+            oldType ==
+                normalizedType &&
+            (oldAmount - amount)
+                    .abs() <
+                0.01 &&
+            seconds <= 20;
+      },
+    );
+
+    if (recentDuplicate) {
+      debugPrint(
+        'Duplicate wallet request blocked',
+      );
+      return false;
+    }
+
     final requestId =
         'REQ-${now.microsecondsSinceEpoch}';
 
@@ -1171,13 +1255,14 @@ Future<bool> addWalletRequest({
       'username':
           (data['username'] ?? '')
               .toString(),
-      'type':
-          type.trim().toUpperCase(),
+      'type': normalizedType,
       'amount': amount,
       'status': 'PENDING',
       'createdAt': now,
       if (screenshot != null &&
-          screenshot.trim().isNotEmpty)
+          screenshot
+              .trim()
+              .isNotEmpty)
         'screenshot': screenshot,
     };
 
@@ -1190,7 +1275,9 @@ Future<bool> addWalletRequest({
         'walletRequests':
             savedRequests,
       },
-      SetOptions(merge: true),
+      SetOptions(
+        merge: true,
+      ),
     );
 
     walletRequests.value =
@@ -1205,8 +1292,12 @@ Future<bool> addWalletRequest({
     );
 
     return false;
+  } finally {
+    _walletRequestSaveInProgress =
+        false;
   }
 }
+    
     
 
 
@@ -17826,6 +17917,20 @@ if (type == 'WITHDRAW' &&
               selectedRequestType ==
                   'DEPOSIT';
 
+          final selectedColor =
+              depositSelected
+                  ? Colors.green
+                  : Colors.red;
+
+          final panelColor =
+              depositSelected
+                  ? const Color(
+                      0xFFEAF7EC,
+                    )
+                  : const Color(
+                      0xFFFFECEF,
+                    );
+
           Widget selector({
             required String title,
             required int count,
@@ -17844,11 +17949,7 @@ if (type == 'WITHDRAW' &&
                   });
                 },
                 child: Container(
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
-                    vertical: 18,
-                  ),
+                  height: 145,
                   decoration:
                       BoxDecoration(
                     color: selected
@@ -17856,54 +17957,55 @@ if (type == 'WITHDRAW' &&
                         : Colors.white,
                     borderRadius:
                         BorderRadius.circular(
-                      18,
+                      24,
                     ),
                     border: Border.all(
                       color: selected
                           ? color
                           : Colors
-                              .grey.shade300,
+                              .grey.shade400,
                       width:
-                          selected ? 2 : 1,
+                          selected ? 2.5 : 1,
                     ),
                   ),
                   child: Column(
+                    mainAxisAlignment:
+                        MainAxisAlignment.center,
                     children: [
                       CircleAvatar(
-                        radius: 23,
+                        radius: 25,
                         backgroundColor:
                             color.withOpacity(
-                          0.15,
+                          0.14,
                         ),
                         child: Icon(
                           icon,
                           color: color,
+                          size: 29,
                         ),
                       ),
                       const SizedBox(
-                        height: 8,
+                        height: 10,
                       ),
                       Text(
                         title,
                         style:
                             const TextStyle(
-                          fontSize: 17,
+                          fontSize: 18,
                           fontWeight:
-                              FontWeight
-                                  .bold,
+                              FontWeight.bold,
                         ),
                       ),
                       const SizedBox(
-                        height: 3,
+                        height: 4,
                       ),
                       Text(
                         '$count Pending',
                         style:
                             const TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight:
-                              FontWeight
-                                  .w600,
+                              FontWeight.w700,
                         ),
                       ),
                     ],
@@ -17912,8 +18014,7 @@ if (type == 'WITHDRAW' &&
               ),
             );
           }
-
-          return ListView(
+return ListView(
             padding:
                 const EdgeInsets.all(14),
             children: [
@@ -17935,7 +18036,7 @@ if (type == 'WITHDRAW' &&
                   ),
 
                   const SizedBox(
-                    width: 10,
+                    width: 8,
                   ),
 
                   selector(
@@ -17946,7 +18047,7 @@ if (type == 'WITHDRAW' &&
                     color: Colors.red,
                     background:
                         const Color(
-                      0xFFFFE7EA,
+                      0xFFFFE5E9,
                     ),
                     icon:
                         Icons.arrow_upward,
@@ -17955,318 +18056,369 @@ if (type == 'WITHDRAW' &&
                 ],
               ),
 
-              const SizedBox(height: 18),
-
-              Text(
-                depositSelected
-                    ? 'Deposit Requests'
-                    : 'Withdrawal Requests',
-                style: const TextStyle(
-                  fontSize: 19,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              if (pendingEntries.isEmpty)
-                Container(
+              Transform.translate(
+                offset:
+                    const Offset(0, -2),
+                child: Container(
+                  width: double.infinity,
                   padding:
-                      const EdgeInsets
-                          .symmetric(
-                    vertical: 50,
+                      const EdgeInsets.fromLTRB(
+                    12,
+                    18,
+                    12,
+                    12,
                   ),
-                  alignment:
-                      Alignment.center,
-                  child: Text(
-                    depositSelected
-                        ? 'No pending deposit requests'
-                        : 'No pending withdrawal requests',
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        const TextStyle(
-                      fontSize: 16,
-                      fontWeight:
-                          FontWeight.w600,
+                  decoration:
+                      BoxDecoration(
+                    color: panelColor,
+                    borderRadius:
+                        BorderRadius.circular(
+                      22,
+                    ),
+                    border: Border.all(
+                      color:
+                          selectedColor,
+                      width: 2.2,
                     ),
                   ),
-                )
-              else
-                ...pendingEntries.map(
-                  (entry) {
-                    final originalIndex =
-                        entry.key;
-
-                    final request =
-                        entry.value;
-
-                    final type =
-                        (request['type'] ??
-                                '')
-                            .toString()
-                            .toUpperCase();
-
-                    final amount =
-                        double.tryParse(
-                              (request[
-                                          'amount'] ??
-                                      0)
-                                  .toString(),
-                            ) ??
-                            0;
-
-                    final username =
-                        (request[
-                                    'username'] ??
-                                'User')
-                            .toString();
-
-                    final screenshot =
-                        (request[
-                                    'screenshot'] ??
-                                '')
-                            .toString();
-
-                    final isDeposit =
-                        type == 'DEPOSIT';
-
-                    return Card(
-                      margin:
-                          const EdgeInsets
-                              .only(
-                        bottom: 10,
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .start,
+                    children: [
+                      Text(
+                        depositSelected
+                            ? 'Deposit Requests'
+                            : 'Withdrawal Requests',
+                        style:
+                            const TextStyle(
+                          fontSize: 20,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
                       ),
-                      color: isDeposit
-                          ? const Color(
-                              0xFFF0FAF2,
-                            )
-                          : const Color(
-                              0xFFFFF0F2,
+
+                      const SizedBox(
+                        height: 12,
+                      ),
+
+                      if (pendingEntries
+                          .isEmpty)
+                        Container(
+                          width:
+                              double.infinity,
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            vertical: 55,
+                          ),
+                          alignment:
+                              Alignment.center,
+                          child: Text(
+                            depositSelected
+                                ? 'No pending deposit requests'
+                                : 'No pending withdrawal requests',
+                            textAlign:
+                                TextAlign
+                                    .center,
+                            style:
+                                const TextStyle(
+                              fontSize: 16,
+                              fontWeight:
+                                  FontWeight
+                                      .w600,
                             ),
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius
-                                .circular(
-                          16,
-                        ),
-                        side: BorderSide(
-                          color: isDeposit
-                              ? Colors.green
-                                  .shade300
-                              : Colors.red
-                                  .shade300,
-                        ),
-                      ),
-                      child: Padding(
-                        padding:
-                            const EdgeInsets
-                                .all(
-                          12,
-                        ),
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
-                          children: [
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 21,
-                                  backgroundColor:
-                                      isDeposit
-                                          ? Colors
-                                              .green
-                                              .shade100
-                                          : Colors
-                                              .red
-                                              .shade100,
-                                  child: Icon(
+                          ),
+                        )
+                      else
+                        ...pendingEntries
+                            .map(
+                          (entry) {
+                            final originalIndex =
+                                entry.key;
+
+                            final request =
+                                entry.value;
+
+                            final type =
+                                (request[
+                                            'type'] ??
+                                        '')
+                                    .toString()
+                                    .toUpperCase();
+
+                            final amount =
+                                double.tryParse(
+                                      (request[
+                                                  'amount'] ??
+                                              0)
+                                          .toString(),
+                                    ) ??
+                                    0;
+
+                            final username =
+                                (request[
+                                            'username'] ??
+                                        'User')
+                                    .toString();
+
+                            final screenshot =
+                                (request[
+                                            'screenshot'] ??
+                                        '')
+                                    .toString();
+
+                            final isDeposit =
+                                type ==
+                                    'DEPOSIT';
+
+                            final cardColor =
+                                isDeposit
+                                    ? Colors
+                                        .green
+                                    : Colors
+                                        .red;
+
+                            return Container(
+                              margin:
+                                  const EdgeInsets
+                                      .only(
+                                bottom: 12,
+                              ),
+                              padding:
+                                  const EdgeInsets
+                                      .all(
+                                12,
+                              ),
+                              decoration:
+                                  BoxDecoration(
+                                color:
                                     isDeposit
-                                        ? Icons
-                                            .arrow_downward
-                                        : Icons
-                                            .arrow_upward,
-                                    color:
-                                        isDeposit
-                                            ? Colors
-                                                .green
-                                            : Colors
-                                                .red,
+                                        ? const Color(
+                                            0xFFF3FBF4,
+                                          )
+                                        : const Color(
+                                            0xFFFFF3F4,
+                                          ),
+                                borderRadius:
+                                    BorderRadius
+                                        .circular(
+                                  18,
+                                ),
+                                border:
+                                    Border.all(
+                                  color: cardColor
+                                      .withOpacity(
+                                    0.55,
                                   ),
+                                  width: 1.5,
                                 ),
-
-                                const SizedBox(
-                                  width: 10,
-                                ),
-
-                                Expanded(
-                                  child:
-                                      Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment
-                                            .start,
+                              ),
+                              child: Column(
+                                children: [
+                                  Row(
                                     children: [
-                                      Text(
-                                        username,
-                                        maxLines:
-                                            1,
-                                        overflow:
-                                            TextOverflow
-                                                .ellipsis,
-                                        style:
-                                            const TextStyle(
-                                          fontSize:
-                                              16,
-                                          fontWeight:
-                                              FontWeight
-                                                  .bold,
+                                      CircleAvatar(
+                                        radius:
+                                            22,
+                                        backgroundColor:
+                                            cardColor
+                                                .withOpacity(
+                                          0.13,
+                                        ),
+                                        child:
+                                            Icon(
+                                          isDeposit
+                                              ? Icons
+                                                  .arrow_downward
+                                              : Icons
+                                                  .arrow_upward,
+                                          color:
+                                              cardColor,
                                         ),
                                       ),
+
+                                      const SizedBox(
+                                        width:
+                                            10,
+                                      ),
+
+                                      Expanded(
+                                        child:
+                                            Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment
+                                                  .start,
+                                          children: [
+                                            Text(
+                                              username,
+                                              maxLines:
+                                                  1,
+                                              overflow:
+                                                  TextOverflow
+                                                      .ellipsis,
+                                              style:
+                                                  const TextStyle(
+                                                fontSize:
+                                                    17,
+                                                fontWeight:
+                                                    FontWeight.bold,
+                                              ),
+                                            ),
+                                            Text(
+                                              isDeposit
+                                                  ? 'Deposit Request'
+                                                  : 'Withdrawal Request',
+                                              style:
+                                                  const TextStyle(
+                                                fontSize:
+                                                    12,
+                                                fontWeight:
+                                                    FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+
                                       Text(
-                                        isDeposit
-                                            ? 'Deposit Request'
-                                            : 'Withdrawal Request',
+                                        '₹${amount.toStringAsFixed(0)}',
                                         style:
                                             const TextStyle(
                                           fontSize:
-                                              11,
+                                              20,
+                                          fontWeight:
+                                              FontWeight.bold,
                                         ),
                                       ),
                                     ],
                                   ),
-                                ),
 
-                                Text(
-                                  '₹${amount.toStringAsFixed(0)}',
-                                  style:
-                                      const TextStyle(
-                                    fontSize: 19,
-                                    fontWeight:
-                                        FontWeight
-                                            .bold,
+                                  const SizedBox(
+                                    height: 9,
                                   ),
-                                ),
-                              ],
-                            ),
 
-                            const SizedBox(
-                              height: 8,
-                            ),
-
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons
-                                      .access_time,
-                                  size: 14,
-                                ),
-                                const SizedBox(
-                                  width: 4,
-                                ),
-                                Text(
-                                  'Request: ${formatDate(request['createdAt'])}',
-                                  style:
-                                      const TextStyle(
-                                    fontSize:
-                                        11,
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            if (isDeposit &&
-                                screenshot
-                                    .isNotEmpty) ...[
-                              const SizedBox(
-                                height: 9,
-                              ),
-                              SizedBox(
-                                width: double
-                                    .infinity,
-                                child:
-                                    OutlinedButton
-                                        .icon(
-                                  onPressed:
-                                      () {
-                                    Navigator
-                                        .push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder:
-                                            (_) =>
-                                                PaymentScreenshotPage(
-                                          screenshot:
-                                              screenshot,
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons
+                                            .access_time,
+                                        size:
+                                            15,
+                                      ),
+                                      const SizedBox(
+                                        width:
+                                            5,
+                                      ),
+                                      Text(
+                                        'Request: ${formatDate(request['createdAt'])}',
+                                        style:
+                                            const TextStyle(
+                                          fontSize:
+                                              11.5,
+                                          fontWeight:
+                                              FontWeight.w600,
                                         ),
                                       ),
-                                    );
-                                  },
-                                  icon:
-                                      const Icon(
-                                    Icons.image,
+                                    ],
                                   ),
-                                  label:
-                                      const Text(
-                                    'VIEW PAYMENT SCREENSHOT',
+
+                                  if (isDeposit &&
+                                      screenshot
+                                          .isNotEmpty) ...[
+                                    const SizedBox(
+                                      height:
+                                          10,
+                                    ),
+                                    SizedBox(
+                                      width:
+                                          double.infinity,
+                                      child:
+                                          OutlinedButton
+                                              .icon(
+                                        onPressed:
+                                            () {
+                                          Navigator
+                                              .push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder:
+                                                  (_) =>
+                                                      PaymentScreenshotPage(
+                                                screenshot:
+                                                    screenshot,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        icon:
+                                            const Icon(
+                                          Icons
+                                              .image,
+                                        ),
+                                        label:
+                                            const Text(
+                                          'VIEW PAYMENT SCREENSHOT',
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+
+                                  const SizedBox(
+                                    height: 9,
                                   ),
-                                ),
+
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child:
+                                            ElevatedButton(
+                                          onPressed:
+                                              () {
+                                            approveRequest(
+                                              context,
+                                              originalIndex,
+                                              request,
+                                            );
+                                          },
+                                          child:
+                                              const Text(
+                                            'APPROVE',
+                                          ),
+                                        ),
+                                      ),
+
+                                      const SizedBox(
+                                        width:
+                                            10,
+                                      ),
+
+                                      Expanded(
+                                        child:
+                                            OutlinedButton(
+                                          onPressed:
+                                              () {
+                                            rejectRequest(
+                                              originalIndex,
+                                            );
+                                          },
+                                          child:
+                                              const Text(
+                                            'REJECT',
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            ],
-
-                            const SizedBox(
-                              height: 9,
-                            ),
-
-                            Row(
-                              children: [
-                                Expanded(
-                                  child:
-                                      ElevatedButton(
-                                    onPressed:
-                                        () {
-                                      approveRequest(
-                                        context,
-                                        originalIndex,
-                                        request,
-                                      );
-                                    },
-                                    child:
-                                        const Text(
-                                      'APPROVE',
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(
-                                  width: 10,
-                                ),
-
-                                Expanded(
-                                  child:
-                                      OutlinedButton(
-                                    onPressed:
-                                        () {
-                                      rejectRequest(
-                                        originalIndex,
-                                      );
-                                    },
-                                    child:
-                                        const Text(
-                                      'REJECT',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                            );
+                          },
                         ),
-                      ),
-                    );
-                  },
+                    ],
+                  ),
                 ),
+              ),
             ],
           );
         },
@@ -18274,8 +18426,6 @@ if (type == 'WITHDRAW' &&
     );
   }
 }
-              
-
 
   
  
