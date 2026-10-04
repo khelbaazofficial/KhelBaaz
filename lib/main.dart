@@ -2661,6 +2661,10 @@ final startTime =
 // user के सभी joined contests
 // अपने-आप settle होंगे.
 _autoSettleUserWinnings();
+
+// Final settlement के बाद
+// 5-day expired user display data cleanup.
+_cleanupExpiredUserDisplayData();
 }
 
 
@@ -2930,7 +2934,495 @@ double _userTotalEntryFromHistory(
 
   return total;
 }
+// ======================================================
+// PERMANENT JOINED COUNT
+// Display records delete होने के बाद भी analytics
+// transaction history से permanently बने रहेंगे.
+// ======================================================
 
+int _userJoinedCountFromHistory(
+  List<Map<String, dynamic>> history,
+) {
+  int count = 0;
+
+  for (final transaction
+      in history) {
+    final title =
+        (transaction['title'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
+
+    final type =
+        (transaction['type'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
+
+    final isEntry =
+        type == 'CONTEST_ENTRY' ||
+        type == 'ENTRY' ||
+        type == 'ENTRY_FEE' ||
+        title == 'CONTEST ENTRY' ||
+        title.contains(
+          'ENTRY FEE',
+        );
+
+    if (isEntry) {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+
+// ======================================================
+// MATCH -> POSSIBLE FIREBASE STORAGE KEYS
+// ======================================================
+
+Set<String> _userStorageKeysForMatch(
+  MatchModel match,
+) {
+  final keys = <String>{};
+
+  // Existing saved match.time:
+  // 04/10/2026 • 7:19 PM
+  final timeParts =
+      match.time.split('•');
+
+  if (timeParts.length >= 2) {
+    final date =
+        timeParts.first.trim();
+
+    final time =
+        timeParts
+            .sublist(1)
+            .join('•')
+            .trim();
+
+    if (date.isNotEmpty &&
+        time.isNotEmpty) {
+      keys.add(
+        '${match.team1}_'
+        '${match.team2}_'
+        '${date}_'
+        '$time',
+      );
+    }
+  }
+
+  // startTime fallback.
+  final start =
+      match.startTime;
+
+  if (start != null) {
+    final date =
+        '${start.day.toString().padLeft(2, '0')}/'
+        '${start.month.toString().padLeft(2, '0')}/'
+        '${start.year}';
+
+    final hour12 =
+        start.hour % 12 == 0
+            ? 12
+            : start.hour % 12;
+
+    final time =
+        '$hour12:'
+        '${start.minute.toString().padLeft(2, '0')} '
+        '${start.hour >= 12 ? 'PM' : 'AM'}';
+
+    keys.add(
+      '${match.team1}_'
+      '${match.team2}_'
+      '${date}_'
+      '$time',
+    );
+  }
+
+  return keys;
+}
+
+
+// ======================================================
+// FIND EXACT ADMIN MATCH
+// ======================================================
+
+Map<String, String>?
+    _userAdminMatchForJoinedMatch(
+  MatchModel match,
+) {
+  final matchKeys =
+      _userStorageKeysForMatch(
+    match,
+  );
+
+  for (final admin
+      in adminMatches.value) {
+    final adminKey =
+        '${admin['team1'] ?? ''}_'
+        '${admin['team2'] ?? ''}_'
+        '${admin['date'] ?? ''}_'
+        '${admin['time'] ?? ''}';
+
+    if (matchKeys.contains(
+      adminKey,
+    )) {
+      return admin;
+    }
+  }
+
+  // Old records fallback only when
+  // same teams का सिर्फ एक Admin match हो.
+  final sameTeams =
+      adminMatches.value.where(
+    (admin) =>
+        (admin['team1'] ?? '') ==
+            match.team1 &&
+        (admin['team2'] ?? '') ==
+            match.team2,
+  ).toList();
+
+  if (sameTeams.length == 1) {
+    return sameTeams.first;
+  }
+
+  return null;
+}
+
+
+// ======================================================
+// GLOBAL USER DISPLAY CLEANUP
+//
+// Completion + 5 days:
+// joinedContests  -> DELETE
+// joinedMatches   -> DELETE
+// savedTeamsData  -> DELETE
+//
+// NEVER DELETE:
+// wallet
+// transaction history
+// contest entry
+// winning
+// total entry analytics
+// joined analytics
+// admin audit
+// ======================================================
+
+bool _userDisplayCleanupInProgress =
+    false;
+
+Future<void>
+    _cleanupExpiredUserDisplayData()
+    async {
+  if (_userDisplayCleanupInProgress) {
+    return;
+  }
+
+  final user =
+      FirebaseAuth.instance.currentUser;
+
+  if (user == null ||
+      adminMatches.value.isEmpty ||
+      joinedMatches.value.isEmpty) {
+    return;
+  }
+
+  _userDisplayCleanupInProgress =
+      true;
+
+  try {
+    // Cleanup से पहले final winning settlement
+    // पूरा होना mandatory है.
+    await _autoSettleUserWinnings();
+
+    while (
+        _autoWinningSettlementInProgress) {
+      await Future<void>.delayed(
+        const Duration(
+          milliseconds: 100,
+        ),
+      );
+    }
+
+    final now =
+        DateTime.now();
+
+    final expiredMatches =
+        <MatchModel>[];
+
+    for (final match
+        in joinedMatches.value) {
+      final admin =
+          _userAdminMatchForJoinedMatch(
+        match,
+      );
+
+      if (admin == null) {
+        continue;
+      }
+
+      final adminStatus =
+          (admin['currentStatus'] ??
+                  admin['status'] ??
+                  '')
+              .toString()
+              .trim()
+              .toUpperCase();
+
+      // Admin final stats save हुए बिना
+      // user records delete नहीं होंगे.
+      final finalScoreUpdated =
+          (admin[
+                      'finalScoreUpdated'] ??
+                  '')
+              .toString()
+              .trim()
+              .toLowerCase() ==
+          'true';
+
+      if (adminStatus !=
+              'COMPLETED' ||
+          !finalScoreUpdated) {
+        continue;
+      }
+
+      final completionTime =
+          match.completedAt ??
+              DateTime.tryParse(
+                admin['completedAt'] ??
+                    '',
+              ) ??
+              match.startTime?.add(
+                match.liveDuration,
+              );
+
+      if (completionTime == null) {
+        continue;
+      }
+
+      final deleteAt =
+          completionTime.add(
+        const Duration(days: 5),
+      );
+
+      if (!now.isBefore(
+        deleteAt,
+      )) {
+        expiredMatches.add(
+          match,
+        );
+      }
+    }
+
+    if (expiredMatches.isEmpty) {
+      return;
+    }
+
+    final expiredMatchKeys =
+        <String>{};
+
+    for (final match
+        in expiredMatches) {
+      expiredMatchKeys.addAll(
+        _userStorageKeysForMatch(
+          match,
+        ),
+      );
+
+      final admin =
+          _userAdminMatchForJoinedMatch(
+        match,
+      );
+
+      if (admin != null) {
+        expiredMatchKeys.add(
+          '${admin['team1'] ?? ''}_'
+          '${admin['team2'] ?? ''}_'
+          '${admin['date'] ?? ''}_'
+          '${admin['time'] ?? ''}',
+        );
+      }
+    }
+
+    bool legacyContestExpired(
+      Map<String, dynamic> contest,
+    ) {
+      final contestKey =
+          (contest['matchKey'] ?? '')
+              .toString()
+              .trim();
+
+      if (contestKey.isNotEmpty) {
+        return expiredMatchKeys.contains(
+          contestKey,
+        );
+      }
+
+      final team1 =
+          (contest['team1'] ?? '')
+              .toString();
+
+      final team2 =
+          (contest['team2'] ?? '')
+              .toString();
+
+      return expiredMatches.any(
+        (match) =>
+            match.team1 == team1 &&
+            match.team2 == team2,
+      );
+    }
+
+    final keptContests =
+        joinedContests.value
+            .where(
+              (contest) =>
+                  !legacyContestExpired(
+                contest,
+              ),
+            )
+            .map(
+              (contest) =>
+                  Map<String,
+                      dynamic>.from(
+                contest,
+              ),
+            )
+            .toList();
+
+    final keptMatches =
+        joinedMatches.value.where(
+      (match) =>
+          !expiredMatches.contains(
+        match,
+      ),
+    ).toList();
+
+    final oldTeams =
+        List<List<Player>>.from(
+      savedTeams.value,
+    );
+
+    final keptTeams =
+        <List<Player>>[];
+
+    final keptCaptains =
+        <String>[];
+
+    final keptViceCaptains =
+        <String>[];
+
+    final keptTeamKeys =
+        <String>[];
+
+    for (int i = 0;
+        i < oldTeams.length;
+        i++) {
+      final key =
+          i <
+                  savedTeamMatchKeys
+                      .length
+              ? savedTeamMatchKeys[i]
+              : '';
+
+      if (key.isNotEmpty &&
+          expiredMatchKeys.contains(
+            key,
+          )) {
+        continue;
+      }
+
+      keptTeams.add(
+        oldTeams[i],
+      );
+
+      keptCaptains.add(
+        i < savedCaptainNames.length
+            ? savedCaptainNames[i]
+            : '',
+      );
+
+      keptViceCaptains.add(
+        i <
+                savedViceCaptainNames
+                    .length
+            ? savedViceCaptainNames[i]
+            : '',
+      );
+
+      keptTeamKeys.add(
+        key,
+      );
+    }
+
+    final contestsChanged =
+        keptContests.length !=
+            joinedContests
+                .value.length;
+
+    final matchesChanged =
+        keptMatches.length !=
+            joinedMatches
+                .value.length;
+
+    final teamsChanged =
+        keptTeams.length !=
+            savedTeams.value.length;
+
+    if (!contestsChanged &&
+        !matchesChanged &&
+        !teamsChanged) {
+      return;
+    }
+
+    joinedContests.value =
+        keptContests;
+
+    joinedMatches.value =
+        keptMatches;
+
+    savedTeams.value =
+        keptTeams;
+
+    savedCaptainNames
+      ..clear()
+      ..addAll(
+        keptCaptains,
+      );
+
+    savedViceCaptainNames
+      ..clear()
+      ..addAll(
+        keptViceCaptains,
+      );
+
+    savedTeamMatchKeys
+      ..clear()
+      ..addAll(
+        keptTeamKeys,
+      );
+
+    final saved =
+        await _saveUserContestStateToFirebase(
+      user.uid,
+    );
+
+    if (saved) {
+      debugPrint(
+        '5-day user display cleanup completed: '
+        '${expiredMatches.length} matches',
+      );
+    }
+  } catch (e) {
+    debugPrint(
+      '5-day user display cleanup error: $e',
+    );
+  } finally {
+    _userDisplayCleanupInProgress =
+        false;
+  }
+}
 
 // ======================================================
 // SAVE USER GAME STATE + OPTIONAL JOIN RECORD
@@ -2981,9 +3473,9 @@ Future<bool>
             _userSavedTeamsForFirebase(),
 
         'joinedContestsCount':
-            joinedContests
-                .value
-                .length,
+    _userJoinedCountFromHistory(
+      transactionHistory.value,
+    ),
 
         'totalEntryAmount':
             _userTotalEntryFromHistory(
@@ -6163,6 +6655,10 @@ team2Flag: (m['team2Logo'] ?? '').isNotEmpty
       liveDuration: Duration(
   minutes: int.tryParse(m['durationMinutes'] ?? '180') ?? 180,
 ),
+      completedAt:
+    DateTime.tryParse(
+      m['completedAt'] ?? '',
+    ),
       team1Score: int.tryParse(m['team1Score'] ?? '0') ?? 0,
 team2Score: int.tryParse(m['team2Score'] ?? '0') ?? 0,
 
@@ -6272,11 +6768,10 @@ void dispose() {
       return true;
     }
 
-    final archiveAt =
-    completionTime.add(const Duration(days: 1));
-
-final deleteAt =
-    archiveAt.add(const Duration(days: 5));
+    final deleteAt =
+    completionTime.add(
+      const Duration(days: 5),
+    );
 
 return DateTime.now().isBefore(deleteAt);
 }
@@ -11219,26 +11714,54 @@ class _MyContestsPageState extends State<MyContestsPage> {
       body: ValueListenableBuilder<List<Map<String, dynamic>>>(
         valueListenable: joinedContests,
         builder: (context, contests, _) {
-          MatchModel? findLinkedMatch(Map<String, dynamic> contest) {
+          MatchModel? findLinkedMatch(
+  Map<String, dynamic> contest,
+) {
+  final contestMatchKey =
+      (contest['matchKey'] ?? '')
+          .toString()
+          .trim();
+
+  // New Firebase contests:
+  // exact matchKey first.
+  if (contestMatchKey.isNotEmpty) {
+    for (final m
+        in joinedMatches.value) {
+      final keys =
+          _userStorageKeysForMatch(
+        m,
+      );
+
+      if (keys.contains(
+        contestMatchKey,
+      )) {
+        return m;
+      }
+    }
+  }
+
+  // Old records fallback.
   final matchName =
       (contest['match'] ?? '')
           .toString()
           .trim()
           .toLowerCase();
 
-  for (final m in joinedMatches.value) {
+  for (final m
+      in joinedMatches.value) {
     final joinedMatchName =
         '${m.team1} vs ${m.team2}'
             .trim()
             .toLowerCase();
 
-    if (joinedMatchName == matchName) {
+    if (joinedMatchName ==
+        matchName) {
       return m;
     }
   }
 
   return null;
-}
+          }
 
 // CURRENT CONTESTS
 final visibleContests = contests.where((contest) {
@@ -11284,7 +11807,9 @@ final archivedContests = contests.where((contest) {
     completionTime.add(const Duration(days: 1));
 
 final deleteAt =
-    archiveAt.add(const Duration(days: 5));
+    completionTime.add(
+      const Duration(days: 5),
+    );
 
   final now = DateTime.now();
 
@@ -12558,6 +13083,12 @@ return MatchModel(
   userPoints: joinedMatch.userPoints,
   startTime: newStartTime ?? joinedMatch.startTime,
   liveDuration: Duration(minutes: newDurationMinutes),
+completedAt:
+    DateTime.tryParse(
+      (adminMatch['completedAt'] ?? '')
+          .toString(),
+    ) ??
+    joinedMatch.completedAt,
   winner: joinedMatch.winner,
   team1Score: joinedMatch.team1Score,
   team2Score: joinedMatch.team2Score,
@@ -12618,7 +13149,9 @@ final archiveAt =
     completionTime.add(const Duration(hours: 24));
 
 final deleteAt =
-    archiveAt.add(const Duration(days: 5));
+    completionTime.add(
+      const Duration(days: 5),
+    );
   
 
   final now = DateTime.now();
