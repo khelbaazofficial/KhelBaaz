@@ -4504,9 +4504,8 @@ class _SignUpPageState
         context,
         true,
       );
-    } on FirebaseAuthException catch (
-      e,
-    ) {
+            } on FirebaseAuthException catch (e) {
+
       await _deleteFailedAuthUser(
         createdAuthUser,
       );
@@ -4533,9 +4532,7 @@ class _SignUpPageState
       }
 
       _showMessage(message);
-    } on FirebaseException catch (
-      e,
-    ) {
+        } on FirebaseException catch (e) {
       await _deleteFailedAuthUser(
         createdAuthUser,
       );
