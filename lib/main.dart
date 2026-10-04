@@ -3469,12 +3469,7 @@ final Map<String, Map<String, Map<String, int>>>
     savedPlayerStats = {};
 
 // ======================================================
-// ADMIN MATCHES FIREBASE REALTIME SYNC
-// Admin Create / Edit / Status / Score / Delete
-//                  ↓
-//               Firebase
-//                  ↓
-//        Admin + All User Home Pages
+// ADMIN MATCHES + PLAYER STATS FIREBASE REALTIME SYNC
 // ======================================================
 
 StreamSubscription<
@@ -3494,7 +3489,7 @@ bool _adminMatchesSaveQueued = false;
 
 
 // ======================================================
-// FIREBASE DATA -> EXISTING APP FORMAT
+// FIREBASE MATCH LIST -> EXISTING LOCAL FORMAT
 // ======================================================
 
 List<Map<String, String>>
@@ -3538,6 +3533,105 @@ List<Map<String, String>>
 
 
 // ======================================================
+// PLAYER STATS -> FIREBASE SAFE MAP
+// ======================================================
+
+Map<String, dynamic>
+    _playerStatsForFirebase() {
+  final result =
+      <String, dynamic>{};
+
+  savedPlayerStats.forEach(
+    (matchKey, players) {
+      final playerMap =
+          <String, dynamic>{};
+
+      players.forEach(
+        (playerKey, stats) {
+          playerMap[playerKey] =
+              Map<String, int>.from(
+            stats,
+          );
+        },
+      );
+
+      result[matchKey] =
+          playerMap;
+    },
+  );
+
+  return result;
+}
+
+
+// ======================================================
+// FIREBASE PLAYER STATS -> LOCAL savedPlayerStats
+// ======================================================
+
+void _applyPlayerStatsFromFirebase(
+  dynamic raw,
+) {
+  savedPlayerStats.clear();
+
+  if (raw is! Map) {
+    return;
+  }
+
+  raw.forEach(
+    (rawMatchKey, rawPlayers) {
+      if (rawPlayers is! Map) {
+        return;
+      }
+
+      final players =
+          <String, Map<String, int>>{};
+
+      rawPlayers.forEach(
+        (rawPlayerKey, rawStats) {
+          if (rawStats is! Map) {
+            return;
+          }
+
+          final stats =
+              <String, int>{};
+
+          rawStats.forEach(
+            (rawStatKey, rawValue) {
+              if (rawValue is num) {
+                stats[
+                    rawStatKey.toString()] =
+                    rawValue.toInt();
+              } else {
+                final parsed =
+                    int.tryParse(
+                  rawValue?.toString() ??
+                      '',
+                );
+
+                if (parsed != null) {
+                  stats[
+                      rawStatKey.toString()] =
+                      parsed;
+                }
+              }
+            },
+          );
+
+          players[
+              rawPlayerKey.toString()] =
+              stats;
+        },
+      );
+
+      savedPlayerStats[
+          rawMatchKey.toString()] =
+          players;
+    },
+  );
+}
+
+
+// ======================================================
 // APPLY FIREBASE MATCHES LOCALLY
 // ======================================================
 
@@ -3560,8 +3654,7 @@ void _applyAdminMatchesFromFirebase(
 
 
 // ======================================================
-// CHECK CURRENT USER IS REAL ACTIVE ADMIN
-// Normal user ko global matches write nahi karne dena
+// CHECK CURRENT USER IS ACTIVE ADMIN
 // ======================================================
 
 Future<bool>
@@ -3607,10 +3700,8 @@ Future<bool>
     return false;
   }
 }
-
-
 // ======================================================
-// SAVE COMPLETE adminMatches LIST TO FIREBASE
+// SAVE MATCHES + PLAYER STATS TO FIREBASE
 // ======================================================
 
 Future<void>
@@ -3620,8 +3711,6 @@ Future<void>
     return;
   }
 
-  // एक save पहले से चल रहा है तो
-  // latest change queue में रखेंगे.
   if (_adminMatchesSaveInProgress) {
     _adminMatchesSaveQueued = true;
     return;
@@ -3651,12 +3740,18 @@ Future<void>
               )
               .toList();
 
+      final currentPlayerStats =
+          _playerStatsForFirebase();
+
       await FirebaseFirestore.instance
           .collection('settings')
           .doc('admin_matches')
           .set(
         {
           'matches': currentMatches,
+
+          'playerStats':
+              currentPlayerStats,
 
           'updatedAt':
               FieldValue.serverTimestamp(),
@@ -3674,32 +3769,33 @@ Future<void>
       );
 
       debugPrint(
-        'Admin matches Firebase saved: '
+        'Admin matches + player stats saved: '
         '${currentMatches.length}',
       );
     } while (
         _adminMatchesSaveQueued);
   } catch (e) {
     debugPrint(
-      'Admin matches Firebase save error: $e',
+      'Admin match/player stats save error: $e',
     );
   } finally {
     _adminMatchesSaveInProgress =
         false;
   }
 }
+
+
 // ======================================================
-// EXISTING LOCAL adminMatches CHANGE DETECTOR
+// LOCAL MATCH CHANGE DETECTOR
 //
-// Important:
-// Existing Create Match
+// Create Match
 // Edit Match
-// Automatic Status
-// Final Score
+// Score Update
+// Complete Match
 // Delete Match
 //
-// सभी already adminMatches.value बदलते हैं.
-// इसलिए उन functions को अलग-अलग edit करने की जरूरत नहीं.
+// Existing code adminMatches.value update karta hai.
+// उसी trigger पर matches + savedPlayerStats दोनों save होंगे.
 // ======================================================
 
 void _onAdminMatchesChanged() {
@@ -3730,12 +3826,20 @@ void _startAdminMatchesRealtimeListener() {
           snapshot.data();
 
       if (data == null) {
+        savedPlayerStats.clear();
+
         _applyAdminMatchesFromFirebase(
           const <dynamic>[],
         );
 
         return;
       }
+
+      // Player stats पहले apply होंगे,
+      // फिर adminMatches notifier refresh करेगा.
+      _applyPlayerStatsFromFirebase(
+        data['playerStats'],
+      );
 
       _applyAdminMatchesFromFirebase(
         data['matches'],
@@ -3751,12 +3855,10 @@ void _startAdminMatchesRealtimeListener() {
 
 
 // ======================================================
-// START COMPLETE ADMIN MATCH FIREBASE SYSTEM
-// Login / Logout दोनों handle होंगे
+// START COMPLETE MATCH FIREBASE SYSTEM
 // ======================================================
 
 void startAdminMatchesFirebaseSync() {
-  // Local notifier listener सिर्फ एक बार add होगा.
   if (!_adminMatchesListenerAdded) {
     adminMatches.addListener(
       _onAdminMatchesChanged,
@@ -3787,6 +3889,8 @@ void startAdminMatchesFirebaseSync() {
         try {
           adminMatches.value =
               <Map<String, String>>[];
+
+          savedPlayerStats.clear();
         } finally {
           _adminMatchesApplyingFirebase =
               false;
@@ -3795,12 +3899,12 @@ void startAdminMatchesFirebaseSync() {
         return;
       }
 
-      // Admin हो या normal user:
-      // दोनों Firebase global matches पढ़ेंगे.
       _startAdminMatchesRealtimeListener();
     },
   );
 }
+
+
 
 
 // ================= HOME PAGE =================
@@ -4757,14 +4861,34 @@ final safeRemaining =
 ), 
               const SizedBox(height: 15),
             
-              if (match.currentStatus == 'UPCOMING' && safeRemaining != null)
-  Text(
-    'Starts in ${safeRemaining.inMinutes.toString().padLeft(2, '0')}:${safeRemaining.inSeconds.remainder(60).toString().padLeft(2, '0')}',
-    style: const TextStyle(
-      fontWeight: FontWeight.bold,
-      fontSize: 15,
-    ),
-  )
+              if (match.currentStatus == 'UPCOMING' &&
+    safeRemaining != null)
+  safeRemaining <= const Duration(hours: 12)
+      ? Text(
+          'Starts in '
+          '${safeRemaining.inHours.toString().padLeft(2, '0')}:'
+          '${safeRemaining.inMinutes.remainder(60).toString().padLeft(2, '0')}:'
+          '${safeRemaining.inSeconds.remainder(60).toString().padLeft(2, '0')}',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
+        )
+      : Text(
+          match.startTime == null
+              ? match.time
+              : 'Starts on '
+                  '${match.startTime!.day.toString().padLeft(2, '0')}/'
+                  '${match.startTime!.month.toString().padLeft(2, '0')}/'
+                  '${match.startTime!.year} • '
+                  '${((match.startTime!.hour % 12 == 0) ? 12 : match.startTime!.hour % 12).toString().padLeft(2, '0')}:'
+                  '${match.startTime!.minute.toString().padLeft(2, '0')} '
+                  '${match.startTime!.hour >= 12 ? 'PM' : 'AM'}',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+          ),
+        )
 else if (match.currentStatus == 'LIVE')
   Column(
     children: [
@@ -4903,6 +5027,30 @@ class _HomePlayerStatsPageState
     extends State<HomePlayerStatsPage> {
   int selectedTeam = 0;
 int? expandedPlayerIndex;
+
+void _refreshRealtimePlayerStats() {
+  if (!mounted) return;
+
+  setState(() {});
+}
+
+@override
+void initState() {
+  super.initState();
+
+  adminMatches.addListener(
+    _refreshRealtimePlayerStats,
+  );
+}
+
+@override
+void dispose() {
+  adminMatches.removeListener(
+    _refreshRealtimePlayerStats,
+  );
+
+  super.dispose();
+}
   int statValue(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
