@@ -17702,7 +17702,7 @@ if (type == 'WITHDRAW' &&
       'resolvedAt': now,
     };
 
-    savedRequests[savedIndex] =
+        savedRequests[savedIndex] =
         rejectedRequest;
 
     await userRef.set(
@@ -17726,149 +17726,558 @@ if (type == 'WITHDRAW' &&
     );
   }
   }
-    @override
+
+  String selectedRequestType = 'DEPOSIT';
+
+  @override
   Widget build(BuildContext context) {
+    String formatDate(dynamic value) {
+      if (value is! DateTime) {
+        return '--';
+      }
+
+      return '${value.day.toString().padLeft(2, '0')}/'
+          '${value.month.toString().padLeft(2, '0')}/'
+          '${value.year} '
+          '${value.hour.toString().padLeft(2, '0')}:'
+          '${value.minute.toString().padLeft(2, '0')}';
+    }
+
     return Scaffold(
       appBar: AppBar(
-  title: const Text('Admin Wallet Requests'),
-),
-      body: ValueListenableBuilder<List<Map<String, dynamic>>>(
+        title: const Text(
+          'Admin Wallet Requests',
+        ),
+      ),
+      body: ValueListenableBuilder<
+          List<Map<String, dynamic>>>(
         valueListenable: walletRequests,
         builder: (context, requests, _) {
-          final pendingEntries = requests
-    .asMap()
-    .entries
-    .where(
-      (entry) =>
-          (entry.value['status'] ?? 'PENDING')
-              .toString()
-              .toUpperCase() ==
-          'PENDING',
-    )
-    .toList()
-    .reversed
-    .toList();
+          final depositCount =
+              requests.where((request) {
+            final status =
+                (request['status'] ??
+                        'PENDING')
+                    .toString()
+                    .toUpperCase();
 
-if (pendingEntries.isEmpty) {
-  return const Center(
-    child: Text(
-      'No pending wallet requests',
-      style: TextStyle(fontSize: 18),
-    ),
-  );
-}
+            final type =
+                (request['type'] ?? '')
+                    .toString()
+                    .toUpperCase();
 
-return ListView.builder(
-  padding: const EdgeInsets.all(12),
-  itemCount: pendingEntries.length,
-  itemBuilder: (context, index) {
-    final originalIndex = pendingEntries[index].key;
-    final request = pendingEntries[index].value;
+            return status == 'PENDING' &&
+                type == 'DEPOSIT';
+          }).length;
 
-              final String type = request['type'];
-              final double amount = request['amount'];
-              final String status = request['status'];
-final String? screenshot = request['screenshot'];
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                           child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          final withdrawCount =
+              requests.where((request) {
+            final status =
+                (request['status'] ??
+                        'PENDING')
+                    .toString()
+                    .toUpperCase();
+
+            final type =
+                (request['type'] ?? '')
+                    .toString()
+                    .toUpperCase();
+
+            return status == 'PENDING' &&
+                type == 'WITHDRAW';
+          }).length;
+
+          final pendingEntries =
+              requests
+                  .asMap()
+                  .entries
+                  .where((entry) {
+            final status =
+                (entry.value['status'] ??
+                        'PENDING')
+                    .toString()
+                    .toUpperCase();
+
+            final type =
+                (entry.value['type'] ?? '')
+                    .toString()
+                    .toUpperCase();
+
+            return status == 'PENDING' &&
+                type ==
+                    selectedRequestType;
+          }).toList()
+                ..sort((a, b) {
+                  final aDate =
+                      a.value['createdAt'];
+                  final bDate =
+                      b.value['createdAt'];
+
+                  if (aDate is DateTime &&
+                      bDate is DateTime) {
+                    return bDate
+                        .compareTo(aDate);
+                  }
+
+                  return 0;
+                });
+
+          final depositSelected =
+              selectedRequestType ==
+                  'DEPOSIT';
+
+          Widget selector({
+            required String title,
+            required int count,
+            required bool selected,
+            required Color color,
+            required Color background,
+            required IconData icon,
+            required String type,
+          }) {
+            return Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    selectedRequestType =
+                        type;
+                  });
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
+                    vertical: 18,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color: selected
+                        ? background
+                        : Colors.white,
+                    borderRadius:
+                        BorderRadius.circular(
+                      18,
+                    ),
+                    border: Border.all(
+                      color: selected
+                          ? color
+                          : Colors
+                              .grey.shade300,
+                      width:
+                          selected ? 2 : 1,
+                    ),
+                  ),
+                  child: Column(
                     children: [
-                      Text(
-                        type,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                      CircleAvatar(
+                        radius: 23,
+                        backgroundColor:
+                            color.withOpacity(
+                          0.15,
+                        ),
+                        child: Icon(
+                          icon,
+                          color: color,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Amount: ₹${amount.toStringAsFixed(0)}',
+                      const SizedBox(
+                        height: 8,
                       ),
-                      const SizedBox(height: 6),
                       Text(
-  'Status: $status',
-  style: TextStyle(
-    fontWeight: FontWeight.bold,
-    color: status == 'APPROVED'
-        ? Colors.green
-        : status == 'REJECTED'
-            ? Colors.red
-            : Colors.orange,
-      ),
-),
-if (type == 'DEPOSIT' && screenshot != null)
-  OutlinedButton.icon(
-    onPressed: () {
-  final image =
-      (request['screenshot'] ?? '').toString();
-
-  if (image.isEmpty) return;
-
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => PaymentScreenshotPage(
-        screenshot: image,
-      ),
-    ),
-  );
-},
-    icon: const Icon(Icons.image),
-    label: const Text(
-      'VIEW PAYMENT SCREENSHOT',
-    ),
-  ),
-
-const SizedBox(height: 12),
-
-if (status == 'PENDING')
-  Row(
-    children: [
-Expanded(
-
-  child: ElevatedButton(
-    onPressed: status == 'PENDING'
-        ? () {
-            approveRequest(
-              context,
-              originalIndex,
-              request,
-            );
-          }
-        : null,
-        child: const Text('APPROVE'),
-  ),
-),
-
-const SizedBox(width: 10),
-
-Expanded(
-  child: OutlinedButton(
-    onPressed: status == 'PENDING'
-        ? () {
-            rejectRequest(originalIndex);
-          }
-        : null,
-    child: const Text('REJECT'),
-  ),
-),
-    ],
-  ),
-
+                        title,
+                        style:
+                            const TextStyle(
+                          fontSize: 17,
+                          fontWeight:
+                              FontWeight
+                                  .bold,
+                        ),
+                      ),
+                      const SizedBox(
+                        height: 3,
+                      ),
+                      Text(
+                        '$count Pending',
+                        style:
+                            const TextStyle(
+                          fontSize: 12,
+                          fontWeight:
+                              FontWeight
+                                  .w600,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              );
-            },
+              ),
+            );
+          }
+
+          return ListView(
+            padding:
+                const EdgeInsets.all(14),
+            children: [
+              Row(
+                children: [
+                  selector(
+                    title: 'DEPOSIT',
+                    count: depositCount,
+                    selected:
+                        depositSelected,
+                    color: Colors.green,
+                    background:
+                        const Color(
+                      0xFFE4F6E8,
+                    ),
+                    icon:
+                        Icons.arrow_downward,
+                    type: 'DEPOSIT',
+                  ),
+
+                  const SizedBox(
+                    width: 10,
+                  ),
+
+                  selector(
+                    title: 'WITHDRAWAL',
+                    count: withdrawCount,
+                    selected:
+                        !depositSelected,
+                    color: Colors.red,
+                    background:
+                        const Color(
+                      0xFFFFE7EA,
+                    ),
+                    icon:
+                        Icons.arrow_upward,
+                    type: 'WITHDRAW',
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 18),
+
+              Text(
+                depositSelected
+                    ? 'Deposit Requests'
+                    : 'Withdrawal Requests',
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              if (pendingEntries.isEmpty)
+                Container(
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
+                    vertical: 50,
+                  ),
+                  alignment:
+                      Alignment.center,
+                  child: Text(
+                    depositSelected
+                        ? 'No pending deposit requests'
+                        : 'No pending withdrawal requests',
+                    textAlign:
+                        TextAlign.center,
+                    style:
+                        const TextStyle(
+                      fontSize: 16,
+                      fontWeight:
+                          FontWeight.w600,
+                    ),
+                  ),
+                )
+              else
+                ...pendingEntries.map(
+                  (entry) {
+                    final originalIndex =
+                        entry.key;
+
+                    final request =
+                        entry.value;
+
+                    final type =
+                        (request['type'] ??
+                                '')
+                            .toString()
+                            .toUpperCase();
+
+                    final amount =
+                        double.tryParse(
+                              (request[
+                                          'amount'] ??
+                                      0)
+                                  .toString(),
+                            ) ??
+                            0;
+
+                    final username =
+                        (request[
+                                    'username'] ??
+                                'User')
+                            .toString();
+
+                    final screenshot =
+                        (request[
+                                    'screenshot'] ??
+                                '')
+                            .toString();
+
+                    final isDeposit =
+                        type == 'DEPOSIT';
+
+                    return Card(
+                      margin:
+                          const EdgeInsets
+                              .only(
+                        bottom: 10,
+                      ),
+                      color: isDeposit
+                          ? const Color(
+                              0xFFF0FAF2,
+                            )
+                          : const Color(
+                              0xFFFFF0F2,
+                            ),
+                      shape:
+                          RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius
+                                .circular(
+                          16,
+                        ),
+                        side: BorderSide(
+                          color: isDeposit
+                              ? Colors.green
+                                  .shade300
+                              : Colors.red
+                                  .shade300,
+                        ),
+                      ),
+                      child: Padding(
+                        padding:
+                            const EdgeInsets
+                                .all(
+                          12,
+                        ),
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+                          children: [
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 21,
+                                  backgroundColor:
+                                      isDeposit
+                                          ? Colors
+                                              .green
+                                              .shade100
+                                          : Colors
+                                              .red
+                                              .shade100,
+                                  child: Icon(
+                                    isDeposit
+                                        ? Icons
+                                            .arrow_downward
+                                        : Icons
+                                            .arrow_upward,
+                                    color:
+                                        isDeposit
+                                            ? Colors
+                                                .green
+                                            : Colors
+                                                .red,
+                                  ),
+                                ),
+
+                                const SizedBox(
+                                  width: 10,
+                                ),
+
+                                Expanded(
+                                  child:
+                                      Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment
+                                            .start,
+                                    children: [
+                                      Text(
+                                        username,
+                                        maxLines:
+                                            1,
+                                        overflow:
+                                            TextOverflow
+                                                .ellipsis,
+                                        style:
+                                            const TextStyle(
+                                          fontSize:
+                                              16,
+                                          fontWeight:
+                                              FontWeight
+                                                  .bold,
+                                        ),
+                                      ),
+                                      Text(
+                                        isDeposit
+                                            ? 'Deposit Request'
+                                            : 'Withdrawal Request',
+                                        style:
+                                            const TextStyle(
+                                          fontSize:
+                                              11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                Text(
+                                  '₹${amount.toStringAsFixed(0)}',
+                                  style:
+                                      const TextStyle(
+                                    fontSize: 19,
+                                    fontWeight:
+                                        FontWeight
+                                            .bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(
+                              height: 8,
+                            ),
+
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons
+                                      .access_time,
+                                  size: 14,
+                                ),
+                                const SizedBox(
+                                  width: 4,
+                                ),
+                                Text(
+                                  'Request: ${formatDate(request['createdAt'])}',
+                                  style:
+                                      const TextStyle(
+                                    fontSize:
+                                        11,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            if (isDeposit &&
+                                screenshot
+                                    .isNotEmpty) ...[
+                              const SizedBox(
+                                height: 9,
+                              ),
+                              SizedBox(
+                                width: double
+                                    .infinity,
+                                child:
+                                    OutlinedButton
+                                        .icon(
+                                  onPressed:
+                                      () {
+                                    Navigator
+                                        .push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder:
+                                            (_) =>
+                                                PaymentScreenshotPage(
+                                          screenshot:
+                                              screenshot,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon:
+                                      const Icon(
+                                    Icons.image,
+                                  ),
+                                  label:
+                                      const Text(
+                                    'VIEW PAYMENT SCREENSHOT',
+                                  ),
+                                ),
+                              ),
+                            ],
+
+                            const SizedBox(
+                              height: 9,
+                            ),
+
+                            Row(
+                              children: [
+                                Expanded(
+                                  child:
+                                      ElevatedButton(
+                                    onPressed:
+                                        () {
+                                      approveRequest(
+                                        context,
+                                        originalIndex,
+                                        request,
+                                      );
+                                    },
+                                    child:
+                                        const Text(
+                                      'APPROVE',
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(
+                                  width: 10,
+                                ),
+
+                                Expanded(
+                                  child:
+                                      OutlinedButton(
+                                    onPressed:
+                                        () {
+                                      rejectRequest(
+                                        originalIndex,
+                                      );
+                                    },
+                                    child:
+                                        const Text(
+                                      'REJECT',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
           );
         },
-
-          ),
+      ),
     );
   }
 }
+              
+
+
+  
  
 class UserActivityPage extends StatefulWidget {
   const UserActivityPage({super.key});
@@ -19858,35 +20267,313 @@ class BonusManagementPage extends StatelessWidget {
 final ValueNotifier<double> welcomeBonusAmount =
     ValueNotifier<double>(20);
 
-class WelcomeBonusSettingsPage extends StatelessWidget {
-  const WelcomeBonusSettingsPage({super.key});
+class WelcomeBonusSettingsPage
+    extends StatefulWidget {
+  const WelcomeBonusSettingsPage({
+    super.key,
+  });
+
+  @override
+  State<WelcomeBonusSettingsPage>
+      createState() =>
+          _WelcomeBonusSettingsPageState();
+}
+
+class _WelcomeBonusSettingsPageState
+    extends State<WelcomeBonusSettingsPage> {
+  late final TextEditingController
+      amountController;
+
+  List<Map<String, dynamic>>
+      welcomeHistory = [];
+
+  bool loadingHistory = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    amountController =
+        TextEditingController();
+
+    _loadWelcomeHistory();
+  }
+
+  @override
+  void dispose() {
+    amountController.dispose();
+    super.dispose();
+  }
+
+  DateTime? _readHistoryDate(
+    Map<String, dynamic> item,
+  ) {
+    final raw = item['createdAt'];
+
+    if (raw is Timestamp) {
+      return raw.toDate();
+    }
+
+    if (raw is DateTime) {
+      return raw;
+    }
+
+    final text =
+        (item['dateTime'] ?? '')
+            .toString()
+            .trim();
+
+    final match = RegExp(
+      r'^(\d{1,2})/(\d{1,2})/(\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?',
+    ).firstMatch(text);
+
+    if (match == null) {
+      return null;
+    }
+
+    return DateTime(
+      int.tryParse(
+            match.group(3) ?? '',
+          ) ??
+          2000,
+      int.tryParse(
+            match.group(2) ?? '',
+          ) ??
+          1,
+      int.tryParse(
+            match.group(1) ?? '',
+          ) ??
+          1,
+      int.tryParse(
+            match.group(4) ?? '',
+          ) ??
+          0,
+      int.tryParse(
+            match.group(5) ?? '',
+          ) ??
+          0,
+    );
+  }
+
+  String _formatHistoryDate(
+    DateTime? date,
+  ) {
+    if (date == null) {
+      return '--';
+    }
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year} '
+        '${date.hour.toString().padLeft(2, '0')}:'
+        '${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _loadWelcomeHistory()
+      async {
+    try {
+      final usersSnapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .get();
+
+      final loadedHistory =
+          <Map<String, dynamic>>[];
+
+      for (final doc
+          in usersSnapshot.docs) {
+        final userData =
+            Map<String, dynamic>.from(
+          doc.data(),
+        );
+
+        final role =
+            (userData['role'] ?? 'USER')
+                .toString()
+                .trim()
+                .toUpperCase();
+
+        if (role == 'ADMIN') {
+          continue;
+        }
+
+        final rawHistory =
+            userData['transactionHistory'];
+
+        if (rawHistory is! List) {
+          continue;
+        }
+
+        double runningBalance = 0;
+
+        for (final raw
+            in rawHistory.whereType<Map>()) {
+          final item =
+              Map<String, dynamic>.from(
+            raw,
+          );
+
+          final signedAmount =
+              item['amount'] is num
+                  ? (item['amount'] as num)
+                      .toDouble()
+                  : double.tryParse(
+                        (item['amount'] ?? 0)
+                            .toString(),
+                      ) ??
+                      0;
+
+          final balanceBefore =
+              runningBalance;
+
+          runningBalance +=
+              signedAmount;
+
+          final type =
+              (item['type'] ?? '')
+                  .toString()
+                  .trim()
+                  .toUpperCase();
+
+          final title =
+              (item['title'] ?? '')
+                  .toString()
+                  .trim()
+                  .toUpperCase();
+
+          final isWelcomeBonus =
+              type == 'WELCOME_BONUS' ||
+              title == 'WELCOME BONUS';
+
+          if (!isWelcomeBonus) {
+            continue;
+          }
+
+          loadedHistory.add({
+            'userId': doc.id,
+            'username':
+                (userData['username'] ??
+                        userData['name'] ??
+                        'User')
+                    .toString(),
+            'amount':
+                signedAmount.abs(),
+            'txnNumber':
+                (item['txnNumber'] ?? '')
+                    .toString(),
+            'createdAt':
+                _readHistoryDate(item),
+            'balanceBefore':
+                balanceBefore,
+            'balanceAfter':
+                runningBalance,
+          });
+        }
+      }
+
+      loadedHistory.sort(
+        (a, b) {
+          final aDate =
+              a['createdAt'];
+          final bDate =
+              b['createdAt'];
+
+          if (aDate is DateTime &&
+              bDate is DateTime) {
+            return bDate.compareTo(aDate);
+          }
+
+          if (aDate is DateTime) {
+            return -1;
+          }
+
+          if (bDate is DateTime) {
+            return 1;
+          }
+
+          return 0;
+        },
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        welcomeHistory =
+            loadedHistory;
+        loadingHistory = false;
+      });
+    } catch (e) {
+      debugPrint(
+        'Welcome Bonus History load error: $e',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        loadingHistory = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final TextEditingController amountController =
-        TextEditingController();
+    final totalWelcome =
+        welcomeHistory.fold<double>(
+      0,
+      (sum, item) =>
+          sum +
+          ((item['amount'] as num?)
+                  ?.toDouble() ??
+              0),
+    );
+
+    final rewardedUsers =
+        welcomeHistory
+            .map(
+              (item) =>
+                  (item['userId'] ?? '')
+                      .toString(),
+            )
+            .where(
+              (id) => id.isNotEmpty,
+            )
+            .toSet()
+            .length;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Welcome Bonus Settings'),
+        title: const Text(
+          'Welcome Bonus Settings',
+        ),
       ),
       body: SingleChildScrollView(
-  child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: ValueListenableBuilder<double>(
-          valueListenable: welcomeBonusAmount,
-          builder: (context, amount, _) {
-            return Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Container(
+        padding:
+            const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            ValueListenableBuilder<double>(
+              valueListenable:
+                  welcomeBonusAmount,
+              builder:
+                  (context, amount, _) {
+                return Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3E0),
+                  padding:
+                      const EdgeInsets.all(
+                    20,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        const Color(
+                      0xFFFFF3E0,
+                    ),
                     borderRadius:
-                        BorderRadius.circular(20),
+                        BorderRadius.circular(
+                      20,
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -19900,17 +20587,22 @@ class WelcomeBonusSettingsPage extends StatelessWidget {
                           size: 30,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(
+                        height: 12,
+                      ),
                       const Text(
                         'Current Welcome Bonus',
                         style: TextStyle(
                           fontSize: 16,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(
+                        height: 6,
+                      ),
                       Text(
                         '₹${amount.toStringAsFixed(0)}',
-                        style: const TextStyle(
+                        style:
+                            const TextStyle(
                           fontSize: 32,
                           fontWeight:
                               FontWeight.bold,
@@ -19918,91 +20610,393 @@ class WelcomeBonusSettingsPage extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
-const SizedBox(height: 24),
+                );
+              },
+            ),
 
-                TextField(
-                  controller: amountController,
-                  keyboardType:
-                      TextInputType.number,
-                  decoration:
-                      const InputDecoration(
-                    labelText:
-                        'New Welcome Bonus Amount',
-                    prefixText: '₹ ',
-                    border:
-                        OutlineInputBorder(),
+            const SizedBox(height: 24),
+
+            TextField(
+              controller:
+                  amountController,
+              keyboardType:
+                  TextInputType.number,
+              decoration:
+                  const InputDecoration(
+                labelText:
+                    'New Welcome Bonus Amount',
+                prefixText: '₹ ',
+                border:
+                    OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final newAmount =
+                      double.tryParse(
+                    amountController.text
+                        .trim(),
+                  );
+
+                  if (newAmount == null ||
+                      newAmount < 0) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Valid bonus amount enter करें',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
+                  try {
+                    await FirebaseFirestore
+                        .instance
+                        .collection(
+                          'settings',
+                        )
+                        .doc(
+                          'welcome_bonus',
+                        )
+                        .set(
+                      {
+                        'amount':
+                            newAmount,
+                        'updatedAt':
+                            FieldValue
+                                .serverTimestamp(),
+                      },
+                      SetOptions(
+                        merge: true,
+                      ),
+                    );
+
+                    welcomeBonusAmount
+                            .value =
+                        newAmount;
+
+                    amountController
+                        .clear();
+
+                    if (!context.mounted) {
+                      return;
+                    }
+
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Welcome Bonus ₹${newAmount.toStringAsFixed(0)} saved',
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    if (!context.mounted) {
+                      return;
+                    }
+
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Welcome Bonus save नहीं हुआ: $e',
+                        ),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(
+                  Icons.save,
+                ),
+                label: const Text(
+                  'SAVE WELCOME BONUS',
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 26),
+
+            const Text(
+              'Welcome Bonus History',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.all(
+                12,
+              ),
+              decoration: BoxDecoration(
+                color:
+                    const Color(
+                  0xFFFFF3E0,
+                ),
+                borderRadius:
+                    BorderRadius.circular(
+                  14,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Total Given: ₹${totalWelcome.toStringAsFixed(0)}',
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'Users: $rewardedUsers',
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            if (loadingHistory)
+              const Center(
+                child: Padding(
+                  padding:
+                      EdgeInsets.all(24),
+                  child:
+                      CircularProgressIndicator(),
+                ),
+              )
+            else if (welcomeHistory.isEmpty)
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.all(
+                  20,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      Colors.grey.shade100,
+                  borderRadius:
+                      BorderRadius.circular(
+                    14,
                   ),
                 ),
-
-                const SizedBox(height: 16),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-  final newAmount = double.tryParse(
-    amountController.text.trim(),
-  );
-
-  if (newAmount == null || newAmount < 0) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Valid bonus amount enter करें',
-        ),
-      ),
-    );
-    return;
-  }
-
-  try {
-    await FirebaseFirestore.instance
-        .collection('settings')
-        .doc('welcome_bonus')
-        .set({
-      'amount': newAmount,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    welcomeBonusAmount.value = newAmount;
-    amountController.clear();
-
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Welcome Bonus ₹${newAmount.toStringAsFixed(0)} saved',
-        ),
-      ),
-    );
-  } catch (e) {
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Welcome Bonus save नहीं हुआ: $e',
-        ),
-      ),
-    );
-  }
-},
-                    icon: const Icon(
-                      Icons.save,
-                    ),
-                    label: const Text(
-                      'SAVE WELCOME BONUS',
-                    ),
-                  ),
+                child: const Text(
+                  'अभी कोई Welcome Bonus history नहीं है',
+                  textAlign:
+                      TextAlign.center,
                 ),
-              ],
-            );
-          },
+              )
+            else
+              ...welcomeHistory.map(
+                (item) {
+                  final amount =
+                      (item['amount']
+                                  as num?)
+                              ?.toDouble() ??
+                          0;
+
+                  final username =
+                      (item['username'] ??
+                              'User')
+                          .toString();
+
+                  final userId =
+                      (item['userId'] ?? '')
+                          .toString();
+
+                  final txnNumber =
+                      (item['txnNumber'] ??
+                              '')
+                          .toString();
+
+                  final date =
+                      item['createdAt']
+                              is DateTime
+                          ? item['createdAt']
+                              as DateTime
+                          : null;
+
+                  final before =
+                      (item['balanceBefore']
+                                  as num?)
+                              ?.toDouble() ??
+                          0;
+
+                  final after =
+                      (item['balanceAfter']
+                                  as num?)
+                              ?.toDouble() ??
+                          0;
+
+                  return Card(
+                    margin:
+                        const EdgeInsets.only(
+                      bottom: 8,
+                    ),
+                    child: Padding(
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        horizontal: 10,
+                        vertical: 9,
+                      ),
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
+                        children: [
+                          Row(
+                            children: [
+                              const CircleAvatar(
+                                radius: 16,
+                                backgroundColor:
+                                    Colors.orange,
+                                child: Icon(
+                                  Icons
+                                      .celebration,
+                                  size: 17,
+                                  color:
+                                      Colors.white,
+                                ),
+                              ),
+                              const SizedBox(
+                                width: 8,
+                              ),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment
+                                          .start,
+                                  children: [
+                                    Text(
+                                      username,
+                                      maxLines: 1,
+                                      overflow:
+                                          TextOverflow
+                                              .ellipsis,
+                                      style:
+                                          const TextStyle(
+                                        fontSize:
+                                            14,
+                                        fontWeight:
+                                            FontWeight
+                                                .bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      userId,
+                                      maxLines: 1,
+                                      overflow:
+                                          TextOverflow
+                                              .ellipsis,
+                                      style:
+                                          const TextStyle(
+                                        fontSize:
+                                            9.5,
+                                        color:
+                                            Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                '+₹${amount.toStringAsFixed(0)}',
+                                style:
+                                    const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight:
+                                      FontWeight
+                                          .bold,
+                                  color:
+                                      Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          if (txnNumber
+                              .isNotEmpty) ...[
+                            const SizedBox(
+                              height: 5,
+                            ),
+                            Text(
+                              txnNumber,
+                              style:
+                                  const TextStyle(
+                                fontSize: 11,
+                                fontWeight:
+                                    FontWeight
+                                        .bold,
+                                color:
+                                    Colors.orange,
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(
+                            height: 4,
+                          ),
+
+                          Row(
+                            children: [
+                              Expanded(
+                                child: 
+                                Text(
+                                  '⏰ ${_formatHistoryDate(date)}',
+                                  style:
+                                      const TextStyle(
+                                    fontSize:
+                                        10.5,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '₹${before.toStringAsFixed(0)} → ₹${after.toStringAsFixed(0)}',
+                                style:
+                                    const TextStyle(
+                                  fontSize:
+                                      10.5,
+                                  fontWeight:
+                                      FontWeight
+                                          .w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
         ),
       ),
-       ), 
     );
   }
 }
