@@ -4102,7 +4102,792 @@ if (savedRequestsRaw is List) {
 
 final ValueNotifier<bool> authNavigationBlocked =
     ValueNotifier<bool>(false);
+// ================= USER SIGN UP PAGE =================
 
+class SignUpPage extends StatefulWidget {
+  const SignUpPage({
+    super.key,
+  });
+
+  @override
+  State<SignUpPage> createState() =>
+      _SignUpPageState();
+}
+
+class _SignUpPageState
+    extends State<SignUpPage> {
+  final usernameController =
+      TextEditingController();
+
+  final mobileController =
+      TextEditingController();
+
+  final emailController =
+      TextEditingController();
+
+  final passwordController =
+      TextEditingController();
+
+  final confirmPasswordController =
+      TextEditingController();
+
+  bool hidePassword = true;
+  bool hideConfirmPassword = true;
+  bool isCreating = false;
+
+  @override
+  void dispose() {
+    usernameController.dispose();
+    mobileController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  String _normalizeMobile(
+    String value,
+  ) {
+    String digits =
+        value.replaceAll(
+      RegExp(r'[^0-9]'),
+      '',
+    );
+
+    // +91 / 91 prefix remove.
+    if (digits.length == 12 &&
+        digits.startsWith('91')) {
+      digits =
+          digits.substring(2);
+    }
+
+    return digits;
+  }
+
+  void _showMessage(
+    String text,
+  ) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content: Text(text),
+      ),
+    );
+  }
+
+  Future<void> _deleteFailedAuthUser(
+    User? user,
+  ) async {
+    try {
+      if (user != null) {
+        await user.delete();
+      }
+    } catch (_) {}
+
+    try {
+      await FirebaseAuth.instance
+          .signOut();
+    } catch (_) {}
+  }
+
+  Future<void> _createAccount()
+      async {
+    if (isCreating) {
+      return;
+    }
+
+    final username =
+        usernameController.text.trim();
+
+    final usernameKey =
+        username.toLowerCase();
+
+    final mobile =
+        _normalizeMobile(
+      mobileController.text,
+    );
+
+    final email =
+        emailController.text
+            .trim()
+            .toLowerCase();
+
+    final password =
+        passwordController.text;
+
+    final confirmPassword =
+        confirmPasswordController.text;
+
+    // Username:
+    // 4-20 chars, letters/numbers/underscore.
+    if (!RegExp(
+      r'^[A-Za-z0-9_]{4,20}$',
+    ).hasMatch(username)) {
+      _showMessage(
+        'Username 4-20 characters का रखें। केवल letters, numbers और _ allowed हैं',
+      );
+      return;
+    }
+
+    // India mobile validation.
+    if (!RegExp(
+      r'^[6-9][0-9]{9}$',
+    ).hasMatch(mobile)) {
+      _showMessage(
+        'सही 10 digit Mobile Number डालें',
+      );
+      return;
+    }
+
+    if (!RegExp(
+      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+    ).hasMatch(email)) {
+      _showMessage(
+        'सही Email Address डालें',
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      _showMessage(
+        'Password कम से कम 6 characters का रखें',
+      );
+      return;
+    }
+
+    if (password !=
+        confirmPassword) {
+      _showMessage(
+        'Password और Confirm Password match नहीं कर रहे',
+      );
+      return;
+    }
+
+    setState(() {
+      isCreating = true;
+    });
+
+    User? createdAuthUser;
+
+    try {
+      final firestore =
+          FirebaseFirestore.instance;
+
+      // =========================
+      // DUPLICATE USERNAME CHECK
+      // =========================
+
+      final usernameLookup =
+          await firestore
+              .collection(
+                'login_lookup',
+              )
+              .doc(usernameKey)
+              .get();
+
+      if (usernameLookup.exists) {
+        _showMessage(
+          'यह Username पहले से use हो रहा है',
+        );
+        return;
+      }
+
+      // =========================
+      // DUPLICATE MOBILE CHECK
+      // =========================
+
+      final mobileLookup =
+          await firestore
+              .collection(
+                'login_lookup',
+              )
+              .doc(mobile)
+              .get();
+
+      if (mobileLookup.exists) {
+        _showMessage(
+          'इस Mobile Number से account पहले से बना हुआ है',
+        );
+        return;
+      }
+
+      // =========================
+      // DUPLICATE EMAIL CHECK
+      // =========================
+
+      final emailLookup =
+          await firestore
+              .collection(
+                'login_lookup',
+              )
+              .doc(email)
+              .get();
+
+      if (emailLookup.exists) {
+        _showMessage(
+          'इस Email से account पहले से बना हुआ है',
+        );
+        return;
+      }
+
+      // Firebase Auth account create होते ही
+      // auth state logged-in हो जाती है.
+      // MainPage खुलने से रोकेंगे.
+      authNavigationBlocked.value =
+          true;
+
+      final credential =
+          await FirebaseAuth.instance
+              .createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      createdAuthUser =
+          credential.user;
+
+      final uid =
+          createdAuthUser?.uid;
+
+      if (uid == null) {
+        throw Exception(
+          'UID_NOT_CREATED',
+        );
+      }
+
+      final now =
+          FieldValue.serverTimestamp();
+
+      final batch =
+          firestore.batch();
+
+      final userRef =
+          firestore
+              .collection('users')
+              .doc(uid);
+
+      // =========================
+      // REAL USER PROFILE
+      // =========================
+
+      batch.set(
+        userRef,
+        {
+          'role': 'USER',
+          'active': true,
+          'username': username,
+          'usernameLower':
+              usernameKey,
+          'mobile': mobile,
+          'email': email,
+          'emailLower': email,
+          'playerName': username,
+          'createdAt': now,
+
+          // Wallet starts at zero.
+          // Welcome Bonus first login पर
+          // existing system देगा.
+          'walletBalance': 0.0,
+          'welcomeBonusClaimed':
+              false,
+
+          'transactionHistory':
+              <Map<String, dynamic>>[],
+
+          'walletRequests':
+              <Map<String, dynamic>>[],
+
+          // Per-user game data.
+          'joinedContests':
+              <Map<String, dynamic>>[],
+
+          'joinedMatches':
+              <Map<String, dynamic>>[],
+
+          'savedTeamsData':
+              <Map<String, dynamic>>[],
+
+          // Permanent analytics.
+          'joinedContestsCount': 0,
+          'totalEntryAmount': 0.0,
+        },
+      );
+
+      final lookupBase =
+          <String, dynamic>{
+        'userId': uid,
+        'role': 'USER',
+        'authEmail': email,
+        'username': username,
+        'usernameLower':
+            usernameKey,
+        'mobile': mobile,
+        'emailLower': email,
+        'createdAt':
+            FieldValue
+                .serverTimestamp(),
+      };
+
+      // =========================
+      // USERNAME LOGIN LOOKUP
+      // =========================
+
+      batch.set(
+        firestore
+            .collection(
+              'login_lookup',
+            )
+            .doc(usernameKey),
+        {
+          ...lookupBase,
+          'lookupKey':
+              usernameKey,
+          'lookupType':
+              'USERNAME',
+        },
+      );
+
+      // =========================
+      // MOBILE LOGIN LOOKUP
+      // =========================
+
+      batch.set(
+        firestore
+            .collection(
+              'login_lookup',
+            )
+            .doc(mobile),
+        {
+          ...lookupBase,
+          'lookupKey': mobile,
+          'lookupType':
+              'MOBILE',
+        },
+      );
+
+      // =========================
+      // EMAIL LOOKUP
+      // Forgot Username के लिए.
+      // User Login Email से नहीं होगा.
+      // =========================
+
+      batch.set(
+        firestore
+            .collection(
+              'login_lookup',
+            )
+            .doc(email),
+        {
+          ...lookupBase,
+          'lookupKey': email,
+          'lookupType':
+              'EMAIL',
+        },
+      );
+
+      // User profile + तीनों lookup
+      // एक ही atomic batch में save होंगे.
+      await batch.commit();
+
+      // Requirement:
+      // Signup के बाद user खुद Login करे.
+      await FirebaseAuth.instance
+          .signOut();
+
+      createdAuthUser = null;
+
+      if (!mounted) return;
+
+      Navigator.pop(
+        context,
+        true,
+      );
+    } on FirebaseAuthException catch (
+      e,
+    ) {
+      await _deleteFailedAuthUser(
+        createdAuthUser,
+      );
+
+      String message =
+          'Account नहीं बन पाया';
+
+      if (e.code ==
+          'email-already-in-use') {
+        message =
+            'इस Email से account पहले से बना हुआ है';
+      } else if (e.code ==
+          'invalid-email') {
+        message =
+            'सही Email Address डालें';
+      } else if (e.code ==
+          'weak-password') {
+        message =
+            'Password थोड़ा मजबूत रखें';
+      } else if (e.code ==
+          'network-request-failed') {
+        message =
+            'Internet connection check करें';
+      }
+
+      _showMessage(message);
+    } on FirebaseException catch (
+      e,
+    ) {
+      await _deleteFailedAuthUser(
+        createdAuthUser,
+      );
+
+      String message =
+          'User data Firebase में save नहीं हुआ';
+
+      if (e.code ==
+          'permission-denied') {
+        message =
+            'Firebase Rules में Sign Up permission नहीं मिली';
+      }
+
+      _showMessage(message);
+    } catch (e) {
+      await _deleteFailedAuthUser(
+        createdAuthUser,
+      );
+
+      _showMessage(
+        'Account create नहीं हो पाया',
+      );
+    } finally {
+      authNavigationBlocked.value =
+          false;
+
+      if (mounted) {
+        setState(() {
+          isCreating = false;
+        });
+      }
+    }
+  }
+
+  Widget _inputField({
+    required TextEditingController
+        controller,
+    required String label,
+    required IconData icon,
+    TextInputType keyboardType =
+        TextInputType.text,
+    bool obscureText = false,
+    Widget? suffixIcon,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscureText,
+      enabled: !isCreating,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor:
+            const Color(
+          0xFFF3F6F7,
+        ),
+        border: OutlineInputBorder(
+          borderRadius:
+              BorderRadius.circular(
+            16,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Create Account',
+        ),
+      ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration:
+            const BoxDecoration(
+          gradient: LinearGradient(
+            begin:
+                Alignment.topCenter,
+            end:
+                Alignment.bottomCenter,
+            colors: [
+              Color(0xFF071A2E),
+              Color(0xFF0D3C48),
+              Color(0xFF146B55),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child:
+              SingleChildScrollView(
+            padding:
+                const EdgeInsets.all(
+              20,
+            ),
+            child: Column(
+              children: [
+                const SizedBox(
+                  height: 14,
+                ),
+
+                const Text(
+                  '🏏 KhelBaaz',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight:
+                        FontWeight.w900,
+                    color:
+                        Color(
+                      0xFFFFD447,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 8,
+                ),
+
+                const Text(
+                  'Create your player account',
+                  style: TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 22,
+                ),
+
+                Container(
+                  padding:
+                      const EdgeInsets
+                          .all(
+                    20,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        Colors.white,
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      24,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      _inputField(
+                        controller:
+                            usernameController,
+                        label:
+                            'Username',
+                        icon:
+                            Icons.person,
+                      ),
+
+                      const SizedBox(
+                        height: 14,
+                      ),
+
+                      _inputField(
+                        controller:
+                            mobileController,
+                        label:
+                            'Mobile Number',
+                        icon:
+                            Icons.phone,
+                        keyboardType:
+                            TextInputType
+                                .phone,
+                      ),
+
+                      const SizedBox(
+                        height: 14,
+                      ),
+
+                      _inputField(
+                        controller:
+                            emailController,
+                        label:
+                            'Email',
+                        icon:
+                            Icons
+                                .email_outlined,
+                        keyboardType:
+                            TextInputType
+                                .emailAddress,
+                      ),
+
+                      const SizedBox(
+                        height: 14,
+                      ),
+
+                      _inputField(
+                        controller:
+                            passwordController,
+                        label:
+                            'Password',
+                        icon:
+                            Icons
+                                .lock_outline,
+                        obscureText:
+                            hidePassword,
+                        suffixIcon:
+                            IconButton(
+                          onPressed:
+                              isCreating
+                                  ? null
+                                  : () {
+                                      setState(
+                                        () {
+                                          hidePassword =
+                                              !hidePassword;
+                                        },
+                                      );
+                                    },
+                          icon: Icon(
+                            hidePassword
+                                ? Icons
+                                    .visibility_off
+                                : Icons
+                                    .visibility,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 14,
+                      ),
+
+                      _inputField(
+                        controller:
+                            confirmPasswordController,
+                        label:
+                            'Confirm Password',
+                        icon:
+                            Icons
+                                .lock_reset,
+                        obscureText:
+                            hideConfirmPassword,
+                        suffixIcon:
+                            IconButton(
+                          onPressed:
+                              isCreating
+                                  ? null
+                                  : () {
+                                      setState(
+                                        () {
+                                          hideConfirmPassword =
+                                              !hideConfirmPassword;
+                                        },
+                                      );
+                                    },
+                          icon: Icon(
+                            hideConfirmPassword
+                                ? Icons
+                                    .visibility_off
+                                : Icons
+                                    .visibility,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 22,
+                      ),
+
+                      SizedBox(
+                        width:
+                            double.infinity,
+                        height: 52,
+                        child:
+                            ElevatedButton(
+                          onPressed:
+                              isCreating
+                                  ? null
+                                  : _createAccount,
+                          style:
+                              ElevatedButton
+                                  .styleFrom(
+                            backgroundColor:
+                                const Color(
+                              0xFF118267,
+                            ),
+                            foregroundColor:
+                                Colors.white,
+                          ),
+                          child:
+                              isCreating
+                                  ? const SizedBox(
+                                      width:
+                                          24,
+                                      height:
+                                          24,
+                                      child:
+                                          CircularProgressIndicator(
+                                        strokeWidth:
+                                            2.5,
+                                        color:
+                                            Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'CREATE ACCOUNT',
+                                      style:
+                                          TextStyle(
+                                        fontWeight:
+                                            FontWeight
+                                                .bold,
+                                      ),
+                                    ),
+                        ),
+                      ),
+
+                      const SizedBox(
+                        height: 10,
+                      ),
+
+                      const Text(
+                        'Account बनने के बाद Login page पर वापस आएँगे।',
+                        textAlign:
+                            TextAlign
+                                .center,
+                        style:
+                            TextStyle(
+                          fontSize: 12,
+                          color:
+                              Colors
+                                  .black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 // ================= LOGIN PAGE =================
 
 class LoginPage extends StatefulWidget {
@@ -4249,23 +5034,55 @@ final lookupData = lookupDoc.data();
           .doc(uid)
           .get();
 
-      final userData = userDoc.data();
+            final userData = userDoc.data();
 
       final role =
-          (userData?['role'] ?? '').toString().toUpperCase();
+          (userData?['role'] ?? '')
+              .toString()
+              .trim()
+              .toUpperCase();
 
+      final active =
+          userData?['active'] == true;
+
+      // Admin को User Login से अंदर नहीं जाने देंगे.
       if (role == 'ADMIN') {
-        await FirebaseAuth.instance.signOut();
+        await FirebaseAuth.instance
+            .signOut();
 
         if (!mounted) return;
 
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)
+            .showSnackBar(
           const SnackBar(
-            content: Text('Admin account के लिए Admin Login करें'),
+            content: Text(
+              'Admin account के लिए Admin Login करें',
+            ),
           ),
         );
         return;
       }
+
+      // केवल valid + active USER account.
+      if (!userDoc.exists ||
+          role != 'USER' ||
+          !active) {
+        await FirebaseAuth.instance
+            .signOut();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context)
+            .showSnackBar(
+          const SnackBar(
+            content: Text(
+              'यह User account active नहीं है',
+            ),
+          ),
+        );
+        return;
+      }
+
       await giveWelcomeBonusIfNeeded();
     }
 // Successful login के बाद कुछ navigate नहीं करना.
@@ -4959,13 +5776,18 @@ child: Column(
 
                           TextField(
                             controller: loginController,
-                            keyboardType:
-                                TextInputType.emailAddress,
+                                                        keyboardType:
+                                isAdminLogin
+                                    ? TextInputType
+                                        .emailAddress
+                                    : TextInputType.text,
                             decoration: InputDecoration(
                               labelText: isAdminLogin
-                                  ? 'Username / Email'
-                                  : 'Username',
-                              hintText: 'Enter your username',
+                                  ? 'Username / Mobile / Email'
+                                  : 'Username / Mobile',
+                              hintText: isAdminLogin
+                                  ? 'Enter username, mobile or email'
+                                  : 'Enter username or mobile number',
                               prefixIcon: const Icon(
                                 Icons.person_outline,
                               ),
@@ -5110,7 +5932,45 @@ elevation: 3,
                             ),
                           ),
 
-                          const SizedBox(height: 12),
+                                                    const SizedBox(height: 12),
+
+                          if (!isAdminLogin) ...[
+                            TextButton.icon(
+                              onPressed: () async {
+                                final created =
+                                    await Navigator.push<bool>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const SignUpPage(),
+                                  ),
+                                );
+
+                                if (created == true &&
+                                    mounted) {
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Account बन गया ✅ अब Username / Mobile और Password से Login करें',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(
+                                Icons.person_add_alt_1,
+                              ),
+                              label: const Text(
+                                'NEW USER? CREATE ACCOUNT',
+                                style: TextStyle(
+                                  fontWeight:
+                                      FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                          ],
 
                           TextButton.icon(
                             onPressed: () {
@@ -5122,7 +5982,8 @@ elevation: 3,
                             icon: Icon(
                               isAdminLogin
                                   ? Icons.person
-                                  : Icons.admin_panel_settings,
+                                  : Icons
+                                      .admin_panel_settings,
                             ),
                             label: Text(
                               isAdminLogin
