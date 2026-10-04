@@ -787,101 +787,151 @@ double _calculateWithdrawableBalance({
       : safeWallet;
 }
 // ============== TRANSACTION NUMBER SYSTEM ==============
+//
+// Format:
+// Ent Txn-261004-00001
+// Ent Txn-261004-00002
+// Win Txn-261004-00001
+//
+// App reopen होने पर भी आज के existing
+// records count करके आगे की series चलेगी.
+// ======================================================
 
-int depositTxnSerial = 0;
-int withdrawTxnSerial = 0;
-int bonusTxnSerial = 0;
-int welcomeBonusTxnSerial = 0;
-int entryTxnSerial = 0;
-int winningTxnSerial = 0;
+final Map<String, int>
+    _transactionSerialCache =
+    <String, int>{};
 
-int transactionSerialYear = DateTime.now().year;
-
-String generateTxnNumber(String type) {
-  final now = DateTime.now();
-
-  // New year = all serials restart from 00001
-  if (transactionSerialYear != now.year) {
-    transactionSerialYear = now.year;
-
-    depositTxnSerial = 0;
-    withdrawTxnSerial = 0;
-    bonusTxnSerial = 0;
-    welcomeBonusTxnSerial = 0;
-    entryTxnSerial = 0;
-    winningTxnSerial = 0;
-  }
-
-  String prefix;
-  int serial;
-
-  switch (type.toUpperCase()) {
+String _transactionPrefix(
+  String type,
+) {
+  switch (type
+      .trim()
+      .toUpperCase()) {
     case 'DEPOSIT':
-      prefix = 'D Txn';
-      depositTxnSerial++;
-      serial = depositTxnSerial;
-      break;
+      return 'D Txn';
 
     case 'WITHDRAW':
     case 'WITHDRAWAL':
-      prefix = 'W Txn';
-      withdrawTxnSerial++;
-      serial = withdrawTxnSerial;
-      break;
-      
-      case 'WELCOME_BONUS':
-  prefix = 'BNS-W-Txn';
-  welcomeBonusTxnSerial++;
-  serial = welcomeBonusTxnSerial;
-  break;
+      return 'W Txn';
+
+    case 'WELCOME_BONUS':
+      return 'BNS-W-Txn';
 
     case 'BONUS':
-      prefix = 'Bns Txn';
-      bonusTxnSerial++;
-      serial = bonusTxnSerial;
-      break;
+      return 'Bns Txn';
 
     case 'ENTRY':
     case 'CONTEST_ENTRY':
-      prefix = 'Ent Txn';
-      entryTxnSerial++;
-      serial = entryTxnSerial;
-      break;
+      return 'Ent Txn';
 
     case 'WIN':
     case 'WINNING':
-      prefix = 'Win Txn';
-      winningTxnSerial++;
-      serial = winningTxnSerial;
-      break;
+      return 'Win Txn';
 
     default:
-      prefix = 'Txn';
-      depositTxnSerial++;
-      serial = depositTxnSerial;
+      return 'Txn';
   }
-
-  final yy =
-      (now.year % 100).toString().padLeft(2, '0');
-  final mm =
-      now.month.toString().padLeft(2, '0');
-  final dd =
-      now.day.toString().padLeft(2, '0');
-
-  final secondsOfDay =
-    (now.hour * 3600) +
-        (now.minute * 60) +
-        now.second;
-
-final serialText =
-    ((secondsOfDay + serial) %
-            100000)
-        .toString()
-        .padLeft(5, '0');
-
-  return '$prefix-$yy$mm$dd-$serialText';
 }
 
+String generateTxnNumber(
+  String type,
+) {
+  final now =
+      DateTime.now();
+
+  final yy =
+      (now.year % 100)
+          .toString()
+          .padLeft(
+            2,
+            '0',
+          );
+
+  final mm =
+      now.month
+          .toString()
+          .padLeft(
+            2,
+            '0',
+          );
+
+  final dd =
+      now.day
+          .toString()
+          .padLeft(
+            2,
+            '0',
+          );
+
+  final dateKey =
+      '$yy$mm$dd';
+
+  final prefix =
+      _transactionPrefix(
+    type,
+  );
+
+  final serialKey =
+      '$prefix-$dateKey';
+
+  final existingIds =
+      <String>{};
+
+  void collectIds(
+    List<Map<String, dynamic>>
+        items,
+  ) {
+    for (final item in items) {
+      final id =
+          (item['txnNumber'] ??
+                  '')
+              .toString()
+              .trim();
+
+      if (id.startsWith(
+        '$serialKey-',
+      )) {
+        existingIds.add(
+          id,
+        );
+      }
+    }
+  }
+
+  collectIds(
+    transactionHistory.value,
+  );
+
+  collectIds(
+    walletRequests.value,
+  );
+
+  int serial =
+      _transactionSerialCache[
+              serialKey] ??
+          existingIds.length;
+
+  String candidate;
+
+  do {
+    serial++;
+
+    candidate =
+        '$serialKey-'
+        '${serial.toString().padLeft(5, '0')}';
+  } while (
+      existingIds.contains(
+    candidate,
+  ));
+
+  _transactionSerialCache[
+          serialKey] =
+      serial;
+
+  return candidate;
+}
+    
+    
 // ================= DEPOSIT PAYMENT SETTINGS =================
 
 final ValueNotifier<String> depositPaymentText =
@@ -1626,7 +1676,781 @@ DateTime? _userAdminMatchDateTime(
     return null;
   }
 }
+// ======================================================
+// PLAYER STATS KEY FALLBACK
+// My Teams / Contest Team Points
+// ======================================================
 
+Map<String, Map<String, int>>
+    _resolvedPlayerStatsForMatchKey(
+  String matchKey,
+) {
+  final direct =
+      savedPlayerStats[matchKey];
+
+  if (direct != null &&
+      direct.isNotEmpty) {
+    return direct;
+  }
+
+  final parts =
+      matchKey.split('_');
+
+  if (parts.length >= 2) {
+    final prefix =
+        '${parts[0]}_${parts[1]}_'
+            .toLowerCase();
+
+    final entries =
+        savedPlayerStats.entries
+            .toList()
+            .reversed;
+
+    for (final entry in entries) {
+      if (entry.value.isEmpty) {
+        continue;
+      }
+
+      if (entry.key
+          .toLowerCase()
+          .startsWith(prefix)) {
+        return entry.value;
+      }
+    }
+  }
+
+  return <
+      String,
+      Map<String, int>>{};
+}
+
+
+// ======================================================
+// CONTEST PLAYER POINTS
+// ======================================================
+
+double _storedContestPoints(
+  Map<String, dynamic> contest,
+) {
+  final rawPlayers =
+      contest['selectedPlayers'];
+
+  final players =
+      rawPlayers is List
+          ? rawPlayers
+              .whereType<Player>()
+              .toList()
+          : <Player>[];
+
+  if (players.isEmpty) {
+    return _userGameDouble(
+      contest['userPoints'],
+    );
+  }
+
+  final matchKey =
+      (contest['matchKey'] ?? '')
+          .toString();
+
+  Map<String, Map<String, int>>
+      matchStats =
+      _resolvedPlayerStatsForMatchKey(
+    matchKey,
+  );
+
+  // Extra fallback:
+  // पुराना/stale matchKey हो तो
+  // team names से correct stats.
+  if (matchStats.isEmpty) {
+    final team1 =
+        (contest['team1'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+
+    final team2 =
+        (contest['team2'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+
+    for (final entry
+        in savedPlayerStats.entries
+            .toList()
+            .reversed) {
+      final key =
+          entry.key.toLowerCase();
+
+      if (team1.isNotEmpty &&
+          team2.isNotEmpty &&
+          key.contains(team1) &&
+          key.contains(team2) &&
+          entry.value.isNotEmpty) {
+        matchStats =
+            entry.value;
+
+        break;
+      }
+    }
+  }
+
+  final captainName =
+      (contest['captainName'] ??
+              '')
+          .toString();
+
+  final viceCaptainName =
+      (contest[
+                  'viceCaptainName'] ??
+              '')
+          .toString();
+
+  double total = 0;
+
+  for (final player in players) {
+    Map<String, int>? stats;
+
+    for (final entry
+        in matchStats.entries) {
+      final savedName =
+          entry.key
+              .split('|')
+              .first
+              .trim();
+
+      if (savedName ==
+          player.name.trim()) {
+        stats = entry.value;
+
+        break;
+      }
+    }
+
+    final runs =
+        stats?['runs'] ?? 0;
+
+    final fours =
+        stats?['fours'] ?? 0;
+
+    final sixes =
+        stats?['sixes'] ?? 0;
+
+    final wickets =
+        stats?['wickets'] ?? 0;
+
+    final catches =
+        stats?['catches'] ?? 0;
+
+    double points =
+        runs +
+        (fours * 2) +
+        (sixes * 4) +
+        (wickets * 30) +
+        (catches * 10);
+
+    if (player.name ==
+        captainName) {
+      points *= 2;
+    } else if (player.name ==
+        viceCaptainName) {
+      points *= 1.5;
+    }
+
+    total += points;
+  }
+
+  return total;
+}
+
+
+// ======================================================
+// PRIZE FOR FINAL RANK
+// ======================================================
+
+double _storedContestWinningForRank(
+  Map<String, dynamic> contest,
+  int rank,
+) {
+  if (rank <= 0) {
+    return 0;
+  }
+
+  final rawSlabs =
+      contest['prizeSlabs'];
+
+  if (rawSlabs is List &&
+      rawSlabs.isNotEmpty) {
+    for (final rawSlab
+        in rawSlabs) {
+      if (rawSlab is! Map) {
+        continue;
+      }
+
+      final from =
+          int.tryParse(
+                '${rawSlab['from'] ?? ''}',
+              ) ??
+              0;
+
+      final to =
+          int.tryParse(
+                '${rawSlab['to'] ?? ''}',
+              ) ??
+              from;
+
+      final amount =
+          double.tryParse(
+                '${rawSlab['amount'] ?? rawSlab['prize'] ?? ''}',
+              ) ??
+              0;
+
+      if (rank >= from &&
+          rank <= to) {
+        return amount;
+      }
+    }
+
+    return 0;
+  }
+
+  // Old contest fallback
+  if (rank == 1) {
+    return _userGameDouble(
+      contest['prizePool'],
+    );
+  }
+
+  return 0;
+}
+
+
+// ======================================================
+// FIND ADMIN MATCH FOR JOINED CONTEST
+// ======================================================
+
+Map<String, String>?
+    _adminMatchForJoinedContest(
+  Map<String, dynamic> contest,
+) {
+  final targetMatchKey =
+      (contest['matchKey'] ?? '')
+          .toString();
+
+  if (targetMatchKey.isNotEmpty) {
+    for (final admin
+        in adminMatches.value) {
+      final adminKey =
+          '${admin['team1'] ?? ''}_'
+          '${admin['team2'] ?? ''}_'
+          '${admin['date'] ?? ''}_'
+          '${admin['time'] ?? ''}';
+
+      if (adminKey ==
+          targetMatchKey) {
+        return admin;
+      }
+    }
+  }
+
+  final team1 =
+      (contest['team1'] ?? '')
+          .toString();
+
+  final team2 =
+      (contest['team2'] ?? '')
+          .toString();
+
+  for (final admin
+      in adminMatches.value) {
+    if ((admin['team1'] ?? '') ==
+            team1 &&
+        (admin['team2'] ?? '') ==
+            team2) {
+      return admin;
+    }
+  }
+
+  return null;
+}
+
+
+// ======================================================
+// AUTOMATIC CONTEST WINNING SETTLEMENT
+// No Claim button
+// Final score -> Rank -> Wallet -> History -> Firebase
+// ======================================================
+
+bool _autoWinningSettlementInProgress =
+    false;
+
+Future<void>
+    _autoSettleUserWinnings()
+    async {
+  if (_autoWinningSettlementInProgress) {
+    return;
+  }
+
+  final user =
+      FirebaseAuth.instance.currentUser;
+
+  if (user == null ||
+      joinedContests.value.isEmpty ||
+      adminMatches.value.isEmpty) {
+    return;
+  }
+
+  _autoWinningSettlementInProgress =
+      true;
+
+  try {
+    final contests =
+        joinedContests.value
+            .map(
+              (contest) =>
+                  Map<String,
+                      dynamic>.from(
+                contest,
+              ),
+            )
+            .toList();
+
+    final history =
+        transactionHistory.value
+            .map(
+              (item) =>
+                  Map<String,
+                      dynamic>.from(
+                item,
+              ),
+            )
+            .toList();
+
+    final claimed =
+        Set<String>.from(
+      claimedWinnings.value,
+    );
+
+    double newWalletBalance =
+        walletBalance.value;
+
+    bool dataChanged = false;
+    bool claimedChanged = false;
+
+    for (final contest
+        in contests) {
+      final admin =
+          _adminMatchForJoinedContest(
+        contest,
+      );
+
+      if (admin == null) {
+        continue;
+      }
+
+      // Rank/winning तभी final होगा
+      // जब Admin final stats save कर चुका है.
+      final finalScoreUpdated =
+          (admin[
+                      'finalScoreUpdated'] ??
+                  '')
+              .toString()
+              .toLowerCase() ==
+          'true';
+
+      if (!finalScoreUpdated) {
+        continue;
+      }
+
+      final contestPoints =
+          _storedContestPoints(
+        contest,
+      );
+
+      final contestSpots =
+          _userGameInt(
+        contest['spots'],
+      );
+
+      final leaderboard =
+          <Map<String, dynamic>>[
+        {
+          'name':
+              'Cricket King',
+          'points':
+              742.0,
+        },
+
+        if (contestSpots != 2)
+          {
+            'name':
+                'Super XI',
+            'points':
+                711.0,
+          },
+
+        {
+          'name': 'You',
+          'points':
+              contestPoints,
+        },
+      ];
+
+      leaderboard.sort(
+        (a, b) =>
+            (b['points']
+                    as double)
+                .compareTo(
+          a['points']
+              as double,
+        ),
+      );
+
+      final rank =
+          leaderboard.indexWhere(
+                (item) =>
+                    item['name'] ==
+                    'You',
+              ) +
+              1;
+
+      final winningAmount =
+          _storedContestWinningForRank(
+        contest,
+        rank,
+      );
+
+      final contestId =
+          (contest['contestId'] ??
+                  contest['id'] ??
+                  '')
+              .toString()
+              .trim();
+
+      final contestName =
+          (contest[
+                      'contestName'] ??
+                  'Contest')
+              .toString();
+
+      final winningType =
+          (contest[
+                      'h2hWinningType'] ??
+                  contest[
+                      'winningType'] ??
+                  '')
+              .toString();
+
+      final matchKey =
+          (contest['matchKey'] ??
+                  '')
+              .toString();
+
+      final teamKey =
+          (contest[
+                      'joinedTeamName'] ??
+                  '')
+              .toString();
+
+      final claimKey =
+          contestId.isNotEmpty
+              ? '$matchKey-$contestId-$teamKey'
+              : '$matchKey-$contestName-$winningType-$teamKey';
+
+      final existingWinningIndex =
+          history.indexWhere(
+        (item) {
+          final title =
+              (item['title'] ?? '')
+                  .toString()
+                  .trim()
+                  .toUpperCase();
+
+          if (title != 'WINNING') {
+            return false;
+          }
+
+          final savedContestId =
+              (item[
+                          'contestId'] ??
+                      '')
+                  .toString()
+                  .trim();
+
+          if (contestId.isNotEmpty &&
+              savedContestId
+                  .isNotEmpty) {
+            return savedContestId ==
+                contestId;
+          }
+
+          return (item[
+                      'claimKey'] ??
+                  '')
+              .toString() ==
+              claimKey;
+        },
+      );
+
+      final now =
+          DateTime.now();
+
+      String formatDateTime(
+        DateTime date,
+      ) {
+        return
+            '${date.day.toString().padLeft(2, '0')}/'
+            '${date.month.toString().padLeft(2, '0')}/'
+            '${date.year} '
+            '${date.hour.toString().padLeft(2, '0')}:'
+            '${date.minute.toString().padLeft(2, '0')}';
+      }
+
+      Map<String, dynamic>
+          winningHistoryItem({
+        Map<String, dynamic>?
+            oldItem,
+      }) {
+        final old =
+            oldItem ??
+                <String, dynamic>{};
+
+        return {
+          ...old,
+
+          'title':
+              'Winning',
+
+          'type':
+              'WINNING',
+
+          'subtitle':
+              contestName,
+
+          'winningType':
+              winningType,
+
+          'rank':
+              rank,
+
+          'claimKey':
+              claimKey,
+
+          'contestId':
+              contestId,
+
+          'matchKey':
+              matchKey,
+
+          'teamKey':
+              teamKey,
+
+          'description':
+              '${contest['team1'] ?? ''} '
+              'vs '
+              '${contest['team2'] ?? ''}',
+
+          'txnNumber':
+              (old[
+                          'txnNumber'] ??
+                      '')
+                  .toString()
+                  .trim()
+                  .isNotEmpty
+                  ? old[
+                      'txnNumber']
+                  : generateTxnNumber(
+                      'WINNING',
+                    ),
+
+          'userId':
+              user.uid,
+
+          'createdAt':
+              old['createdAt'] ??
+                  now,
+
+          'dateTime':
+              (old[
+                          'dateTime'] ??
+                      '')
+                  .toString()
+                  .trim()
+                  .isNotEmpty
+                  ? old[
+                      'dateTime']
+                  : formatDateTime(
+                      now,
+                    ),
+
+          'amount':
+              winningAmount,
+        };
+      }
+
+      if (existingWinningIndex !=
+          -1) {
+        final oldItem =
+            history[
+                existingWinningIndex];
+
+        final oldAmount =
+            _userGameDouble(
+          oldItem['amount'],
+        );
+
+        final oldRank =
+            _userGameInt(
+          oldItem['rank'],
+        );
+
+        if (winningAmount <= 0) {
+          newWalletBalance -=
+              oldAmount;
+
+          history.removeAt(
+            existingWinningIndex,
+          );
+
+          dataChanged = true;
+        } else {
+          final difference =
+              winningAmount -
+                  oldAmount;
+
+          if (difference.abs() >
+              0.001) {
+            newWalletBalance +=
+                difference;
+
+            dataChanged = true;
+          }
+
+          if (oldRank != rank ||
+              (oldAmount -
+                          winningAmount)
+                      .abs() >
+                  0.001 ||
+              (oldItem['type'] ??
+                          '')
+                      .toString() !=
+                  'WINNING' ||
+              (oldItem[
+                          'teamKey'] ??
+                      '')
+                  .toString() !=
+                  teamKey) {
+            history[
+                    existingWinningIndex] =
+                winningHistoryItem(
+              oldItem:
+                  oldItem,
+            );
+
+            dataChanged = true;
+          }
+        }
+      } else if (winningAmount >
+          0) {
+        newWalletBalance +=
+            winningAmount;
+
+        history.add(
+          winningHistoryItem(),
+        );
+
+        dataChanged = true;
+      }
+
+      final oldPoints =
+          _userGameDouble(
+        contest['userPoints'],
+      );
+
+      final oldRank =
+          _userGameInt(
+        contest['finalRank'],
+      );
+
+      final oldWinning =
+          _userGameDouble(
+        contest['winningAmount'],
+      );
+
+      if (contest[
+                  'settlementDone'] !=
+              true ||
+          (oldPoints -
+                      contestPoints)
+                  .abs() >
+              0.001 ||
+          oldRank != rank ||
+          (oldWinning -
+                      winningAmount)
+                  .abs() >
+              0.001) {
+        contest['userPoints'] =
+            contestPoints;
+
+        contest['finalRank'] =
+            rank;
+
+        contest['winningAmount'] =
+            winningAmount;
+
+        contest['settlementDone'] =
+            true;
+
+        contest['settledAt'] =
+            now;
+
+        dataChanged = true;
+      }
+
+      if (winningAmount > 0 &&
+          claimed.add(
+            claimKey,
+          )) {
+        claimedChanged = true;
+      }
+    }
+
+    if (claimedChanged) {
+      claimedWinnings.value =
+          claimed;
+    }
+
+    if (!dataChanged) {
+      return;
+    }
+
+    walletBalance.value =
+        newWalletBalance;
+
+    transactionHistory.value =
+        history;
+
+    joinedContests.value =
+        contests;
+
+    final saved =
+        await _saveUserContestStateToFirebase(
+      user.uid,
+    );
+
+    if (!saved) {
+      debugPrint(
+        'Automatic winning settlement Firebase save failed',
+      );
+    }
+  } catch (e) {
+    debugPrint(
+      'Automatic winning settlement error: $e',
+    );
+  } finally {
+    _autoWinningSettlementInProgress =
+        false;
+  }
+}
 
 // ======================================================
 // KEEP MY MATCHES IN SYNC WITH ADMIN MATCH
@@ -1831,7 +2655,12 @@ final startTime =
   }
 
   joinedMatches.value =
-      synced;
+    synced;
+
+// Final score Firebase से आने के बाद
+// user के सभी joined contests
+// अपने-आप settle होंगे.
+_autoSettleUserWinnings();
 }
 
 
@@ -2280,7 +3109,14 @@ void startUserGameAuthGuard() {
           .authStateChanges()
           .listen(
     (user) {
+      // App reopen पर Firebase session
+      // पहले से logged-in हो तो listener
+      // तुरंत वापस start होगा.
       if (user != null) {
+        startUserDataListener(
+          user.uid,
+        );
+
         return;
       }
 
@@ -11160,7 +11996,7 @@ final team2Short = makeShortName(team2Name);
   children: [
     if (matchDay != null)
       Container(
-        height: 44,
+        height: 56,
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
@@ -11177,7 +12013,7 @@ final team2Short = makeShortName(team2Name);
           children: [
             Container(
               width: 62,
-              height: 44,
+              height: 56,
               decoration: const BoxDecoration(
                 color: Color(0xFFD9043D),
                 borderRadius: BorderRadius.only(
@@ -13418,26 +14254,128 @@ final String displayName =
     color: contestDetailColor,
     elevation: 1.5,
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius:
+          BorderRadius.circular(18),
       side: const BorderSide(
         color: Color(0xFFD8C9C2),
         width: 1.2,
       ),
     ),
-    clipBehavior: Clip.antiAlias,
+    clipBehavior:
+        Clip.antiAlias,
     child: ListTile(
-            title: const Text('Total Points'),
-            trailing: Text(
-              widget.match.currentStatus == 'UPCOMING'
-                  ? '0'
-                  : '$livePoints',
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+      title:
+          const Text(
+        'Total Points',
+      ),
+      subtitle: Text(
+        'Tap to view '
+        '${widget.contest?['joinedTeamName'] ?? 'Team'} points',
+        style: const TextStyle(
+          fontSize: 11,
+          color: Colors.grey,
+        ),
+      ),
+      trailing: Row(
+        mainAxisSize:
+            MainAxisSize.min,
+        children: [
+          Text(
+            widget.match.currentStatus ==
+                    'UPCOMING'
+                ? '0'
+                : '$livePoints',
+            style:
+                const TextStyle(
+              fontSize: 22,
+              fontWeight:
+                  FontWeight.bold,
             ),
           ),
-        ),
+          const SizedBox(
+            width: 6,
+          ),
+          const Icon(
+            Icons.chevron_right,
+          ),
+        ],
+      ),
+      onTap: () {
+        final contest =
+            widget.contest;
+
+        if (contest == null) {
+          return;
+        }
+
+        final rawPlayers =
+            contest[
+                'selectedPlayers'];
+
+        final team =
+            rawPlayers is List
+                ? rawPlayers
+                    .whereType<
+                        Player>()
+                    .toList()
+                : <Player>[];
+
+        if (team.isEmpty) {
+          return;
+        }
+
+        final joinedTeamName =
+            (contest[
+                        'joinedTeamName'] ??
+                    'Team 1')
+                .toString();
+
+        final numberMatch =
+            RegExp(r'\d+')
+                .firstMatch(
+          joinedTeamName,
+        );
+
+        final teamNumber =
+            int.tryParse(
+                  numberMatch
+                          ?.group(0) ??
+                      '',
+                ) ??
+                1;
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                SavedTeamDetailPage(
+              team:
+                  List<Player>.from(
+                team,
+              ),
+              teamNumber:
+                  teamNumber,
+              captainName:
+                  (contest[
+                              'captainName'] ??
+                          '')
+                      .toString(),
+              viceCaptainName:
+                  (contest[
+                              'viceCaptainName'] ??
+                          '')
+                      .toString(),
+              matchKey:
+                  (contest[
+                              'matchKey'] ??
+                          '')
+                      .toString(),
+            ),
+          ),
+        );
+      },
+    ),
+  ),
 
       if (widget.contest != null)
         const SizedBox(height: 12),
@@ -13551,88 +14489,122 @@ if (widget.contest != null &&
   const SizedBox(height: 20),
 
 if (widget.contest != null)
-  ValueListenableBuilder<Set<String>>(
-    valueListenable: claimedWinnings,
-    builder: (context, claimed, _) {
-      final contestName =
-          (widget.contest?['contestName'] ??
-                  widget.match.contestName)
-              .toString();
+  ValueListenableBuilder<
+      List<Map<String, dynamic>>>(
+    valueListenable:
+        transactionHistory,
+    builder:
+        (context, history, _) {
 
-     final contest = widget.contest!;
+      final contest =
+          widget.contest!;
 
-final String teamKey =
-    (contest['teamName'] ??
-            contest['selectedTeam'] ??
-            contest['teamIndex'] ??
-            contest['teamId'] ??
-            '')
-        .toString();
+      final contestId =
+          (contest['contestId'] ??
+                  contest['id'] ??
+                  '')
+              .toString()
+              .trim();
 
-final String contestId =
-    (contest['contestId'] ?? contest['id'] ?? '')
-        .toString()
-        .trim();
+      final alreadyCredited =
+          history.any(
+        (tx) {
+          final title =
+              (tx['title'] ?? '')
+                  .toString()
+                  .trim()
+                  .toUpperCase();
 
-final String matchKey =
-    (contest['matchKey'] ??
-            '${widget.match.team1}-${widget.match.team2}')
-        .toString();
+          if (title != 'WINNING') {
+            return false;
+          }
 
-final String claimKey = contestId.isNotEmpty
-    ? '$matchKey-$contestId-$teamKey'
-    : '$matchKey-$contestName-$teamKey';
+          final savedContestId =
+              (tx['contestId'] ?? '')
+                  .toString()
+                  .trim();
 
-      final alreadyClaimed =
-    claimed.contains(claimKey) ||
-    transactionHistory.value.any((tx) {
-      if (tx['title'] != 'Winning') return false;
+          if (contestId.isNotEmpty) {
+            return savedContestId ==
+                contestId;
+          }
 
-      final savedContestId =
-          (tx['contestId'] ?? '').toString().trim();
+          return (tx['subtitle'] ??
+                      '')
+                  .toString() ==
+              (contest[
+                          'contestName'] ??
+                      '')
+                  .toString();
+        },
+      );
 
-      final savedTeamKey =
-          (tx['teamKey'] ?? '').toString().trim();
+      final winningForThisRank =
+          _contestWinningForRank(
+        calculatedLiveRank,
+      );
 
-      return savedContestId == contestId &&
-          savedTeamKey == teamKey;
-    });
+      return ElevatedButton(
+        onPressed: null,
+        style:
+            ElevatedButton.styleFrom(
+          elevation: 0,
 
-      
-            final winningForThisRank =
-    _contestWinningForRank(calculatedLiveRank);
+          disabledBackgroundColor:
+              !contestCompleted
+                  ? const Color(
+                      0xFFFFB74D,
+                    )
+                  : winningForThisRank <=
+                          0
+                      ? const Color(
+                          0xFFEF5350,
+                        )
+                      : alreadyCredited
+                          ? const Color(
+                              0xFF43A047,
+                            )
+                          : const Color(
+                              0xFFFFB300,
+                            ),
 
-return ElevatedButton(
-  onPressed: null,
-  style: ElevatedButton.styleFrom(
-    elevation: 0,
-    disabledBackgroundColor: !contestCompleted
-        ? const Color(0xFFFFB74D) // Result Pending
-        : winningForThisRank <= 0
-            ? const Color(0xFFEF5350) // No Winning
-            : alreadyClaimed
-                ? const Color(0xFF43A047) // Winning Credited
-                : const Color(0xFFFFB300), // Claim Winning
-    disabledForegroundColor: Colors.white,
-    minimumSize: const Size(double.infinity, 52),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(18),
-    ),
-  ),
-  child: Text(
-    !contestCompleted
-        ? 'RESULT PENDING'
-        : winningForThisRank <= 0
-            ? 'NO WINNING'
-            : alreadyClaimed
-                ? 'WINNING CREDITED ✓\n'
-                    '₹${winningForThisRank % 1 == 0 ? winningForThisRank.toInt() : winningForThisRank} ADDED TO WALLET ✓'
-                : 'CLAIM WINNING',
-    textAlign: TextAlign.center,
-  ),
-);
+          disabledForegroundColor:
+              Colors.white,
+
+          minimumSize:
+              const Size(
+            double.infinity,
+            52,
+          ),
+
+          shape:
+              RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(
+              18,
+            ),
+          ),
+        ),
+        child: Text(
+          !contestCompleted
+              ? 'RESULT PENDING'
+              : winningForThisRank <= 0
+                  ? 'NO WINNING'
+                  : alreadyCredited
+                      ? 'WINNING CREDITED ✓\n'
+                          '₹${winningForThisRank % 1 == 0 ? winningForThisRank.toInt() : winningForThisRank} ADDED TO WALLET ✓'
+                      : 'WINNING CREDITING...',
+          textAlign:
+              TextAlign.center,
+          style: const TextStyle(
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+      );
     },
   ),
+
 
       const SizedBox(height: 20),
     ],
@@ -14768,226 +15740,428 @@ final team2Short = makeShortName(team2Name);
   }
 }
 
-class SavedTeamDetailPage extends StatelessWidget {
+class SavedTeamDetailPage
+    extends StatefulWidget {
   final List<Player> team;
   final int teamNumber;
-final String captainName;
-final String viceCaptainName;
+  final String captainName;
+  final String viceCaptainName;
   final String matchKey;
+
   const SavedTeamDetailPage({
-  super.key,
-  required this.team,
-  required this.teamNumber,
-  required this.captainName,
-  required this.viceCaptainName,
+    super.key,
+    required this.team,
+    required this.teamNumber,
+    required this.captainName,
+    required this.viceCaptainName,
     required this.matchKey,
-});
+  });
 
   @override
-  Widget build(BuildContext context) {
-    double totalTeamPoints = 0.0;
-
-final matchStats = savedPlayerStats[matchKey] ?? {};
-
-for (final player in team) {
-  double points = player.points;
-
-  final matchingStats = matchStats.entries
-      .where(
-        (entry) =>
-            entry.key.split('|').first.trim() ==
-            player.name.trim(),
-      )
-      .map((entry) => entry.value)
-      .toList();
-
-  if (matchingStats.isNotEmpty) {
-    final stats = matchingStats.last;
-
-    final runs = stats['runs'] ?? 0;
-final fours = stats['fours'] ?? 0;
-final sixes = stats['sixes'] ?? 0;
-final wickets = stats['wickets'] ?? 0;
-final catches = stats['catches'] ?? 0;
-
-points =
-    runs +
-    (fours * 2) +
-    (sixes * 4) +
-    (wickets * 30) +
-    (catches * 10);
-}
-if (player.name == captainName) {
-  points *= 2;
-} else if (player.name == viceCaptainName) {
-  points *= 1.5;
+  State<SavedTeamDetailPage>
+      createState() =>
+          _SavedTeamDetailPageState();
 }
 
-totalTeamPoints += points;
-}
+class _SavedTeamDetailPageState
+    extends State<SavedTeamDetailPage> {
+
+  void _refreshPlayerStats() {
+    if (!mounted) return;
+
+    setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    adminMatches.addListener(
+      _refreshPlayerStats,
+    );
+  }
+
+  @override
+  void dispose() {
+    adminMatches.removeListener(
+      _refreshPlayerStats,
+    );
+
+    super.dispose();
+  }
+
+  Map<String, int>? _statsForPlayer(
+    Player player,
+    Map<String, Map<String, int>>
+        matchStats,
+  ) {
+    for (final entry
+        in matchStats.entries) {
+      final savedName =
+          entry.key
+              .split('|')
+              .first
+              .trim();
+
+      if (savedName ==
+          player.name.trim()) {
+        return entry.value;
+      }
+    }
+
+    return null;
+  }
+
+  double _playerPoints(
+    Player player,
+    Map<String, Map<String, int>>
+        matchStats,
+  ) {
+    final stats =
+        _statsForPlayer(
+      player,
+      matchStats,
+    );
+
+    final runs =
+        stats?['runs'] ?? 0;
+
+    final fours =
+        stats?['fours'] ?? 0;
+
+    final sixes =
+        stats?['sixes'] ?? 0;
+
+    final wickets =
+        stats?['wickets'] ?? 0;
+
+    final catches =
+        stats?['catches'] ?? 0;
+
+    double points =
+        runs +
+        (fours * 2) +
+        (sixes * 4) +
+        (wickets * 30) +
+        (catches * 10);
+
+    if (player.name ==
+        widget.captainName) {
+      points *= 2;
+    } else if (player.name ==
+        widget.viceCaptainName) {
+      points *= 1.5;
+    }
+
+    return points;
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final matchStats =
+        _resolvedPlayerStatsForMatchKey(
+      widget.matchKey,
+    );
+
+    double totalTeamPoints = 0;
+
+    for (final player
+        in widget.team) {
+      totalTeamPoints +=
+          _playerPoints(
+        player,
+        matchStats,
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Team $teamNumber'),
+        title: Text(
+          'Team ${widget.teamNumber}',
+        ),
       ),
       body: ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: team.length + 1,
-        itemBuilder: (context, index) {
+        padding:
+            const EdgeInsets.all(12),
+        itemCount:
+            widget.team.length + 1,
+        itemBuilder:
+            (context, index) {
           if (index == 0) {
-  return Card(
-    color: const Color(0xFF4527A0),
-    margin: const EdgeInsets.only(bottom: 14),
-    child: ListTile(
-      leading: const CircleAvatar(
-        backgroundColor: Color(0xFFFFD54F),
-        child: Icon(
-          Icons.star,
-          color: Color(0xFF4527A0),
-        ),
-      ),
-      title: const Text(
-        'TOTAL POINTS',
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      trailing: Text(
-        totalTeamPoints.toStringAsFixed(1),
-        style: const TextStyle(
-          color: Color(0xFFFFE082),
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    ),
-  );
-}
-
-final player = team[index - 1];
-         
-final matchStats = savedPlayerStats[matchKey] ?? {};
-
-final matchingStats = matchStats.entries
-    .where((entry) =>
-        entry.key.split('|').first.trim() ==
-        player.name.trim())
-    .map((entry) => entry.value)
-    .toList();
-if (matchingStats.isNotEmpty) {
-  final stats = matchingStats.last;
-
-
-  player.runs = stats['runs'] ?? 0;
-  player.fours = stats['fours'] ?? 0;
-  player.sixes = stats['sixes'] ?? 0;
-  player.wickets = stats['wickets'] ?? 0;
-  player.catches = stats['catches'] ?? 0;
-}
-          double displayPoints = player.points;
-
-if (player.name == captainName) {
-  displayPoints = player.points * 2;
-} else if (player.name == viceCaptainName) {
-  displayPoints = player.points * 1.5;
-}
-          
             return Card(
-  color: player.name == captainName
-      ? const Color(0xFFE8F5E9)
-      : player.name == viceCaptainName
-          ? const Color(0xFFE3F2FD)
-          : const Color(0xFFFFF1F1),
-  child: ListTile(
+              color:
+                  const Color(
+                0xFF4527A0,
+              ),
+              margin:
+                  const EdgeInsets.only(
+                bottom: 14,
+              ),
+              child: ListTile(
+                leading:
+                    const CircleAvatar(
+                  backgroundColor:
+                      Color(
+                    0xFFFFD54F,
+                  ),
+                  child: Icon(
+                    Icons.star,
+                    color:
+                        Color(
+                      0xFF4527A0,
+                    ),
+                  ),
+                ),
+                title: const Text(
+                  'TOTAL POINTS',
+                  style: TextStyle(
+                    color:
+                        Colors.white,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+                trailing: Text(
+                  totalTeamPoints
+                      .toStringAsFixed(
+                    1,
+                  ),
+                  style:
+                      const TextStyle(
+                    color:
+                        Color(
+                      0xFFFFE082,
+                    ),
+                    fontSize: 22,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ),
+            );
+          }
+    final player =
+              widget.team[index - 1];
+
+          final stats =
+              _statsForPlayer(
+            player,
+            matchStats,
+          );
+
+          final runs =
+              stats?['runs'] ?? 0;
+
+          final balls =
+              stats?['balls'] ?? 0;
+
+          final fours =
+              stats?['fours'] ?? 0;
+
+          final sixes =
+              stats?['sixes'] ?? 0;
+
+          final wickets =
+              stats?['wickets'] ?? 0;
+
+          final catches =
+              stats?['catches'] ?? 0;
+
+          final displayPoints =
+              _playerPoints(
+            player,
+            matchStats,
+          );
+
+          final isCaptain =
+              player.name ==
+                  widget.captainName;
+
+          final isViceCaptain =
+              player.name ==
+                  widget
+                      .viceCaptainName;
+
+          return Card(
+            color: isCaptain
+                ? const Color(
+                    0xFFE8F5E9,
+                  )
+                : isViceCaptain
+                    ? const Color(
+                        0xFFE3F2FD,
+                      )
+                    : const Color(
+                        0xFFFFF1F1,
+                      ),
+            child: ListTile(
               leading: CircleAvatar(
-                child: Text(player.name[0]),
+                child: Text(
+                  player.name[0],
+                ),
               ),
               title: Row(
-  children: [
-    Text(
-      player.name,
-      style: const TextStyle(
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-
-    if (player.name == captainName) ...[
-      const SizedBox(width: 8),
-      Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 2,
-        ),
-        decoration: BoxDecoration(
-          color: const Color(0xFF00A51A),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: const Text(
-          'C',
-          style: TextStyle(
-            color: Color(0xFFFFFFFF),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      const SizedBox(width: 6),
-      const Text('👑'),
-    ],
-
-    if (player.name == viceCaptainName) ...[
-      const SizedBox(width: 8),
-      Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 2,
-        ),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1565D8),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: const Text(
-          'VC',
-          style: TextStyle(
-            color: Color(0xFFFFFFFF),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    ],
-  ],
-),
-              subtitle: Text(
-  '${player.team} • ${player.role}\n'
-  'Runs: ${player.runs}   4s: ${player.fours}   6s: ${player.sixes}\n'
-  'Wkts: ${player.wickets}   Catch: ${player.catches}',
-),
-isThreeLine: true,
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('${player.credit}'),
-                 Container(
-  padding: const EdgeInsets.symmetric(
-    horizontal: 10,
-    vertical: 5,
-  ),
-  decoration: BoxDecoration(
-    color: player.name == captainName
-        ? const Color(0xFF81C784)
-        : player.name == viceCaptainName
-            ? const Color(0xFF90CAF9)
-            : const Color(0xFFD1B3FF),
-    borderRadius: BorderRadius.circular(15),
-  ),
-  child: Text(
-    'Points: ${displayPoints.toStringAsFixed(1)}',
-    style: const TextStyle(
-      fontSize: 12,
-      fontWeight: FontWeight.bold,
-    ),
-  ),
-),
+                  Flexible(
+                    child: Text(
+                      player.name,
+                      overflow:
+                          TextOverflow
+                              .ellipsis,
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight
+                                .bold,
+                      ),
+                    ),
+                  ),
+
+                  if (isCaptain) ...[
+                    const SizedBox(
+                      width: 8,
+                    ),
+                    Container(
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        horizontal: 10,
+                        vertical: 2,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            const Color(
+                          0xFF00A51A,
+                        ),
+                        borderRadius:
+                            BorderRadius
+                                .circular(
+                          15,
+                        ),
+                      ),
+                      child:
+                          const Text(
+                        'C',
+                        style:
+                            TextStyle(
+                          color:
+                              Colors
+                                  .white,
+                          fontWeight:
+                              FontWeight
+                                  .bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(
+                      width: 5,
+                    ),
+                    const Text('👑'),
+                  ],
+
+                  if (isViceCaptain)
+                    ...[
+                      const SizedBox(
+                        width: 8,
+                      ),
+                      Container(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal: 10,
+                          vertical: 2,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              const Color(
+                            0xFF1565D8,
+                          ),
+                          borderRadius:
+                              BorderRadius
+                                  .circular(
+                            15,
+                          ),
+                        ),
+                        child:
+                            const Text(
+                          'VC',
+                          style:
+                              TextStyle(
+                            color:
+                                Colors
+                                    .white,
+                            fontWeight:
+                                FontWeight
+                                    .bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                ],
+              ),
+              subtitle: Text(
+                '${player.team} • ${player.role}\n'
+                'Runs: $runs   Balls: $balls\n'
+                '4s: $fours   6s: $sixes\n'
+                'Wkts: $wickets   Catch: $catches',
+              ),
+              isThreeLine: false,
+              trailing: Column(
+                mainAxisAlignment:
+                    MainAxisAlignment
+                        .center,
+                crossAxisAlignment:
+                    CrossAxisAlignment
+                        .end,
+                children: [
+                  Text(
+                    '${player.credit}',
+                  ),
+                  const SizedBox(
+                    height: 3,
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets
+                            .symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration:
+                        BoxDecoration(
+                      color: isCaptain
+                          ? const Color(
+                              0xFF81C784,
+                            )
+                          : isViceCaptain
+                              ? const Color(
+                                  0xFF90CAF9,
+                                )
+                              : const Color(
+                                  0xFFD1B3FF,
+                                ),
+                      borderRadius:
+                          BorderRadius
+                              .circular(
+                        15,
+                      ),
+                    ),
+                    child: Text(
+                      'Points: '
+                      '${displayPoints.toStringAsFixed(1)}',
+                      style:
+                          const TextStyle(
+                        fontSize: 12,
+                        fontWeight:
+                            FontWeight
+                                .bold,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -14997,6 +16171,7 @@ isThreeLine: true,
     );
   }
 }
+              
 
 class WalletPage extends StatelessWidget {
   const WalletPage({super.key});
