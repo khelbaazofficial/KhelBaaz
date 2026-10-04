@@ -1923,6 +1923,893 @@ double _storedContestWinningForRank(
   return 0;
 }
 
+// ======================================================
+// REAL CONTEST RESULT HELPERS
+// ======================================================
+
+List<Map<String, dynamic>>
+    _contestResultEntriesFor(
+  Map<String, dynamic> contest,
+) {
+  final contestId =
+      (contest['contestId'] ??
+              contest['id'] ??
+              '')
+          .toString()
+          .trim();
+
+  if (contestId.isEmpty) {
+    return <Map<String, dynamic>>[];
+  }
+
+  final result =
+      contestResults.value[
+          contestId];
+
+  if (result == null) {
+    return <Map<String, dynamic>>[];
+  }
+
+  final rawEntries =
+      result['entries'];
+
+  if (rawEntries is! List) {
+    return <Map<String, dynamic>>[];
+  }
+
+  return rawEntries
+      .whereType<Map>()
+      .map(
+        (entry) =>
+            Map<String, dynamic>.from(
+          entry,
+        ),
+      )
+      .toList();
+}
+
+
+// ======================================================
+// WINNING TXN NUMBER FOR A USER
+// ======================================================
+
+String _nextAdminWinningTxnNumber(
+  List<Map<String, dynamic>> history,
+  DateTime now,
+) {
+  final yy =
+      (now.year % 100)
+          .toString()
+          .padLeft(2, '0');
+
+  final mm =
+      now.month
+          .toString()
+          .padLeft(2, '0');
+
+  final dd =
+      now.day
+          .toString()
+          .padLeft(2, '0');
+
+  final prefix =
+      'Win Txn-$yy$mm$dd';
+
+  int maxSerial = 0;
+
+  for (final item
+      in history) {
+    final txn =
+        (item['txnNumber'] ?? '')
+            .toString()
+            .trim();
+
+    if (!txn.startsWith(
+      '$prefix-',
+    )) {
+      continue;
+    }
+
+    final serial =
+        int.tryParse(
+              txn.substring(
+                prefix.length + 1,
+              ),
+            ) ??
+            0;
+
+    if (serial > maxSerial) {
+      maxSerial = serial;
+    }
+  }
+
+  final next =
+      maxSerial + 1;
+
+  return '$prefix-'
+      '${next.toString().padLeft(5, '0')}';
+}
+
+
+String _adminSettlementDateTime(
+  DateTime date,
+) {
+  return
+      '${date.day.toString().padLeft(2, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/'
+      '${date.year} '
+      '${date.hour.toString().padLeft(2, '0')}:'
+      '${date.minute.toString().padLeft(2, '0')}';
+}
+
+
+// ======================================================
+// ADMIN FINALIZES ALL REAL USERS OF A MATCH
+//
+// contest_joins -> real user IDs
+// users/{uid}   -> selected team + C/VC
+// player stats  -> real points
+// real rank     -> prize
+// users/{uid}   -> wallet + history
+// contest_results -> public final leaderboard
+// ======================================================
+
+Future<void>
+    _finalizeRealContestResultsForMatch({
+  required String matchKey,
+  required Map<String, String>
+      adminMatch,
+}) async {
+  final signedIn =
+      FirebaseAuth.instance.currentUser;
+
+  if (signedIn == null) {
+    return;
+  }
+
+  final firestore =
+      FirebaseFirestore.instance;
+
+  try {
+    // Extra safety:
+    // settlement सिर्फ valid Admin करेगा.
+    final adminDoc =
+        await firestore
+            .collection('admins')
+            .doc(signedIn.uid)
+            .get();
+
+    final adminData =
+        adminDoc.data();
+
+    final adminRole =
+        (adminData?['role'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
+
+    if (!adminDoc.exists ||
+        adminRole != 'ADMIN' ||
+        adminData?['active'] != true) {
+      return;
+    }
+
+    final finalScoreUpdated =
+        (adminMatch[
+                    'finalScoreUpdated'] ??
+                '')
+            .toString()
+            .trim()
+            .toLowerCase() ==
+        'true';
+
+    if (!finalScoreUpdated) {
+      return;
+    }
+
+    final team1 =
+        (adminMatch['team1'] ?? '')
+            .toString();
+
+    final team2 =
+        (adminMatch['team2'] ?? '')
+            .toString();
+
+    final matchContests =
+        createdContests.where(
+      (contest) {
+        final storedMatchKey =
+            (contest['matchKey'] ?? '')
+                .toString()
+                .trim();
+
+        if (storedMatchKey
+            .isNotEmpty) {
+          return storedMatchKey ==
+              matchKey;
+        }
+
+        return (contest['team1'] ?? '')
+                    .toString() ==
+                team1 &&
+            (contest['team2'] ?? '')
+                    .toString() ==
+                team2;
+      },
+    ).toList();
+
+    for (final contest
+        in matchContests) {
+      final contestId =
+          (contest['id'] ??
+                  contest['contestId'] ??
+                  '')
+              .toString()
+              .trim();
+
+      if (contestId.isEmpty) {
+        continue;
+      }
+
+      final joinsSnapshot =
+          await firestore
+              .collection(
+                'contest_joins',
+              )
+              .where(
+                'contestId',
+                isEqualTo:
+                    contestId,
+              )
+              .get();
+
+      if (joinsSnapshot
+          .docs.isEmpty) {
+        continue;
+      }
+
+      final candidates =
+          <Map<String, dynamic>>[];
+
+      // ==========================================
+      // LOAD EVERY REAL JOINED USER
+      // ==========================================
+
+      for (final joinDoc
+          in joinsSnapshot.docs) {
+        final joinData =
+            joinDoc.data();
+
+        final userId =
+            (joinData['userId'] ?? '')
+                .toString()
+                .trim();
+
+        if (userId.isEmpty) {
+          continue;
+        }
+
+        final userDoc =
+            await firestore
+                .collection('users')
+                .doc(userId)
+                .get();
+
+        final userData =
+            userDoc.data();
+
+        if (userData == null) {
+          continue;
+        }
+
+        final role =
+            (userData['role'] ??
+                    'USER')
+                .toString()
+                .trim()
+                .toUpperCase();
+
+        if (role == 'ADMIN') {
+          continue;
+        }
+
+        final rawUserContests =
+            userData[
+                'joinedContests'];
+
+        if (rawUserContests
+            is! List) {
+          continue;
+        }
+
+        Map<String, dynamic>?
+            joinedContest;
+
+        for (final raw
+            in rawUserContests
+                .whereType<Map>()) {
+          final stored =
+              Map<String,
+                  dynamic>.from(
+            raw,
+          );
+
+          if ((stored[
+                      'contestId'] ??
+                  '')
+              .toString()
+              .trim() ==
+              contestId) {
+            joinedContest =
+                stored;
+            break;
+          }
+        }
+
+        if (joinedContest ==
+            null) {
+          continue;
+        }
+
+        // Firestore player maps ->
+        // Player objects for scoring.
+        final scoringContest =
+            Map<String, dynamic>.from(
+          joinedContest,
+        );
+
+        scoringContest[
+                'selectedPlayers'] =
+            _userPlayersFromFirebase(
+          joinedContest[
+              'selectedPlayers'],
+        );
+
+        scoringContest['matchKey'] =
+            matchKey;
+
+        final points =
+            _storedContestPoints(
+          scoringContest,
+        );
+
+        final username =
+            (userData['username'] ??
+                    userData[
+                        'playerName'] ??
+                    'User')
+                .toString()
+                .trim();
+
+        final teamName =
+            (joinedContest[
+                        'joinedTeamName'] ??
+                    'Team 1')
+                .toString();
+
+        candidates.add({
+          'userId': userId,
+          'username': username,
+          'name': username,
+          'teamName': teamName,
+          'points': points,
+        });
+      }
+
+      if (candidates.isEmpty) {
+        continue;
+      }
+
+      // ==========================================
+      // POINTS HIGH -> LOW
+      // ==========================================
+
+      candidates.sort(
+        (a, b) {
+          final aPoints =
+              _userGameDouble(
+            a['points'],
+          );
+
+          final bPoints =
+              _userGameDouble(
+            b['points'],
+          );
+
+          final pointsCompare =
+              bPoints.compareTo(
+            aPoints,
+          );
+
+          if (pointsCompare != 0) {
+            return pointsCompare;
+          }
+
+          return (a['username'] ??
+                  '')
+              .toString()
+              .compareTo(
+                (b['username'] ??
+                        '')
+                    .toString(),
+              );
+        },
+      );
+
+      // ==========================================
+      // REAL RANK + TIE HANDLING
+      //
+      // Example:
+      // Rank 1 prize ₹100
+      // Rank 2 prize ₹50
+      // 2 users tie for first:
+      // (100 + 50) / 2 = ₹75 each
+      // ==========================================
+
+      final resultEntries =
+          <Map<String, dynamic>>[];
+
+      int i = 0;
+
+      while (i <
+          candidates.length) {
+        int j = i;
+
+        final points =
+            _userGameDouble(
+          candidates[i]['points'],
+        );
+
+        while (j + 1 <
+                candidates.length &&
+            (_userGameDouble(
+                      candidates[j + 1]
+                          ['points'],
+                    ) -
+                    points)
+                .abs() <
+                0.0001) {
+          j++;
+        }
+
+        final rank = i + 1;
+
+        double occupiedPrize = 0;
+
+        for (int position =
+                i + 1;
+            position <= j + 1;
+            position++) {
+          occupiedPrize +=
+              _storedContestWinningForRank(
+            contest,
+            position,
+          );
+        }
+
+        final groupSize =
+            j - i + 1;
+
+        final winning =
+            groupSize > 0
+                ? double.parse(
+                    (occupiedPrize /
+                            groupSize)
+                        .toStringAsFixed(
+                      2,
+                    ),
+                  )
+                : 0.0;
+
+        for (int k = i;
+            k <= j;
+            k++) {
+          resultEntries.add({
+            ...candidates[k],
+            'rank': rank,
+            'winning': winning,
+          });
+        }
+
+        i = j + 1;
+      }
+
+      final contestName =
+          (contest['name'] ??
+                  contest[
+                      'contestName'] ??
+                  'Contest')
+              .toString();
+
+      final winningType =
+          (contest[
+                      'h2hWinningType'] ??
+                  contest[
+                      'winningType'] ??
+                  '')
+              .toString();
+
+      // ==========================================
+      // PAY / CORRECT EACH USER
+      // ==========================================
+
+      for (final result
+          in resultEntries) {
+        final userId =
+            (result['userId'] ?? '')
+                .toString();
+
+        final points =
+            _userGameDouble(
+          result['points'],
+        );
+
+        final rank =
+            _userGameInt(
+          result['rank'],
+        );
+
+        final winning =
+            _userGameDouble(
+          result['winning'],
+        );
+
+        final teamName =
+            (result['teamName'] ??
+                    'Team 1')
+                .toString();
+
+        final userRef =
+            firestore
+                .collection('users')
+                .doc(userId);
+
+        await firestore
+            .runTransaction(
+          (transaction) async {
+            final freshUser =
+                await transaction.get(
+              userRef,
+            );
+
+            final userData =
+                freshUser.data();
+
+            if (userData == null) {
+              return;
+            }
+
+            final rawHistory =
+                userData[
+                    'transactionHistory'];
+
+            final history =
+                rawHistory is List
+                    ? rawHistory
+                        .whereType<Map>()
+                        .map(
+                          (item) =>
+                              Map<String,
+                                  dynamic>.from(
+                            item,
+                          ),
+                        )
+                        .toList()
+                    : <Map<String,
+                        dynamic>>[];
+
+            final rawJoined =
+                userData[
+                    'joinedContests'];
+
+            final userContests =
+                rawJoined is List
+                    ? rawJoined
+                        .whereType<Map>()
+                        .map(
+                          (item) =>
+                              Map<String,
+                                  dynamic>.from(
+                            item,
+                          ),
+                        )
+                        .toList()
+                    : <Map<String,
+                        dynamic>>[];
+
+            final contestIndex =
+                userContests
+                    .indexWhere(
+              (item) =>
+                  (item[
+                              'contestId'] ??
+                          '')
+                      .toString()
+                      .trim() ==
+                  contestId,
+            );
+
+            if (contestIndex ==
+                -1) {
+              return;
+            }
+
+            final existingWinningIndex =
+                history.indexWhere(
+              (item) {
+                final type =
+                    (item['type'] ??
+                            '')
+                        .toString()
+                        .trim()
+                        .toUpperCase();
+
+                final title =
+                    (item['title'] ??
+                            '')
+                        .toString()
+                        .trim()
+                        .toUpperCase();
+
+                if (type !=
+                        'WINNING' &&
+                    title !=
+                        'WINNING') {
+                  return false;
+                }
+
+                return (item[
+                            'contestId'] ??
+                        '')
+                    .toString()
+                    .trim() ==
+                    contestId;
+              },
+            );
+
+            final savedBalance =
+                (userData[
+                            'walletBalance']
+                        as num?)
+                    ?.toDouble() ??
+                    0.0;
+
+            double newBalance =
+                savedBalance;
+
+            final now =
+                DateTime.now();
+
+            Map<String, dynamic>
+                makeWinningItem({
+              Map<String, dynamic>?
+                  oldItem,
+            }) {
+              final old =
+                  oldItem ??
+                      <String,
+                          dynamic>{};
+
+              final oldTxn =
+                  (old[
+                              'txnNumber'] ??
+                          '')
+                      .toString()
+                      .trim();
+
+              final oldDateText =
+                  (old[
+                              'dateTime'] ??
+                          '')
+                      .toString()
+                      .trim();
+
+              return {
+                ...old,
+
+                'title':
+                    'Winning',
+
+                'type':
+                    'WINNING',
+
+                'txnNumber':
+                    oldTxn.isNotEmpty
+                        ? oldTxn
+                        : _nextAdminWinningTxnNumber(
+                            history,
+                            now,
+                          ),
+
+                'subtitle':
+                    contestName,
+
+                'winningType':
+                    winningType,
+
+                'rank': rank,
+
+                'claimKey':
+                    '$matchKey-$contestId-$teamName',
+
+                'contestId':
+                    contestId,
+
+                'matchKey':
+                    matchKey,
+
+                'teamKey':
+                    teamName,
+
+                'description':
+                    '$team1 vs $team2',
+
+                'userId':
+                    userId,
+
+                'createdAt':
+                    old[
+                            'createdAt'] ??
+                        now,
+
+                'dateTime':
+                    oldDateText
+                            .isNotEmpty
+                        ? old[
+                            'dateTime']
+                        : _adminSettlementDateTime(
+                            now,
+                          ),
+
+                'amount':
+                    winning,
+              };
+            }
+
+            if (existingWinningIndex !=
+                -1) {
+              final oldItem =
+                  history[
+                      existingWinningIndex];
+
+              final oldAmount =
+                  _userGameDouble(
+                oldItem['amount'],
+              );
+
+              if (winning >
+                  0) {
+                newBalance +=
+                    winning -
+                        oldAmount;
+
+                history[
+                        existingWinningIndex] =
+                    makeWinningItem(
+                  oldItem:
+                      oldItem,
+                );
+              } else {
+                newBalance -=
+                    oldAmount;
+
+                history.removeAt(
+                  existingWinningIndex,
+                );
+              }
+            } else if (winning >
+                0) {
+              newBalance +=
+                  winning;
+
+              history.add(
+                makeWinningItem(),
+              );
+            }
+
+            final joinedContest =
+                Map<String,
+                    dynamic>.from(
+              userContests[
+                  contestIndex],
+            );
+
+            joinedContest[
+                    'userPoints'] =
+                points;
+
+            joinedContest[
+                    'finalRank'] =
+                rank;
+
+            joinedContest[
+                    'winningAmount'] =
+                winning;
+
+            joinedContest[
+                    'settlementDone'] =
+                true;
+
+            joinedContest[
+                    'settledAt'] =
+                now;
+
+            userContests[
+                    contestIndex] =
+                joinedContest;
+
+            transaction.set(
+              userRef,
+              {
+                'walletBalance':
+                    newBalance,
+
+                'transactionHistory':
+                    history,
+
+                'joinedContests':
+                    userContests,
+
+                'contestDataUpdatedAt':
+                    now,
+              },
+              SetOptions(
+                merge: true,
+              ),
+            );
+          },
+        );
+      }
+
+      // ==========================================
+      // SAFE PUBLIC LEADERBOARD
+      //
+      // No selected players/C/VC are exposed.
+      // ==========================================
+
+      await firestore
+          .collection(
+            'contest_results',
+          )
+          .doc(contestId)
+          .set({
+        'contestId':
+            contestId,
+
+        'matchKey':
+            matchKey,
+
+        'team1':
+            team1,
+
+        'team2':
+            team2,
+
+        'contestName':
+            contestName,
+
+        'winningType':
+            winningType,
+
+        'finalized':
+            true,
+
+        'entries':
+            resultEntries,
+
+        'finalizedAt':
+            FieldValue
+                .serverTimestamp(),
+      });
+    }
+  } catch (e) {
+    debugPrint(
+      'Real contest finalization error: $e',
+    );
+
+    rethrow;
+  }
+}
 
 // ======================================================
 // FIND ADMIN MATCH FOR JOINED CONTEST
@@ -1973,11 +2860,12 @@ Map<String, String>?
   return null;
 }
 
-
 // ======================================================
-// AUTOMATIC CONTEST WINNING SETTLEMENT
-// No Claim button
-// Final score -> Rank -> Wallet -> History -> Firebase
+// REAL MULTI-USER WINNING
+//
+// Final Rank + Winning अब Admin final stats save
+// के बाद सभी real joined users के लिए Firebase में
+// एक साथ finalize होता है.
 // ======================================================
 
 bool _autoWinningSettlementInProgress =
@@ -1986,471 +2874,11 @@ bool _autoWinningSettlementInProgress =
 Future<void>
     _autoSettleUserWinnings()
     async {
-  if (_autoWinningSettlementInProgress) {
-    return;
-  }
-
-  final user =
-      FirebaseAuth.instance.currentUser;
-
-  if (user == null ||
-      joinedContests.value.isEmpty ||
-      adminMatches.value.isEmpty) {
-    return;
-  }
-
-  _autoWinningSettlementInProgress =
-      true;
-
-  try {
-    final contests =
-        joinedContests.value
-            .map(
-              (contest) =>
-                  Map<String,
-                      dynamic>.from(
-                contest,
-              ),
-            )
-            .toList();
-
-    final history =
-        transactionHistory.value
-            .map(
-              (item) =>
-                  Map<String,
-                      dynamic>.from(
-                item,
-              ),
-            )
-            .toList();
-
-    final claimed =
-        Set<String>.from(
-      claimedWinnings.value,
-    );
-
-    double newWalletBalance =
-        walletBalance.value;
-
-    bool dataChanged = false;
-    bool claimedChanged = false;
-
-    for (final contest
-        in contests) {
-      final admin =
-          _adminMatchForJoinedContest(
-        contest,
-      );
-
-      if (admin == null) {
-        continue;
-      }
-
-      // Rank/winning तभी final होगा
-      // जब Admin final stats save कर चुका है.
-      final finalScoreUpdated =
-          (admin[
-                      'finalScoreUpdated'] ??
-                  '')
-              .toString()
-              .toLowerCase() ==
-          'true';
-
-      if (!finalScoreUpdated) {
-        continue;
-      }
-
-      final contestPoints =
-          _storedContestPoints(
-        contest,
-      );
-
-      final contestSpots =
-          _userGameInt(
-        contest['spots'],
-      );
-
-      final leaderboard =
-          <Map<String, dynamic>>[
-        {
-          'name':
-              'Cricket King',
-          'points':
-              742.0,
-        },
-
-        if (contestSpots != 2)
-          {
-            'name':
-                'Super XI',
-            'points':
-                711.0,
-          },
-
-        {
-          'name': 'You',
-          'points':
-              contestPoints,
-        },
-      ];
-
-      leaderboard.sort(
-        (a, b) =>
-            (b['points']
-                    as double)
-                .compareTo(
-          a['points']
-              as double,
-        ),
-      );
-
-      final rank =
-          leaderboard.indexWhere(
-                (item) =>
-                    item['name'] ==
-                    'You',
-              ) +
-              1;
-
-      final winningAmount =
-          _storedContestWinningForRank(
-        contest,
-        rank,
-      );
-
-      final contestId =
-          (contest['contestId'] ??
-                  contest['id'] ??
-                  '')
-              .toString()
-              .trim();
-
-      final contestName =
-          (contest[
-                      'contestName'] ??
-                  'Contest')
-              .toString();
-
-      final winningType =
-          (contest[
-                      'h2hWinningType'] ??
-                  contest[
-                      'winningType'] ??
-                  '')
-              .toString();
-
-      final matchKey =
-          (contest['matchKey'] ??
-                  '')
-              .toString();
-
-      final teamKey =
-          (contest[
-                      'joinedTeamName'] ??
-                  '')
-              .toString();
-
-      final claimKey =
-          contestId.isNotEmpty
-              ? '$matchKey-$contestId-$teamKey'
-              : '$matchKey-$contestName-$winningType-$teamKey';
-
-      final existingWinningIndex =
-          history.indexWhere(
-        (item) {
-          final title =
-              (item['title'] ?? '')
-                  .toString()
-                  .trim()
-                  .toUpperCase();
-
-          if (title != 'WINNING') {
-            return false;
-          }
-
-          final savedContestId =
-              (item[
-                          'contestId'] ??
-                      '')
-                  .toString()
-                  .trim();
-
-          if (contestId.isNotEmpty &&
-              savedContestId
-                  .isNotEmpty) {
-            return savedContestId ==
-                contestId;
-          }
-
-          return (item[
-                      'claimKey'] ??
-                  '')
-              .toString() ==
-              claimKey;
-        },
-      );
-
-      final now =
-          DateTime.now();
-
-      String formatDateTime(
-        DateTime date,
-      ) {
-        return
-            '${date.day.toString().padLeft(2, '0')}/'
-            '${date.month.toString().padLeft(2, '0')}/'
-            '${date.year} '
-            '${date.hour.toString().padLeft(2, '0')}:'
-            '${date.minute.toString().padLeft(2, '0')}';
-      }
-
-      Map<String, dynamic>
-          winningHistoryItem({
-        Map<String, dynamic>?
-            oldItem,
-      }) {
-        final old =
-            oldItem ??
-                <String, dynamic>{};
-
-        return {
-          ...old,
-
-          'title':
-              'Winning',
-
-          'type':
-              'WINNING',
-
-          'subtitle':
-              contestName,
-
-          'winningType':
-              winningType,
-
-          'rank':
-              rank,
-
-          'claimKey':
-              claimKey,
-
-          'contestId':
-              contestId,
-
-          'matchKey':
-              matchKey,
-
-          'teamKey':
-              teamKey,
-
-          'description':
-              '${contest['team1'] ?? ''} '
-              'vs '
-              '${contest['team2'] ?? ''}',
-
-          'txnNumber':
-              (old[
-                          'txnNumber'] ??
-                      '')
-                  .toString()
-                  .trim()
-                  .isNotEmpty
-                  ? old[
-                      'txnNumber']
-                  : generateTxnNumber(
-                      'WINNING',
-                    ),
-
-          'userId':
-              user.uid,
-
-          'createdAt':
-              old['createdAt'] ??
-                  now,
-
-          'dateTime':
-              (old[
-                          'dateTime'] ??
-                      '')
-                  .toString()
-                  .trim()
-                  .isNotEmpty
-                  ? old[
-                      'dateTime']
-                  : formatDateTime(
-                      now,
-                    ),
-
-          'amount':
-              winningAmount,
-        };
-      }
-
-      if (existingWinningIndex !=
-          -1) {
-        final oldItem =
-            history[
-                existingWinningIndex];
-
-        final oldAmount =
-            _userGameDouble(
-          oldItem['amount'],
-        );
-
-        final oldRank =
-            _userGameInt(
-          oldItem['rank'],
-        );
-
-        if (winningAmount <= 0) {
-          newWalletBalance -=
-              oldAmount;
-
-          history.removeAt(
-            existingWinningIndex,
-          );
-
-          dataChanged = true;
-        } else {
-          final difference =
-              winningAmount -
-                  oldAmount;
-
-          if (difference.abs() >
-              0.001) {
-            newWalletBalance +=
-                difference;
-
-            dataChanged = true;
-          }
-
-          if (oldRank != rank ||
-              (oldAmount -
-                          winningAmount)
-                      .abs() >
-                  0.001 ||
-              (oldItem['type'] ??
-                          '')
-                      .toString() !=
-                  'WINNING' ||
-              (oldItem[
-                          'teamKey'] ??
-                      '')
-                  .toString() !=
-                  teamKey) {
-            history[
-                    existingWinningIndex] =
-                winningHistoryItem(
-              oldItem:
-                  oldItem,
-            );
-
-            dataChanged = true;
-          }
-        }
-      } else if (winningAmount >
-          0) {
-        newWalletBalance +=
-            winningAmount;
-
-        history.add(
-          winningHistoryItem(),
-        );
-
-        dataChanged = true;
-      }
-
-      final oldPoints =
-          _userGameDouble(
-        contest['userPoints'],
-      );
-
-      final oldRank =
-          _userGameInt(
-        contest['finalRank'],
-      );
-
-      final oldWinning =
-          _userGameDouble(
-        contest['winningAmount'],
-      );
-
-      if (contest[
-                  'settlementDone'] !=
-              true ||
-          (oldPoints -
-                      contestPoints)
-                  .abs() >
-              0.001 ||
-          oldRank != rank ||
-          (oldWinning -
-                      winningAmount)
-                  .abs() >
-              0.001) {
-        contest['userPoints'] =
-            contestPoints;
-
-        contest['finalRank'] =
-            rank;
-
-        contest['winningAmount'] =
-            winningAmount;
-
-        contest['settlementDone'] =
-            true;
-
-        contest['settledAt'] =
-            now;
-
-        dataChanged = true;
-      }
-
-      if (winningAmount > 0 &&
-          claimed.add(
-            claimKey,
-          )) {
-        claimedChanged = true;
-      }
-    }
-
-    if (claimedChanged) {
-      claimedWinnings.value =
-          claimed;
-    }
-
-    if (!dataChanged) {
-      return;
-    }
-
-    walletBalance.value =
-        newWalletBalance;
-
-    transactionHistory.value =
-        history;
-
-    joinedContests.value =
-        contests;
-
-    final saved =
-        await _saveUserContestStateToFirebase(
-      user.uid,
-    );
-
-    if (!saved) {
-      debugPrint(
-        'Automatic winning settlement Firebase save failed',
-      );
-    }
-  } catch (e) {
-    debugPrint(
-      'Automatic winning settlement error: $e',
-    );
-  } finally {
-    _autoWinningSettlementInProgress =
-        false;
-  }
+  // Intentionally empty.
+  // 5-day cleanup इस function को call कर सकता है,
+  // लेकिन wallet settlement सिर्फ Admin करेगा.
 }
+     
 
 // ======================================================
 // KEEP MY MATCHES IN SYNC WITH ADMIN MATCH
@@ -10987,40 +11415,7 @@ double get totalPoints {
   });
 }
 
-
-  List<Map<String, dynamic>> get leaderboardEntries {
-  final entries = <Map<String, dynamic>>[
-    {
-      'name': 'You',
-      'points': totalPoints,
-      'isUser': true,
-    },
-    {
-      'name': 'Cricket King',
-      'points': 742.0,
-      'isUser': false,
-    },
-    {
-      'name': 'Super XI',
-      'points': 711.0,
-      'isUser': false,
-    },
-  ];
-
-  entries.sort(
-    (a, b) => (b['points'] as double)
-        .compareTo(a['points'] as double),
-  );
-
-  return entries;
-}
-
-int get contestRank {
-  return leaderboardEntries.indexWhere(
-        (item) => item['isUser'] == true,
-      ) +
-      1;
-}
+  int get contestRank => 0;
 Future<void> joinContest(
   BuildContext context,
   double entryFee,
@@ -11570,48 +11965,6 @@ return parts
           
 const SizedBox(height: 12),
      
-if (match.currentStatus != 'UPCOMING')
-  Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '🏆 Leaderboard',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          ...leaderboardEntries.asMap().entries.map((entry) {
-            final rank = entry.key + 1;
-            final item = entry.value;
-            final points = item['points'] as double;
-            final isUser = item['isUser'] == true;
-
-            return ListTile(
-              leading: CircleAvatar(
-                child: Text('$rank'),
-              ),
-              title: Text(
-                '${item['name']}',
-                style: TextStyle(
-                  fontWeight:
-                      isUser ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-              trailing: Text(
-                '${points.toStringAsFixed(0)} pts',
-              ),
-            );
-          }),
-        ],
-      ),
-    ),
-  ),
 ValueListenableBuilder<double>(
   valueListenable: walletBalance,
   builder: (context, balance, _) {
@@ -14448,7 +14801,9 @@ void initState() {
   adminMatches.addListener(_syncContestLatestData);
   joinedMatches.addListener(_syncContestLatestData);
   
-
+contestResults.addListener(
+  _syncContestLatestData,
+);
   livePoints = _getContestTeamPoints();
 
 final latestMatches = joinedMatches.value.where(
@@ -14539,394 +14894,20 @@ Future.delayed(const Duration(seconds: 2), () {
   });
 });
 }
+
 void autoSettleWinning() {
-  if (!widget.allowSettlement) return;
-  final latestAdminMatches = adminMatches.value.where(
-  (m) =>
-      m['team1'] == widget.match.team1 &&
-      m['team2'] == widget.match.team2,
-).toList();
-
-final bool finalScoreUpdated =
-    latestAdminMatches.isNotEmpty &&
-    latestAdminMatches.first['finalScoreUpdated'] == 'true';
-
-if (!finalScoreUpdated) return;
-
-final String currentMatchKey =
-    (widget.contest?['matchKey'] ?? '').toString();
-
-final sameMatchContests =
-    joinedContests.value.where((c) {
-  final String contestMatchKey =
-      (c['matchKey'] ?? '').toString();
-
-  if (currentMatchKey.isNotEmpty) {
-    return contestMatchKey == currentMatchKey;
-  }
-
-  return c['team1'] == widget.match.team1 &&
-      c['team2'] == widget.match.team2;
-}).toList();
-
-if (sameMatchContests.isEmpty) return;
-
-for (final contest in sameMatchContests) {
-
-
-  final String contestName =
-      (contest['contestName'] ?? widget.match.contestName).toString();
-
-  final int contestSpots =
-      ((contest['spots'] ?? widget.match.contestSpots) as num).toInt();
-
-  final double contestPrizePool =
-      ((contest['prizePool'] ?? widget.match.prizePool) as num).toDouble();
-
-  // इसी contest का leaderboard
-  final double contestPoints =
-    _getContestTeamPoints(contest);
-    
-
-final List<Map<String, dynamic>> leaderboard =
-    <Map<String, dynamic>>[
-  {
-    'name': 'Cricket King',
-    'points': 742.0,
-  },
-
-  if (contestSpots != 2)
-    {
-      'name': 'Super XI',
-      'points': 711.0,
-    },
-
-  {
-    'name': 'You',
-    'points': contestPoints.toDouble(),
-  },
-];
-
-leaderboard.sort(
-  (a, b) => (b['points'] as double)
-      .compareTo(a['points'] as double),
-);
-
-final int rank =
-    leaderboard.indexWhere(
-      (item) => item['name'] == 'You',
-    ) +
-    1;
-
-  // Match + Contest + Team की unique winning key
-final String teamKey =
-    (contest['teamName'] ??
-            contest['selectedTeam'] ??
-            contest['teamIndex'] ??
-            contest['teamId'] ??
-            '')
-        .toString();
-
-final String contestId =
-    (contest['contestId'] ??
-            contest['id'] ??
-            '')
-        .toString()
-        .trim();
-
-final String matchKey =
-    (contest['matchKey'] ??
-            '${widget.match.team1}-${widget.match.team2}')
-        .toString();
-
-final String settlementWinningType =
-    (contest['h2hWinningType'] ??
-            contest['winningType'] ??
-            '')
-        .toString()
-        .trim();
-
-final String claimKey = contestId.isNotEmpty
-    ? '$matchKey-$contestId-$contestName-$settlementWinningType-$teamKey'
-    : '$matchKey-$contestName-$settlementWinningType-$teamKey';
-
-String shortWinningTeamName(String name) {
-  final parts =
-      name.trim().split(RegExp(r'\s+'));
-
-  if (parts.length == 1) {
-    final word = parts.first.toUpperCase();
-
-    return word.length <= 3
-        ? word
-        : word.substring(0, 3);
-  }
-
-  return parts
-      .take(3)
-      .map((e) => e[0].toUpperCase())
-      .join();
+  // Real multi-user settlement अब
+  // Admin final stats save के समय होता है.
 }
 
-final legacyMatchDescription =
-    '${widget.match.team1} vs ${widget.match.team2}';
-
-final matchDescription =
-    '${widget.match.team1Flag} '
-    '${shortWinningTeamName(widget.match.team1)} '
-    'vs '
-    '${shortWinningTeamName(widget.match.team2)} '
-    '${widget.match.team2Flag} '
-    '• ${widget.match.matchFormat}';
   
-  Map<String, dynamic> makeWinningHistoryItem({
-  required double amount,
-  Map<String, dynamic>? oldItem,
-}) {
-    final historyNow = DateTime.now();
-  final oldTxnNumber =
-      (oldItem?['txnNumber'] ?? '')
-          .toString()
-          .trim();
-
-  final oldDateTime =
-      (oldItem?['dateTime'] ?? '')
-          .toString()
-          .trim();
-
-  return {
-    if (oldItem != null) ...oldItem,
-
-    'title': 'Winning',
-
-    'txnNumber': oldTxnNumber.isNotEmpty
-        ? oldTxnNumber
-        : generateTxnNumber('WINNING'),
-
-    'subtitle': contestName,
-
-    'winningType': settlementWinningType,
-
-    'rank': rank,
-
-    'claimKey': claimKey,
-
-    'contestId': contestId,
-
-    'teamKey': teamKey,
-
-    'description': matchDescription,
-
-    'dateTime': oldDateTime.isNotEmpty
-    ? oldDateTime
-    : '${historyNow.day.toString().padLeft(2, '0')}/'
-        '${historyNow.month.toString().padLeft(2, '0')}/'
-        '${historyNow.year}  '
-        '${historyNow.hour.toString().padLeft(2, '0')}:'
-        '${historyNow.minute.toString().padLeft(2, '0')}',
-
-    'amount': amount,
-  };
-}
-  
-// पुराने duplicate Winning record को एक बार हटाओ
-if (contestId.isEmpty) {
-  final legacyIndex =
-    transactionHistory.value.indexWhere((item) =>
-        item['title'] == 'Winning' &&
-        (item['claimKey'] ?? '').toString().trim().isEmpty &&
-        item['subtitle'] == contestName &&
-        (
-  item['description'] == matchDescription ||
-  item['description'] == legacyMatchDescription
-) &&
-        (item['winningType'] ?? '').toString().trim() ==
-            (contest['h2hWinningType'] ??
-                    contest['winningType'] ??
-                    '')
-                .toString()
-                .trim() &&
-        item['rank'] == null);
-
-final rankedIndex =
-    transactionHistory.value.indexWhere((item) =>
-        item['title'] == 'Winning' &&
-        item['subtitle'] == contestName &&
-        (
-  item['description'] == matchDescription ||
-  item['description'] == legacyMatchDescription
-) &&
-        (item['winningType'] ?? '').toString().trim() ==
-            (contest['h2hWinningType'] ??
-                    contest['winningType'] ??
-                    '')
-                .toString()
-                .trim() &&
-        item['rank'] != null);
-
-  if (legacyIndex != -1 && rankedIndex != -1) {
-    final history =
-        List<Map<String, dynamic>>.from(
-            transactionHistory.value);
-
-    final duplicateAmount =
-        (history[legacyIndex]['amount'] as num?)
-                ?.toDouble() ??
-            0.0;
-
-    history.removeAt(legacyIndex);
-    transactionHistory.value = history;
-
-    walletBalance.value -= duplicateAmount;
-  }
-}
-final existingWinningIndex =
-    transactionHistory.value.indexWhere((item) {
-  final savedClaimKey =
-      (item['claimKey'] ?? '').toString().trim();
-
-  if (savedClaimKey.isNotEmpty) {
-    return savedClaimKey == claimKey;
-  }
-
-  // पुराने records में claimKey नहीं था
-  if (contestId.isEmpty) {
-  final savedWinningType =
-      (item['winningType'] ?? '').toString().trim();
-
-  final currentWinningType =
-      (contest['h2hWinningType'] ??
-              contest['winningType'] ??
-              '')
-          .toString()
-          .trim();
-
-  return item['title'] == 'Winning' &&
-      item['subtitle'] == contestName &&
-      (
-  item['description'] == matchDescription ||
-  item['description'] == legacyMatchDescription
-) &&
-      savedWinningType == currentWinningType;
-}
-
-  return false;
-});
-final rawSlabs = contest['prizeSlabs'];
-double winningAmount = 0.0;
-
-if (rawSlabs is List) {
-  for (final slab in rawSlabs) {
-    if (slab is Map) {
-      final from =
-          int.tryParse('${slab['from']}');
-      final to =
-          int.tryParse('${slab['to']}');
-      final amount =
-          double.tryParse('${slab['amount']}');
-
-      if (from != null &&
-          to != null &&
-          amount != null &&
-          rank >= from &&
-          rank <= to) {
-        winningAmount = amount;
-        break;
-      }
-    }
-  }
-}
-
-// अगर Prize Slab नहीं है तो Rank #1 = Prize Pool
-final hasPrizeSlabs =
-    rawSlabs is List && rawSlabs.isNotEmpty;
-
-if (!hasPrizeSlabs && rank == 1) {
-  winningAmount = contestPrizePool;
-}
-
-// पहले से Winning History है तो उसे सही/update करो
-if (existingWinningIndex != -1) {
-  final history =
-      List<Map<String, dynamic>>.from(
-        transactionHistory.value,
-      );
-
-  final oldItem =
-      history[existingWinningIndex];
-
-  final double oldAmount =
-      (oldItem['amount'] as num?)?.toDouble() ?? 0.0;
-
-  final int oldRank =
-      (oldItem['rank'] as num?)?.toInt() ?? 0;
-
-  // Result पहले से सही है:
-  // पैसा दोबारा नहीं जोड़ना,
-  // सिर्फ display + txn number सही करना
-  if (oldRank == rank &&
-      oldAmount == winningAmount) {
-
-    history[existingWinningIndex] =
-    makeWinningHistoryItem(
-  amount: winningAmount,
-  oldItem: oldItem,
-);
-
-    transactionHistory.value = history;
-
-    final updated =
-        Set<String>.from(claimedWinnings.value);
-
-    updated.add(claimKey);
-    claimedWinnings.value = updated;
-
-    continue;
-  }
-
-  // Result बदला है तो wallet में सिर्फ difference लगेगा
-  walletBalance.value +=
-      winningAmount - oldAmount;
-
-  if (winningAmount > 0) {
-    history[existingWinningIndex] =
-    makeWinningHistoryItem(
-  amount: winningAmount,
-  oldItem: oldItem,
-);
-  } else {
-    history.removeAt(existingWinningIndex);
-  }
-
-  transactionHistory.value = history;
-}
-
-// कोई पुरानी Winning entry नहीं है तो नई बनाओ
-else if (winningAmount > 0) {
-  walletBalance.value += winningAmount;
-
-  transactionHistory.value = [
-  ...transactionHistory.value,
-  makeWinningHistoryItem(
-    amount: winningAmount,
-  ),
-];
-  
-}
-
-// अब current सही result को settled mark करो
-final updated =
-    Set<String>.from(claimedWinnings.value);
-
-updated.add(claimKey);
-claimedWinnings.value = updated;
-  }
-}
 @override
 void dispose() {
   adminMatches.removeListener(_syncContestLatestData);
   joinedMatches.removeListener(_syncContestLatestData);
-
+contestResults.removeListener(
+  _syncContestLatestData,
+);
   liveUpdateTimer?.cancel();
   super.dispose();
 }
@@ -15004,70 +14985,55 @@ final bool contestCompleted =
         joinedCompleted ||
         widget.match.currentStatus == 'COMPLETED') &&
     finalScoreUpdated;
-    final bool showFinalRanks = contestCompleted;
-   final leaderboard = <Map<String, dynamic>>[
-  {
-    'name': 'Cricket King',
-    'points': showFinalRanks ? 742.0 : 0.0,
-  },
+    
+final currentUserId =
+    FirebaseAuth.instance
+            .currentUser
+            ?.uid ??
+        '';
 
-  if (contestSpots != 2)
-    {
-      'name': 'Super XI',
-      'points': showFinalRanks ? 711.0 : 0.0,
-    },
+final realResultEntries =
+    widget.contest == null
+        ? <Map<String, dynamic>>[]
+        : _contestResultEntriesFor(
+            widget.contest!,
+          );
 
-  {
-    'name': 'You',
-    'points': showFinalRanks  ? livePoints.toDouble() : 0.0,
-  },
-];
+final leaderboard =
+    contestCompleted
+        ? realResultEntries
+        : <Map<String, dynamic>>[];
 
-if (showFinalRanks) {
-  leaderboard.sort(
-    (a, b) => (b['points'] as double)
-        .compareTo(a['points'] as double),
-  );
-}
+final bool showFinalRanks =
+    contestCompleted &&
+        leaderboard.isNotEmpty;
 
-final int calculatedLiveRank = 
-    showFinalRanks
-    ? leaderboard.indexWhere(
-          (item) => item['name'] == 'You',
-        ) +
-        1
-    : 0;
-    double calculatedWinningPrize = 0.0;
+Map<String, dynamic>? myResult;
 
-if (calculatedLiveRank > 0) {
-  final rawSlabs = widget.contest?['prizeSlabs'];
-
-  if (rawSlabs is List && rawSlabs.isNotEmpty) {
-    for (final slab in rawSlabs) {
-      if (slab is Map) {
-        final from = int.tryParse('${slab['from']}');
-        final to = int.tryParse('${slab['to']}');
-        final amount =
-            double.tryParse('${slab['amount']}') ?? 0.0;
-
-        if (from != null &&
-            to != null &&
-            calculatedLiveRank >= from &&
-            calculatedLiveRank <= to) {
-          calculatedWinningPrize = amount;
-          break;
-        }
-      }
-    }
-  } else if (calculatedLiveRank == 1) {
-    calculatedWinningPrize =
-        ((widget.contest?['prizePool'] ??
-                    widget.match.prizePool)
-                as num)
-            .toDouble();
+for (final entry
+    in leaderboard) {
+  if ((entry['userId'] ?? '')
+          .toString() ==
+      currentUserId) {
+    myResult = entry;
+    break;
   }
 }
-   
+
+final int calculatedLiveRank =
+    showFinalRanks
+        ? _userGameInt(
+            myResult?['rank'],
+          )
+        : 0;
+
+final double
+    calculatedWinningPrize =
+    showFinalRanks
+        ? _userGameDouble(
+            myResult?['winning'],
+          )
+        : 0.0;
 
 final detailContestName =
     (widget.contest?['contestName'] ?? '')
@@ -15284,107 +15250,132 @@ else
     builder: (context) {
 
       // ==========================================
-      // ORIGINAL RANK के साथ पूरी leaderboard
+      // REAL FIREBASE LEADERBOARD
       // ==========================================
-      final List<Map<String, dynamic>> rankedUsers = [];
 
-      for (int i = 0; i < leaderboard.length; i++) {
+      final List<Map<String, dynamic>>
+          rankedUsers = [];
+
+      for (final user
+          in leaderboard) {
         rankedUsers.add({
-          'rank': i + 1,
-          'user': leaderboard[i],
+          'rank':
+              _userGameInt(
+            user['rank'],
+          ),
+          'user': user,
         });
       }
 
       // ==========================================
-      // YOU को ढूँढना
+      // CURRENT USER
       // ==========================================
+
       Map<String, dynamic>? youEntry;
 
-      for (final entry in rankedUsers) {
+      for (final entry
+          in rankedUsers) {
         final user =
-            Map<String, dynamic>.from(entry['user']);
+            Map<String, dynamic>.from(
+          entry['user'],
+        );
 
-        final name =
-            (user['name'] ?? '')
-                .toString()
-                .trim()
-                .toLowerCase();
-
-        if (name == 'you') {
+        if ((user['userId'] ?? '')
+                .toString() ==
+            currentUserId) {
           youEntry = entry;
           break;
         }
       }
-          // ==========================================
-      // FINAL DISPLAY LIST
-      //
-      // YOU हमेशा सबसे ऊपर
-      // फिर actual Top 10 ranks
-      // YOU अगर Top 10 में है तो duplicate नहीं होगा
-      // ==========================================
-      final List<Map<String, dynamic>> displayUsers = [];
+
+      // You first + actual Top 10
+      final List<Map<String, dynamic>>
+          displayUsers = [];
 
       if (youEntry != null) {
-        displayUsers.add(youEntry);
+        displayUsers.add(
+          youEntry,
+        );
       }
 
-      for (final entry in rankedUsers.take(10)) {
-
+      for (final entry
+          in rankedUsers.take(10)) {
         final user =
-            Map<String, dynamic>.from(entry['user']);
+            Map<String, dynamic>.from(
+          entry['user'],
+        );
 
-        final name =
-            (user['name'] ?? '')
-                .toString()
-                .trim()
-                .toLowerCase();
-
-        // YOU पहले ही ऊपर add हो चुका है
-        if (name == 'you') {
+        if ((user['userId'] ?? '')
+                .toString() ==
+            currentUserId) {
           continue;
         }
 
-        displayUsers.add(entry);
+        displayUsers.add(
+          entry,
+        );
       }
 
       return Column(
-        children: displayUsers.map((entry) {
+        children:
+            displayUsers.map(
+          (entry) {
+            final int rank =
+                _userGameInt(
+              entry['rank'],
+            );
 
-          final int rank =
-              entry['rank'] as int;
+            final Map<String, dynamic>
+                user =
+                Map<String,
+                    dynamic>.from(
+              entry['user'],
+            );
 
-          final Map<String, dynamic> user =
-              Map<String, dynamic>.from(
-                entry['user'],
-              );
+            final String rawUsername =
+                (user['username'] ??
+                        user['name'] ??
+                        'User')
+                    .toString();
 
-          final String name =
-    (user['name'] ?? 'User')
-        .toString();
+            final bool isYou =
+                (user['userId'] ?? '')
+                        .toString() ==
+                    currentUserId;
 
-final bool isYou =
-    name.trim().toLowerCase() == 'you';
+            final String username =
+                rawUsername
+                        .startsWith('@')
+                    ? rawUsername
+                    : '@$rawUsername';
 
-final String rankBadge =
-    rank == 1
-        ? '🥇 👑'
-        : rank == 2
-            ? '🥈'
-            : rank == 3
-                ? '🥉'
-                : '';
+            final String rankBadge =
+                rank == 1
+                    ? '🥇 👑'
+                    : rank == 2
+                        ? '🥈'
+                        : rank == 3
+                            ? '🥉'
+                            : '';
 
-final String displayName =
-    rankBadge.isNotEmpty
-        ? '${isYou ? 'You' : name} $rankBadge'
-        : (isYou ? 'You' : name);
+            final String displayName =
+                rankBadge.isNotEmpty
+                    ? '${isYou ? 'You' : username} $rankBadge'
+                    : (isYou
+                        ? 'You'
+                        : username);
 
-          final double points =
-              ((user['points'] ?? 0) as num)
-                  .toDouble();
+            final double points =
+                _userGameDouble(
+              user['points'],
+            );
 
-          final double winning =
-              _contestWinningForRank(rank);      
+            final double winning =
+                _userGameDouble(
+              user['winning'],
+            );
+        
+        
                 // ======================================
           // RANK COLOR SYSTEM
           // ======================================
@@ -21094,7 +21085,16 @@ final ValueNotifier<Map<String, int>>
     ValueNotifier<Map<String, int>>(
   <String, int>{},
 );
-
+final ValueNotifier<
+        Map<String,
+            Map<String, dynamic>>>
+    contestResults =
+    ValueNotifier<
+        Map<String,
+            Map<String, dynamic>>>(
+  <String,
+      Map<String, dynamic>>{},
+);
 StreamSubscription<
         DocumentSnapshot<
             Map<String, dynamic>>>?
@@ -21104,7 +21104,10 @@ StreamSubscription<
         QuerySnapshot<
             Map<String, dynamic>>>?
     _contestJoinsSubscription;
-
+StreamSubscription<
+        QuerySnapshot<
+            Map<String, dynamic>>>?
+    _contestResultsSubscription;
 StreamSubscription<User?>?
     _adminContestsAuthSubscription;
 
@@ -21351,6 +21354,74 @@ void _startContestJoinCountsListener() {
   );
 }
 
+// ======================================================
+// REAL CONTEST RESULTS REALTIME
+// ======================================================
+
+void _startContestResultsListener() {
+  _contestResultsSubscription
+      ?.cancel();
+
+  _contestResultsSubscription =
+      FirebaseFirestore.instance
+          .collection(
+            'contest_results',
+          )
+          .snapshots()
+          .listen(
+    (snapshot) {
+      final loaded =
+          <String,
+              Map<String, dynamic>>{};
+
+      for (final doc
+          in snapshot.docs) {
+        final data =
+            Map<String, dynamic>.from(
+          doc.data(),
+        );
+
+        final contestId =
+            (data['contestId'] ??
+                    doc.id)
+                .toString()
+                .trim();
+
+        if (contestId.isEmpty) {
+          continue;
+        }
+
+        final rawEntries =
+            data['entries'];
+
+        if (rawEntries is List) {
+          data['entries'] =
+              rawEntries
+                  .whereType<Map>()
+                  .map(
+                    (entry) =>
+                        Map<String,
+                            dynamic>.from(
+                      entry,
+                    ),
+                  )
+                  .toList();
+        }
+
+        loaded[contestId] =
+            data;
+      }
+
+      contestResults.value =
+          loaded;
+    },
+    onError: (error) {
+      debugPrint(
+        'Contest results realtime error: $error',
+      );
+    },
+  );
+}
 
 // ======================================================
 // START COMPLETE ADMIN CONTEST SYSTEM
@@ -21371,10 +21442,16 @@ void startAdminContestsFirebaseSync() {
       _contestJoinsSubscription
           ?.cancel();
 
+      _contestResultsSubscription
+          ?.cancel();
+
       _adminContestsSubscription =
           null;
 
       _contestJoinsSubscription =
+          null;
+
+      _contestResultsSubscription =
           null;
 
       if (user == null) {
@@ -21387,12 +21464,18 @@ void startAdminContestsFirebaseSync() {
         contestJoinCounts.value =
             <String, int>{};
 
+        contestResults.value =
+            <String,
+                Map<String, dynamic>>{};
+
         return;
       }
 
       _startAdminContestsRealtimeListener();
 
       _startContestJoinCountsListener();
+
+      _startContestResultsListener();
     },
   );
 }
@@ -32340,7 +32423,7 @@ actions: [
       Expanded(
         flex: 2,
         child: ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   for (final player in allPlayers) {
                     final c = statsControllers[player]!;
 
@@ -32547,256 +32630,41 @@ final bool joinedMatchCompleted =
 );
 if (currentStatus == 'COMPLETED' ||
     joinedMatchCompleted) {
-  adminMatch['finalScoreUpdated'] = 'true';
-
-  final sameMatchContests = joinedContests.value.where(
-    (c) =>
-        c['team1'] == (adminMatch['team1'] ?? '') &&
-        c['team2'] == (adminMatch['team2'] ?? ''),
-  ).toList();
-
-  for (final contest in sameMatchContests) {
-    if (contest['selectedPlayers'] == null ||
-        contest['matchKey'] == null) {
-      continue;
-    }
-
-    final String contestName =
-        (contest['contestName'] ?? 'Contest').toString();
-
-    final int contestSpots =
-        ((contest['spots'] ?? 0) as num).toInt();
-
-   
-    final players =
-        List<Player>.from(contest['selectedPlayers'] as List);
-
-    String contestMatchKey =
-    contest['matchKey'].toString();
-
-var matchStats =
-    savedPlayerStats[contestMatchKey] ?? {};
-
-// अगर पुराना/stale matchKey है तो current match के
-// team names से सही saved stats ढूंढो
-if (matchStats.isEmpty) {
-  for (final entry in savedPlayerStats.entries) {
-    final key = entry.key.toLowerCase();
-
-    if (
-  key.contains(
-    (adminMatch['team1'] ?? '').toString().toLowerCase(),
-  ) &&
-  key.contains(
-    (adminMatch['team2'] ?? '').toString().toLowerCase(),
-  )
-) {
-      contestMatchKey = entry.key;
-      matchStats = entry.value;
-      break;
-    }
-  }
+  adminMatch['finalScoreUpdated'] =
+      'true';
 }
-
-    final String captainName =
-        contest['captainName']?.toString() ?? '';
-
-    final String viceCaptainName =
-        contest['viceCaptainName']?.toString() ?? '';
-
-    double total = 0;
-
-    for (final player in players) {
-      Map<String, int>? stats;
-
-      for (final entry in matchStats.entries) {
-        if (entry.key.split('|').first.trim() ==
-            player.name.trim()) {
-          stats = entry.value;
-          break;
-        }
-      }
-
-      final runs = stats?['runs'] ?? 0;
-      final fours = stats?['fours'] ?? 0;
-      final sixes = stats?['sixes'] ?? 0;
-      final wickets = stats?['wickets'] ?? 0;
-      final catches = stats?['catches'] ?? 0;
-          final basePoints =
-          runs +
-          (fours * 2) +
-          (sixes * 4) +
-          (wickets * 30) +
-          (catches * 10);
-
-      double points = basePoints.toDouble();
-
-      if (player.name == captainName) {
-        points *= 2;
-      } else if (player.name == viceCaptainName) {
-        points *= 1.5;
-      }
-
-      total += points;
-    }
-
-    final int userPoints = total.round();
-
-    final leaderboard = <Map<String, dynamic>>[
-      {
-        'name': 'Cricket King',
-        'points': 742.0,
-      },
-      if (contestSpots != 2)
-        {
-          'name': 'Super XI',
-          'points': 711.0,
-        },
-      {
-        'name': 'You',
-        'points': userPoints.toDouble(),
-      },
-    ];
-        leaderboard.sort(
-      (a, b) => (b['points'] as double)
-          .compareTo(a['points'] as double),
-    );
-
-    final int rank =
-        leaderboard.indexWhere(
-              (item) => item['name'] == 'You',
-            ) +
-            1;
-
-    final String teamKey =
-    (contest['teamName'] ??
-            contest['selectedTeam'] ??
-            contest['teamIndex'] ??
-            contest['teamId'] ??
-            '')
-        .toString();
-
-final String contestId =
-    (contest['contestId'] ??
-            contest['id'] ??
-            '')
-        .toString()
-        .trim();
-
-final String claimMatchKey =
-    (contest['matchKey'] ?? contestMatchKey)
-        .toString();
-
-final String claimKey = contestId.isNotEmpty
-    ? '$contestId-$teamKey'
-    : '$contestName-$teamKey';
-
-final String description =
-    '${adminMatch['team1']} vs ${adminMatch['team2']}';
-
-final bool alreadyPaid =
-    transactionHistory.value.any((tx) {
-  if (tx['title'] != 'Winning') return false;
-
-  final savedContestId =
-      (tx['contestId'] ?? '').toString().trim();
-
-  final savedTeamKey =
-      (tx['teamKey'] ?? '').toString().trim();
-
-  if (contestId.isNotEmpty &&
-      savedContestId.isNotEmpty) {
-    return savedContestId == contestId &&
-        savedTeamKey == teamKey;
-  }
-
-  final savedClaimKey =
-      (tx['claimKey'] ?? '').toString().trim();
-
-  if (savedClaimKey.isNotEmpty) {
-    return savedClaimKey == claimKey;
-  }
-
-  return tx['subtitle'] == contestName &&
-      tx['description'] == description &&
-      savedTeamKey == teamKey;
-});
-
-if (alreadyPaid) {
-  final updated =
-      Set<String>.from(claimedWinnings.value);
-
-  updated.add(claimKey);
-  claimedWinnings.value = updated;
-  continue;
-}
-        double winningAmount = 0.0;
-
-final rawSlabs = contest['prizeSlabs'];
-
-if (rawSlabs is List) {
-  for (final rawSlab in rawSlabs) {
-    if (rawSlab is! Map) continue;
-
-    final from =
-        int.tryParse('${rawSlab['from'] ?? ''}') ?? 0;
-    final to =
-        int.tryParse('${rawSlab['to'] ?? ''}') ?? from;
-    final prize = double.tryParse(
-      '${rawSlab['amount'] ?? rawSlab['prize'] ?? ''}',
-    ) ??
-    0.0;
-
-    if (rank >= from && rank <= to) {
-      winningAmount = prize;
-      break;
-    }
-  }
-}
-
-    if (winningAmount > 0) {
-      walletBalance.value += winningAmount;
-
-      final now = DateTime.now();
-
-      transactionHistory.value = [
-        ...transactionHistory.value,
-        {
-          
-  'title': 'Winning',
-  'subtitle': contestName,
-  'winningType':
-    (contest['h2hWinningType'] ?? contest['winningType'] ?? '').toString(),
-  'rank': rank,
-  'claimKey': claimKey,
-  'contestId': contestId,
-  'matchKey': claimMatchKey,
-  'teamKey': teamKey,
-  'description': description,
-  'dateTime':
-      '${now.day.toString().padLeft(2, '0')}/'
-      '${now.month.toString().padLeft(2, '0')}/'
-      '${now.year} '
-      '${now.hour.toString().padLeft(2, '0')}:'
-      '${now.minute.toString().padLeft(2, '0')}',
-  'amount': winningAmount,
-},
-      ];
-    }
-
-    final updated =
-        Set<String>.from(claimedWinnings.value);
-
-    updated.add(claimKey);
-    claimedWinnings.value = updated;
-  }
-}
+        
     
   }
 }
 
 adminMatches.value = updatedAdminMatches;
-          
+          Map<String, String>? finalAdminMatch;
+
+for (final savedAdminMatch
+    in updatedAdminMatches) {
+  if (savedAdminMatch['team1'] ==
+          match['team1'] &&
+      savedAdminMatch['team2'] ==
+          match['team2']) {
+    finalAdminMatch =
+        savedAdminMatch;
+    break;
+  }
+}
+
+if (finalAdminMatch != null &&
+    (finalAdminMatch[
+                'finalScoreUpdated'] ??
+            '')
+        .toString()
+        .toLowerCase() ==
+        'true') {
+  await _finalizeRealContestResultsForMatch(
+    matchKey: matchKey,
+    adminMatch: finalAdminMatch,
+  );
+}
                   Navigator.pop(dialogContext);
 
                   ScaffoldMessenger.of(context).showSnackBar(
