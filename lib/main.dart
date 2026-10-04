@@ -13166,25 +13166,26 @@ final resolvedText = resolvedAt == null
               final isWithdraw = type == 'WITHDRAW';
 final isReversed = status == 'REVERSED';
 
-final color = isReversed
-    ? Colors.red
-    : isWithdraw
-        ? Colors.blue
-        : status == 'APPROVED'
-            ? Colors.green.shade700
-            : status == 'REJECTED'
-                ? Colors.red
-                : Colors.orange;
+final normalizedStatus =
+    status.toUpperCase();
 
-final bgColor = isReversed
-    ? Colors.red.shade50
-    : isWithdraw
-        ? Colors.blue.shade50
-        : status == 'APPROVED'
-            ? Colors.green.shade50
-            : status == 'REJECTED'
-                ? Colors.red.shade50
-                : Colors.orange.shade50;
+final color = normalizedStatus == 'PENDING'
+    ? Colors.orange
+    : isReversed ||
+            normalizedStatus == 'REJECTED'
+        ? Colors.red
+        : isWithdraw
+            ? Colors.blue
+            : Colors.green.shade700;
+
+final bgColor = normalizedStatus == 'PENDING'
+    ? Colors.orange.shade50
+    : isReversed ||
+            normalizedStatus == 'REJECTED'
+        ? Colors.red.shade50
+        : isWithdraw
+            ? Colors.blue.shade50
+            : Colors.green.shade50;
 
 return Card(
   color: bgColor,
@@ -17917,20 +17918,15 @@ if (type == 'WITHDRAW' &&
               selectedRequestType ==
                   'DEPOSIT';
 
-          final selectedColor =
+                    final selectedColor =
               depositSelected
-                  ? Colors.green
-                  : Colors.red;
+                  ? const Color(0xFF43A047)
+                  : const Color(0xFFE85D6A);
 
           final panelColor =
               depositSelected
-                  ? const Color(
-                      0xFFEAF7EC,
-                    )
-                  : const Color(
-                      0xFFFFECEF,
-                    );
-
+                  ? const Color(0xFFE4F6E8)
+                  : const Color(0xFFFFE5E9);
           Widget selector({
             required String title,
             required int count,
@@ -17950,23 +17946,22 @@ if (type == 'WITHDRAW' &&
                 },
                 child: Container(
                   height: 145,
-                  decoration:
-                      BoxDecoration(
+                                    decoration: BoxDecoration(
                     color: selected
                         ? background
                         : Colors.white,
-                    borderRadius:
-                        BorderRadius.circular(
-                      24,
-                    ),
-                    border: Border.all(
-                      color: selected
-                          ? color
-                          : Colors
-                              .grey.shade400,
-                      width:
-                          selected ? 2.5 : 1,
-                    ),
+                    border: selected
+                        ? null
+                        : Border.all(
+                            color: Colors.grey.shade400,
+                            width: 1,
+                          ),
+                    borderRadius: selected
+                        ? const BorderRadius.only(
+                            topLeft: Radius.circular(18),
+                            topRight: Radius.circular(18),
+                          )
+                        : BorderRadius.circular(18),
                   ),
                   child: Column(
                     mainAxisAlignment:
@@ -18018,42 +18013,50 @@ return ListView(
             padding:
                 const EdgeInsets.all(14),
             children: [
-              Row(
-                children: [
-                  selector(
-                    title: 'DEPOSIT',
-                    count: depositCount,
-                    selected:
-                        depositSelected,
-                    color: Colors.green,
-                    background:
-                        const Color(
-                      0xFFE4F6E8,
-                    ),
-                    icon:
-                        Icons.arrow_downward,
-                    type: 'DEPOSIT',
-                  ),
+                            SizedBox(
+                height: 145,
+                child: Stack(
+                  children: [
+                    Row(
+                      children: [
+                        selector(
+                          title: 'DEPOSIT',
+                          count: depositCount,
+                          selected: depositSelected,
+                          color: Colors.green,
+                          background: const Color(
+                            0xFFE4F6E8,
+                          ),
+                          icon: Icons.arrow_downward,
+                          type: 'DEPOSIT',
+                        ),
 
-                  const SizedBox(
-                    width: 8,
-                  ),
-
-                  selector(
-                    title: 'WITHDRAWAL',
-                    count: withdrawCount,
-                    selected:
-                        !depositSelected,
-                    color: Colors.red,
-                    background:
-                        const Color(
-                      0xFFFFE5E9,
+                        selector(
+                          title: 'WITHDRAWAL',
+                          count: withdrawCount,
+                          selected: !depositSelected,
+                          color: Colors.red,
+                          background: const Color(
+                            0xFFFFE5E9,
+                          ),
+                          icon: Icons.arrow_upward,
+                          type: 'WITHDRAW',
+                        ),
+                      ],
                     ),
-                    icon:
-                        Icons.arrow_upward,
-                    type: 'WITHDRAW',
-                  ),
-                ],
+
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _TeamHeaderBorderPainter(
+                            selectedTeam:
+                                depositSelected ? 0 : 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
               Transform.translate(
@@ -18068,17 +18071,26 @@ return ListView(
                     12,
                     12,
                   ),
-                  decoration:
-                      BoxDecoration(
+
+                                    decoration: BoxDecoration(
                     color: panelColor,
-                    borderRadius:
-                        BorderRadius.circular(
-                      22,
+                    border: Border(
+                      left: BorderSide(
+                        color: selectedColor,
+                        width: 2.5,
+                      ),
+                      right: BorderSide(
+                        color: selectedColor,
+                        width: 2.5,
+                      ),
+                      bottom: BorderSide(
+                        color: selectedColor,
+                        width: 2.5,
+                      ),
                     ),
-                    border: Border.all(
-                      color:
-                          selectedColor,
-                      width: 2.2,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(18),
+                      bottomRight: Radius.circular(18),
                     ),
                   ),
                   child: Column(
