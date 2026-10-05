@@ -6762,7 +6762,8 @@ height: 70,
         ),
     );
   }
-}
+}const Color adminAppBarColor =
+    Color(0xFF3B2B5A);
 
 class AdminMainPage extends StatefulWidget {
   const AdminMainPage({super.key});
@@ -6793,40 +6794,62 @@ class _AdminMainPageState
         children: pages,
       ),
 
-      bottomNavigationBar: SafeArea(
+            bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(
           padding:
-              const EdgeInsets.fromLTRB(
+              const EdgeInsets
+                  .fromLTRB(
             12,
             4,
             12,
             8,
           ),
           child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(
+                0xFFF0EAF8,
+              ),
               borderRadius:
-                  BorderRadius.circular(28),
-              boxShadow: const [
+                  BorderRadius.circular(
+                28,
+              ),
+              border: Border.all(
+                color:
+                    const Color(
+                  0xFFD9CCE9,
+                ),
+              ),
+              boxShadow:
+                  const [
                 BoxShadow(
-                  color: Color(0x16000000),
+                  color:
+                      Color(
+                    0x18000000,
+                  ),
                   blurRadius: 14,
-                  offset: Offset(0, 4),
+                  offset:
+                      Offset(0, 4),
                 ),
               ],
             ),
             child: ClipRRect(
               borderRadius:
-                  BorderRadius.circular(28),
+                  BorderRadius.circular(
+                28,
+              ),
               child: NavigationBar(
-                height: 72,
+                height: 70,
                 backgroundColor:
-                    Colors.white,
+                    const Color(
+                  0xFFF0EAF8,
+                ),
                 elevation: 0,
                 indicatorColor:
                     const Color(
-                  0xFFFFE1E7,
+                  0xFFD9CBF4,
                 ),
                 selectedIndex:
                     currentIndex,
@@ -6843,12 +6866,17 @@ class _AdminMainPageState
                     icon: Icon(
                       Icons
                           .home_outlined,
+                      color:
+                          Color(
+                        0xFFD85A7A,
+                      ),
                     ),
                     selectedIcon:
                         Icon(
                       Icons.home,
-                      color: Color(
-                        0xFFE83D62,
+                      color:
+                          Color(
+                        0xFFB82957,
                       ),
                     ),
                     label: 'Home',
@@ -6857,13 +6885,18 @@ class _AdminMainPageState
                     icon: Icon(
                       Icons
                           .admin_panel_settings_outlined,
+                      color:
+                          Color(
+                        0xFF238F87,
+                      ),
                     ),
                     selectedIcon:
                         Icon(
                       Icons
                           .admin_panel_settings,
-                      color: Color(
-                        0xFF37474F,
+                      color:
+                          Color(
+                        0xFF08776F,
                       ),
                     ),
                     label:
@@ -6873,12 +6906,17 @@ class _AdminMainPageState
                     icon: Icon(
                       Icons
                           .person_outline,
+                      color:
+                          Color(
+                        0xFF7653C4,
+                      ),
                     ),
                     selectedIcon:
                         Icon(
                       Icons.person,
-                      color: Color(
-                        0xFF37474F,
+                      color:
+                          Color(
+                        0xFF5634A8,
                       ),
                     ),
                     label: 'Profile',
@@ -6888,6 +6926,8 @@ class _AdminMainPageState
             ),
           ),
         ),
+      ),
+                  
       ),
     );
   }
@@ -6908,7 +6948,7 @@ class AdminHomePage
 
 class _AdminHomePageState
     extends State<AdminHomePage> {
-  int selectedFilter = 0;
+  int selectedFilter = -1;
 
   Timer? homeStatusTimer;
 
@@ -7134,7 +7174,7 @@ class _AdminHomePageState
   // STAT CARD
   // ===================================================
 
-  Widget _statCard({
+    Widget _statCard({
     required String title,
     required int count,
     required IconData icon,
@@ -7145,89 +7185,81 @@ class _AdminHomePageState
     return Expanded(
       child: InkWell(
         borderRadius:
-            BorderRadius.circular(20),
+            BorderRadius.circular(
+          18,
+        ),
         onTap: () {
           setState(() {
             selectedFilter =
-                filterIndex;
+                selectedFilter ==
+                        filterIndex
+                    ? -1
+                    : filterIndex;
           });
         },
         child: Container(
-          height: 126,
+          height: 88,
           padding:
-              const EdgeInsets.all(12),
-          decoration: BoxDecoration(
+              const EdgeInsets
+                  .symmetric(
+            horizontal: 8,
+            vertical: 8,
+          ),
+          decoration:
+              BoxDecoration(
             color: softColor,
             borderRadius:
                 BorderRadius.circular(
-              20,
+              18,
             ),
             border: Border.all(
               color:
                   color.withOpacity(
-                0.28,
+                0.25,
               ),
             ),
-            boxShadow: const [
-              BoxShadow(
-                color:
-                    Color(0x10000000),
-                blurRadius: 10,
-                offset: Offset(
-                  0,
-                  4,
-                ),
-              ),
-            ],
           ),
           child: Column(
             mainAxisAlignment:
-                MainAxisAlignment.center,
+                MainAxisAlignment
+                    .center,
             children: [
-              Row(
-                mainAxisAlignment:
-                    MainAxisAlignment
-                        .spaceBetween,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          Colors.white
-                              .withOpacity(
-                        0.72,
-                      ),
-                      shape:
-                          BoxShape.circle,
-                    ),
-                    child: Icon(
-                      icon,
-                      color: color,
-                      size: 25,
-                    ),
+              Container(
+                width: 29,
+                height: 29,
+                decoration:
+                    BoxDecoration(
+                  color:
+                      Colors.white
+                          .withOpacity(
+                    0.80,
                   ),
-                  Icon(
-                    Icons
-                        .chevron_right,
-                    color: color,
-                  ),
-                ],
+                  shape:
+                      BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: color,
+                  size: 18,
+                ),
               ),
 
-              const Spacer(),
+              const SizedBox(
+                height: 4,
+              ),
 
               Text(
                 '$count',
                 style:
                     const TextStyle(
-                  fontSize: 28,
+                  fontSize: 22,
                   height: 1,
                   fontWeight:
                       FontWeight.w900,
                   color:
-                      Color(0xFF20191B),
+                      Color(
+                    0xFF20191B,
+                  ),
                 ),
               ),
 
@@ -7235,15 +7267,21 @@ class _AdminHomePageState
                 height: 3,
               ),
 
-              Text(
-                title,
-                style:
-                    const TextStyle(
-                  fontSize: 13,
-                  fontWeight:
-                      FontWeight.w600,
-                  color:
-                      Color(0xFF40383B),
+              FittedBox(
+                fit:
+                    BoxFit.scaleDown,
+                child: Text(
+                  title,
+                  style:
+                      const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight:
+                        FontWeight.w700,
+                    color:
+                        Color(
+                      0xFF40383B,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -7251,7 +7289,9 @@ class _AdminHomePageState
         ),
       ),
     );
-  }
+    }
+        
+              
 
 // ===================================================
   // FILTER BUTTON
@@ -7269,11 +7309,16 @@ class _AdminHomePageState
     return Expanded(
       child: InkWell(
         borderRadius:
-            BorderRadius.circular(22),
+            BorderRadius.circular(
+          20,
+        ),
         onTap: () {
           setState(() {
             selectedFilter =
-                index;
+                selectedFilter ==
+                        index
+                    ? -1
+                    : index;
           });
         },
         child: AnimatedContainer(
@@ -7281,38 +7326,40 @@ class _AdminHomePageState
               const Duration(
             milliseconds: 180,
           ),
-          height: 46,
+          height: 45,
           padding:
-              const EdgeInsets.symmetric(
-            horizontal: 4,
+              const EdgeInsets
+                  .symmetric(
+            horizontal: 5,
           ),
-          decoration: BoxDecoration(
+          decoration:
+              BoxDecoration(
             color: selected
-                ? const Color(
-                    0xFFE84165,
-                  )
-                : Colors.transparent,
+                ? color
+                : color.withOpacity(
+                    0.08,
+                  ),
             borderRadius:
                 BorderRadius.circular(
-              22,
+              20,
             ),
           ),
           child: Row(
             mainAxisAlignment:
-                MainAxisAlignment.center,
+                MainAxisAlignment
+                    .center,
             children: [
-              if (index != 0) ...[
-                Icon(
-                  icon,
-                  size: 17,
-                  color: selected
-                      ? Colors.white
-                      : color,
-                ),
-                const SizedBox(
-                  width: 4,
-                ),
-              ],
+              Icon(
+                icon,
+                size: 17,
+                color: selected
+                    ? Colors.white
+                    : color,
+              ),
+
+              const SizedBox(
+                width: 4,
+              ),
 
               Flexible(
                 child: Text(
@@ -7325,12 +7372,10 @@ class _AdminHomePageState
                       TextStyle(
                     color: selected
                         ? Colors.white
-                        : const Color(
-                            0xFF3C3540,
-                          ),
+                        : color,
                     fontWeight:
-                        FontWeight.w700,
-                    fontSize: 12,
+                        FontWeight.w800,
+                    fontSize: 11.5,
                   ),
                 ),
               ),
@@ -7340,7 +7385,9 @@ class _AdminHomePageState
       ),
     );
   }
+        
 
+              
 
   // ===================================================
   // TEAM FLAG ABOVE + SHORT NAME BELOW
@@ -7937,185 +7984,165 @@ const SizedBox(
     );
   }
 
-
   // ===================================================
-  // MANAGE MATCHES HERO CARD
+  // ADMIN QUICK MANAGEMENT TABS
   // ===================================================
 
-  Widget _manageMatchesCard(
+  Widget _managementTabs(
     BuildContext context,
-    int totalMatches,
   ) {
-    return InkWell(
-      borderRadius:
-          BorderRadius.circular(22),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                const AdminMatchesPage(),
+    Widget tab({
+      required String title,
+      required IconData icon,
+      required Color background,
+      required Color foreground,
+      required VoidCallback onTap,
+    }) {
+      final shape =
+          BeveledRectangleBorder(
+        borderRadius:
+            BorderRadius.circular(10),
+        side: BorderSide(
+          color:
+              foreground.withOpacity(
+            0.22,
           ),
-        );
-      },
-      child: Container(
-        height: 108,
-        padding:
-            const EdgeInsets.symmetric(
-          horizontal: 17,
         ),
-        decoration: BoxDecoration(
-          gradient:
-              const LinearGradient(
-            colors: [
-              Color(0xFFFFF0F3),
-              Color(0xFFFFD5DE),
-            ],
-            begin:
-                Alignment.centerLeft,
-            end:
-                Alignment.centerRight,
-          ),
-          borderRadius:
-              BorderRadius.circular(
-            22,
-          ),
-          border: Border.all(
-            color:
-                const Color(
-              0xFFF5A4B5,
-            ),
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color:
-                  Color(0x14000000),
-              blurRadius: 10,
-              offset: Offset(
-                0,
-                4,
-              ),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            const Positioned(
-              right: 35,
-              top: 9,
-              child: Icon(
-                Icons
-                    .stadium_outlined,
-                size: 82,
-                color:
-                    Color(
-                  0x22E83D62,
-                ),
-              ),
-            ),
+      );
 
-            Row(
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        const Color(
-                      0xFFE84266,
+      return Expanded(
+        child: Material(
+          color: background,
+          shape: shape,
+          child: InkWell(
+            customBorder: shape,
+            onTap: onTap,
+            child: SizedBox(
+              height: 64,
+              child: Padding(
+                padding:
+                    const EdgeInsets
+                        .symmetric(
+                  horizontal: 5,
+                ),
+                child: Column(
+                  mainAxisAlignment:
+                      MainAxisAlignment
+                          .center,
+                  children: [
+                    Icon(
+                      icon,
+                      color: foreground,
+                      size: 22,
                     ),
-                    borderRadius:
-                        BorderRadius
-                            .circular(
-                      18,
+                    const SizedBox(
+                      height: 4,
                     ),
-                    boxShadow:
-                        const [
-                      BoxShadow(
+                    Text(
+                      title,
+                      textAlign:
+                          TextAlign.center,
+                      maxLines: 2,
+                      style: TextStyle(
                         color:
-                            Color(
-                          0x22E84266,
-                        ),
-                        blurRadius:
-                            10,
+                            foreground,
+                        fontSize: 11.5,
+                        height: 1.05,
+                        fontWeight:
+                            FontWeight
+                                .w800,
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons
-                        .sports_cricket,
-                    color:
-                        Colors.white,
-                    size: 31,
-                  ),
+                    ),
+                  ],
                 ),
-
-                const SizedBox(
-                  width: 15,
-                ),
-
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment:
-                        MainAxisAlignment
-                            .center,
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-                    children: [
-                      const Text(
-                        'Manage Matches',
-                        style:
-                            TextStyle(
-                          fontSize:
-                              21,
-                          fontWeight:
-                              FontWeight
-                                  .w900,
-                          color:
-                              Color(
-                            0xFF211B1D,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(
-                        height: 3,
-                      ),
-                      Text(
-                        '$totalMatches total matches',
-                        style:
-                            const TextStyle(
-                          fontSize:
-                              14,
-                          fontWeight:
-                              FontWeight
-                                  .w600,
-                          color:
-                              Color(
-                            0xFF715F64,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const Icon(
-                  Icons.chevron_right,
-                  size: 28,
-                  color:
-                      Color(
-                    0xFFC33655,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ],
+          ),
         ),
-      ),
+      );
+    }
+
+    return Row(
+      children: [
+        tab(
+          title:
+              'Manage\nMatches',
+          icon:
+              Icons.sports_cricket,
+          background:
+              const Color(
+            0xFFFFE9EE,
+          ),
+          foreground:
+              const Color(
+            0xFFD6385B,
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    const AdminMatchesPage(),
+              ),
+            );
+          },
+        ),
+
+        const SizedBox(width: 7),
+
+        tab(
+          title:
+              'Player\nStats',
+          icon:
+              Icons.query_stats,
+          background:
+              const Color(
+            0xFFE5F6F4,
+          ),
+          foreground:
+              const Color(
+            0xFF168C82,
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    const AdminPlayerStatsPage(),
+              ),
+            );
+          },
+        ),
+
+        const SizedBox(width: 7),
+
+        tab(
+          title:
+              'Manage\nContests',
+          icon:
+              Icons.emoji_events,
+          background:
+              const Color(
+            0xFFF0EAFF,
+          ),
+          foreground:
+              const Color(
+            0xFF6841D8,
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    const AdminContestsPage(),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
+  
 
 
   @override
@@ -8637,8 +8664,18 @@ class AdminProfilePage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF9F7),
-      appBar: AppBar(
-        title: const Text('Admin Profile'),
+            appBar: AppBar(
+        backgroundColor:
+            adminAppBarColor,
+        foregroundColor:
+            Colors.white,
+        title: const Text(
+          'Admin Profile',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.w800,
+          ),
+        ),
       ),
       body: user == null
           ? const Center(
@@ -21866,11 +21903,10 @@ class _AdminPlayerStatsPageState
             horizontal: 7,
           ),
           decoration: BoxDecoration(
-            color: selected
-                ? const Color(
-                    0xFFE84266,
-                  )
-                : background,
+                      color:
+                selected
+                    ? color
+                    : background,
             borderRadius:
                 BorderRadius.circular(
               18,
@@ -22602,11 +22638,11 @@ const SizedBox(
         0xFFFFF9F7,
       ),
 
-      appBar: AppBar(
+            appBar: AppBar(
         backgroundColor:
-            const Color(
-          0xFFFFF9F7,
-        ),
+            adminAppBarColor,
+        foregroundColor:
+            Colors.white,
         surfaceTintColor:
             Colors.transparent,
         elevation: 0,
@@ -22621,24 +22657,19 @@ const SizedBox(
             Text(
               'Manage Player Stats',
               style: TextStyle(
-                color:
-                    Color(
-                  0xFF211B1D,
-                ),
+                color: Colors.white,
                 fontSize: 25,
                 fontWeight:
                     FontWeight.w900,
               ),
             ),
-            SizedBox(
-              height: 2,
-            ),
+            SizedBox(height: 2),
             Text(
               'Tap a match to edit player stats',
               style: TextStyle(
                 color:
                     Color(
-                  0xFF756B70,
+                  0xFFE7DFF2,
                 ),
                 fontSize: 12.5,
                 fontWeight:
@@ -22833,24 +22864,7 @@ const SizedBox(
                 height: 14,
               ),
 
-              if (_selectedStatus == -1 ||
-                  _selectedStatus == 0)
-                _section(
-                  title: 'Live Matches',
-                  matches: liveMatches,
-                  color:
-                      const Color(
-                    0xFFE52346,
-                  ),
-                  background:
-                      const Color(
-                    0xFFFFEDF1,
-                  ),
-                  icon: Icons.circle,
-                  filterIndex: 0,
-                ),
-
-              if (_selectedStatus == -1 ||
+                            if (_selectedStatus == -1 ||
                   _selectedStatus == 1)
                 _section(
                   title:
@@ -22871,6 +22885,23 @@ const SizedBox(
                 ),
 
               if (_selectedStatus == -1 ||
+                  _selectedStatus == 0)
+                _section(
+                  title: 'Live Matches',
+                  matches: liveMatches,
+                  color:
+                      const Color(
+                    0xFFE52346,
+                  ),
+                  background:
+                      const Color(
+                    0xFFFFEDF1,
+                  ),
+                  icon: Icons.circle,
+                  filterIndex: 0,
+                ),
+
+              if (_selectedStatus == -1 ||
                   _selectedStatus == 2)
                 _section(
                   title:
@@ -22886,6 +22917,10 @@ const SizedBox(
                     0xFFF2EEFF,
                   ),
                   icon:
+                      Icons.check_circle,
+                  filterIndex: 2,
+                ),
+                  
                       Icons.check_circle,
                   filterIndex: 2,
                 ),              
@@ -22905,8 +22940,18 @@ class AdminDashboardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin Dashboard'),
+            appBar: AppBar(
+        backgroundColor:
+            adminAppBarColor,
+        foregroundColor:
+            Colors.white,
+        title: const Text(
+          'Admin Dashboard',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.w800,
+          ),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -24553,7 +24598,7 @@ class AdminContestsPage extends StatefulWidget {
 }
 
 class _AdminContestsPageState extends State<AdminContestsPage> {
-    int _selectedContestFilter = 0;
+    int _selectedContestFilter = -1;
 
   String?
       _expandedContestMatchKey;
@@ -24860,10 +24905,13 @@ Widget contestFilterButton({
           BorderRadius.circular(
         20,
       ),
-      onTap: () {
+            onTap: () {
         setState(() {
           _selectedContestFilter =
-              index;
+              _selectedContestFilter ==
+                      index
+                  ? -1
+                  : index;
 
           _expandedContestMatchKey =
               null;
@@ -24994,11 +25042,11 @@ Widget contestTeamBlock(
           const Color(
         0xFFFFF9F7,
       ),
-      appBar: AppBar(
+            appBar: AppBar(
         backgroundColor:
-            const Color(
-          0xFFFFF9F7,
-        ),
+            adminAppBarColor,
+        foregroundColor:
+            Colors.white,
         surfaceTintColor:
             Colors.transparent,
         elevation: 0,
@@ -25013,24 +25061,19 @@ Widget contestTeamBlock(
             Text(
               'Manage Contests',
               style: TextStyle(
-                color:
-                    Color(
-                  0xFF211B1D,
-                ),
+                color: Colors.white,
                 fontSize: 27,
                 fontWeight:
                     FontWeight.w900,
               ),
             ),
-            SizedBox(
-              height: 2,
-            ),
+            SizedBox(height: 2),
             Text(
               'View, edit and manage all contests',
               style: TextStyle(
                 color:
                     Color(
-                  0xFF756B70,
+                  0xFFE7DFF2,
                 ),
                 fontSize: 12.5,
                 fontWeight:
@@ -25039,6 +25082,7 @@ Widget contestTeamBlock(
             ),
           ],
         ),
+      ),
       ),
       body: ListView(
         padding:
@@ -25653,11 +25697,9 @@ if (!contestSaved) {
       ),
 ),
           const SizedBox(height: 20),
-                    Container(
+                              Container(
             padding:
-                const EdgeInsets.all(
-              4,
-            ),
+                const EdgeInsets.all(4),
             decoration:
                 BoxDecoration(
               color: Colors.white,
@@ -25674,55 +25716,12 @@ if (!contestSaved) {
                   ),
                   blurRadius: 8,
                   offset:
-                      Offset(
-                    0,
-                    3,
-                  ),
+                      Offset(0, 3),
                 ),
               ],
             ),
             child: Row(
               children: [
-                contestFilterButton(
-                  title: 'All',
-                  count:
-                      contestStatusByKey
-                          .length,
-                  index: 0,
-                  icon:
-                      Icons
-                          .calendar_month,
-                  color:
-                      const Color(
-                    0xFFE83D62,
-                  ),
-                  softColor:
-                      const Color(
-                    0xFFFFEEF2,
-                  ),
-                ),
-                const SizedBox(
-                  width: 3,
-                ),
-                contestFilterButton(
-                  title: 'Live',
-                  count:
-                      liveContestMatchCount,
-                  index: 1,
-                  icon:
-                      Icons.sensors,
-                  color:
-                      const Color(
-                    0xFFE52346,
-                  ),
-                  softColor:
-                      const Color(
-                    0xFFFFF0F3,
-                  ),
-                ),
-                const SizedBox(
-                  width: 3,
-                ),
                 contestFilterButton(
                   title: 'Upcoming',
                   count:
@@ -25739,9 +25738,28 @@ if (!contestSaved) {
                     0xFFFFF8EC,
                   ),
                 ),
-                const SizedBox(
-                  width: 3,
+
+                const SizedBox(width: 4),
+
+                contestFilterButton(
+                  title: 'Live',
+                  count:
+                      liveContestMatchCount,
+                  index: 1,
+                  icon:
+                      Icons.sensors,
+                  color:
+                      const Color(
+                    0xFFE52346,
+                  ),
+                  softColor:
+                      const Color(
+                    0xFFFFF0F3,
+                  ),
                 ),
+
+                const SizedBox(width: 4),
+
                 contestFilterButton(
                   title: 'Completed',
                   count:
@@ -25761,6 +25779,8 @@ if (!contestSaved) {
               ],
             ),
           ),
+            
+                
 
           const SizedBox(
             height: 15,
@@ -34879,7 +34899,7 @@ class AdminMatchesPage extends StatefulWidget {
 
 class _AdminMatchesPageState extends State<AdminMatchesPage> {
   Timer? adminMatchStatusTimer;
-    int _selectedMatchFilter = 0;
+    int _selectedMatchFilter = -1;
   String _shortTeamName(String name) {
   final words = name.trim().split(RegExp(r'\s+'));
 
@@ -37635,10 +37655,13 @@ void deleteMatch(
         child: InkWell(
           borderRadius:
               BorderRadius.circular(20),
-          onTap: () {
+                    onTap: () {
             setState(() {
               _selectedMatchFilter =
-                  index;
+                  _selectedMatchFilter ==
+                          index
+                      ? -1
+                      : index;
             });
           },
           child: AnimatedContainer(
@@ -38250,11 +38273,11 @@ const SizedBox(
         0xFFFFF9F7,
       ),
 
-      appBar: AppBar(
+            appBar: AppBar(
         backgroundColor:
-            const Color(
-          0xFFFFF9F7,
-        ),
+            adminAppBarColor,
+        foregroundColor:
+            Colors.white,
         surfaceTintColor:
             Colors.transparent,
         elevation: 0,
@@ -38269,24 +38292,19 @@ const SizedBox(
             Text(
               'Manage Matches',
               style: TextStyle(
-                color:
-                    Color(
-                  0xFF211B1D,
-                ),
+                color: Colors.white,
                 fontSize: 27,
                 fontWeight:
                     FontWeight.w900,
               ),
             ),
-            SizedBox(
-              height: 2,
-            ),
+            SizedBox(height: 2),
             Text(
               'Create, edit and manage all matches',
               style: TextStyle(
                 color:
                     Color(
-                  0xFF756B70,
+                  0xFFE7DFF2,
                 ),
                 fontSize: 12.5,
                 fontWeight:
@@ -38442,7 +38460,7 @@ const Icon(
             height: 16,
           ),
 
-          Container(
+                      Container(
             padding:
                 const EdgeInsets.all(4),
             decoration: BoxDecoration(
@@ -38460,56 +38478,12 @@ const Icon(
                   ),
                   blurRadius: 9,
                   offset:
-                      Offset(
-                    0,
-                    3,
-                  ),
+                      Offset(0, 3),
                 ),
               ],
             ),
             child: Row(
               children: [
-                filterButton(
-                  title: 'All',
-                  count:
-                      allMatches.length,
-                  index: 0,
-                  icon:
-                      Icons.apps_rounded,
-                  color:
-                      const Color(
-                    0xFFE83D62,
-                  ),
-                  softColor:
-                      const Color(
-                    0xFFFFEEF2,
-                  ),
-                ),
-
-                const SizedBox(
-                  width: 3,
-                ),
-
-                filterButton(
-                  title: 'Live',
-                  count:
-                      liveMatches.length,
-                  index: 1,
-                  icon: Icons.sensors,
-                  color:
-                      const Color(
-                    0xFFE52346,
-                  ),
-                  softColor:
-                      const Color(
-                    0xFFFFF0F3,
-                  ),
-                ),
-
-                const SizedBox(
-                  width: 3,
-                ),
-
                 filterButton(
                   title: 'Upcoming',
                   count:
@@ -38529,7 +38503,27 @@ const Icon(
                 ),
 
                 const SizedBox(
-                  width: 3,
+                  width: 4,
+                ),
+
+                filterButton(
+                  title: 'Live',
+                  count:
+                      liveMatches.length,
+                  index: 1,
+                  icon: Icons.sensors,
+                  color:
+                      const Color(
+                    0xFFE52346,
+                  ),
+                  softColor:
+                      const Color(
+                    0xFFFFF0F3,
+                  ),
+                ),
+
+                const SizedBox(
+                  width: 4,
                 ),
 
                 filterButton(
@@ -38538,8 +38532,8 @@ const Icon(
                       completedMatches
                           .length,
                   index: 3,
-                  icon: Icons
-                      .check_circle,
+                  icon:
+                      Icons.check_circle,
                   color:
                       const Color(
                     0xFF7046D8,
@@ -38583,27 +38577,8 @@ const Icon(
               ),
             ),
 
-          if (_selectedMatchFilter ==
-                  0 ||
-              _selectedMatchFilter ==
-                  1)
-            section(
-              title: 'Live Matches',
-              matches: liveMatches,
-              color:
-                  const Color(
-                0xFFE52346,
-              ),
-              background:
-                  const Color(
-                0xFFFFEDF1,
-              ),
-              icon: Icons.circle,
-              filterIndex: 1,
-            ),
-
-          if (_selectedMatchFilter ==
-                  0 ||
+                    if (_selectedMatchFilter ==
+                  -1 ||
               _selectedMatchFilter ==
                   2)
             section(
@@ -38624,7 +38599,26 @@ const Icon(
             ),
 
           if (_selectedMatchFilter ==
-                  0 ||
+                  -1 ||
+              _selectedMatchFilter ==
+                  1)
+            section(
+              title: 'Live Matches',
+              matches: liveMatches,
+              color:
+                  const Color(
+                0xFFE52346,
+              ),
+              background:
+                  const Color(
+                0xFFFFEDF1,
+              ),
+              icon: Icons.circle,
+              filterIndex: 1,
+            ),
+
+          if (_selectedMatchFilter ==
+                  -1 ||
               _selectedMatchFilter ==
                   3)
             section(
@@ -38644,6 +38638,8 @@ const Icon(
                   Icons.check_circle,
               filterIndex: 3,
             ),
+          
+              
 
           if ((_selectedMatchFilter ==
                       1 &&
