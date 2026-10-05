@@ -14361,7 +14361,14 @@ return MatchModel(
   team2Flag: adminMatch['team2Logo'] ?? joinedMatch.team2Flag,
   title: joinedMatch.title,
   matchFormat: adminMatch['matchFormat'] ?? joinedMatch.matchFormat,
-  time: adminMatch['time'] ?? joinedMatch.time,
+    time:
+      (adminMatch['date'] ?? '')
+              .trim()
+              .isNotEmpty
+          ? '${adminMatch['date'] ?? ''} • '
+              '${adminMatch['time'] ?? ''}'
+          : (adminMatch['time'] ??
+              joinedMatch.time),
   status: joinedMatch.status,
   userPoints: joinedMatch.userPoints,
   startTime: newStartTime ?? joinedMatch.startTime,
@@ -14464,71 +14471,255 @@ list.sort((a, b) {
 final remaining = match.startTime?.difference(DateTime.now());
 final mins = remaining == null ? 0 : remaining.inMinutes;
 final secs = remaining == null ? 0 : remaining.inSeconds % 60;
-          final matchDate = match.time.split('•').isNotEmpty
-    ? match.time.split('•')[0].trim()
-    : '';
+          final matchDay =
+    match.startTime;
 
-final matchTime = match.time.split('•').length > 1
-    ? match.time.split('•')[1].trim()
-    : '';
-         final team1Words = match.team1.trim().split(RegExp(r'\s+'));
-final team1Short = team1Words.length >= 2
-    ? team1Words.map((e) => e[0].toUpperCase()).join()
-    : (match.team1.trim().length <= 3
-        ? match.team1.trim().toUpperCase()
-        : match.team1.trim().substring(0, 3).toUpperCase());
+String matchDate = '';
+String matchTime = '';
+String dayTitle = 'DATE';
+String fullDateTime = '';
 
-final team2Words = match.team2.trim().split(RegExp(r'\s+'));
-final team2Short = team2Words.length >= 2
-    ? team2Words.map((e) => e[0].toUpperCase()).join()
-    : (match.team2.trim().length <= 3
-        ? match.team2.trim().toUpperCase()
-        : match.team2.trim().substring(0, 3).toUpperCase());
-final matchDay = match.startTime;
+if (matchDay != null) {
+  matchDate =
+      '${matchDay.day.toString().padLeft(2, '0')}/'
+      '${matchDay.month.toString().padLeft(2, '0')}/'
+      '${matchDay.year}';
+
+  final hour =
+      matchDay.hour % 12 == 0
+          ? 12
+          : matchDay.hour % 12;
+
+  final minute =
+      matchDay.minute
+          .toString()
+          .padLeft(2, '0');
+
+  final period =
+      matchDay.hour >= 12
+          ? 'PM'
+          : 'AM';
+
+  matchTime =
+      '$hour:$minute $period';
+
+  final now =
+      DateTime.now();
+
+  final today =
+      DateTime(
+    now.year,
+    now.month,
+    now.day,
+  );
+
+  final thisDay =
+      DateTime(
+    matchDay.year,
+    matchDay.month,
+    matchDay.day,
+  );
+
+  final diff =
+      today
+          .difference(thisDay)
+          .inDays;
+
+  if (diff == 0) {
+    dayTitle = 'TODAY';
+  } else if (diff == 1) {
+    dayTitle = 'YESTERDAY';
+  } else {
+    dayTitle = 'DATE';
+  }
+
+  const months = [
+    'JAN',
+    'FEB',
+    'MAR',
+    'APR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AUG',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DEC',
+  ];
+
+  fullDateTime =
+      '${matchDay.day} '
+      '${months[matchDay.month - 1]} '
+      '${matchDay.year} • '
+      '$matchTime';
+}
+
+final team1Words =
+    match.team1
+        .trim()
+        .split(RegExp(r'\s+'));
+
+final team1Short =
+    team1Words.length >= 2
+        ? team1Words
+            .map(
+              (e) =>
+                  e[0].toUpperCase(),
+            )
+            .join()
+        : (match.team1
+                    .trim()
+                    .length <=
+                3
+            ? match.team1
+                .trim()
+                .toUpperCase()
+            : match.team1
+                .trim()
+                .substring(0, 3)
+                .toUpperCase());
+
+final team2Words =
+    match.team2
+        .trim()
+        .split(RegExp(r'\s+'));
+
+final team2Short =
+    team2Words.length >= 2
+        ? team2Words
+            .map(
+              (e) =>
+                  e[0].toUpperCase(),
+            )
+            .join()
+        : (match.team2
+                    .trim()
+                    .length <=
+                3
+            ? match.team2
+                .trim()
+                .toUpperCase()
+            : match.team2
+                .trim()
+                .substring(0, 3)
+                .toUpperCase());
+
 final previousDay =
-    index > 0 ? list[index - 1].startTime : null;
+    index > 0
+        ? list[index - 1]
+            .startTime
+        : null;
 
-final showDateHeader = index == 0 ||
+final showDateHeader =
+    index == 0 ||
     matchDay == null ||
     previousDay == null ||
-    matchDay.day != previousDay.day ||
-    matchDay.month != previousDay.month ||
-    matchDay.year != previousDay.year;
+    matchDay.day !=
+        previousDay.day ||
+    matchDay.month !=
+        previousDay.month ||
+    matchDay.year !=
+        previousDay.year;
 
-final today = DateTime.now();
-
-final isToday = matchDay != null &&
-    matchDay.day == today.day &&
-    matchDay.month == today.month &&
-    matchDay.year == today.year;
-
-final dateHeaderText =
-    isToday ? 'TODAY' : matchDate;
-          return Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
+return Column(
+  crossAxisAlignment:
+      CrossAxisAlignment.start,
   children: [
     if (showDateHeader)
       Container(
-        margin: const EdgeInsets.only(
+        height: 56,
+        margin:
+            const EdgeInsets.only(
           bottom: 8,
           top: 4,
         ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 10,
-        ),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFE3E3),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          '📅 $dateHeaderText'
-          '${matchTime.isNotEmpty ? ' • $matchTime' : ''}',
-          style: const TextStyle(
-            color: Color(0xFFA94442),
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
+          gradient:
+              const LinearGradient(
+            colors: [
+              Color(0xFFFF4D6D),
+              Color(0xFFFF8FA3),
+              Color(0xFFFFD6DE),
+              Color(0xFFFFF1F4),
+            ],
           ),
+          borderRadius:
+              BorderRadius.circular(
+            14,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 62,
+              height: 56,
+              decoration:
+                  const BoxDecoration(
+                color:
+                    Color(0xFFD9043D),
+                borderRadius:
+                    BorderRadius.only(
+                  topLeft:
+                      Radius.circular(
+                    14,
+                  ),
+                  bottomLeft:
+                      Radius.circular(
+                    14,
+                  ),
+                ),
+              ),
+              child: const Icon(
+                Icons.calendar_month,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding:
+                    const EdgeInsets
+                        .symmetric(
+                  horizontal: 18,
+                ),
+                child: Column(
+                  mainAxisAlignment:
+                      MainAxisAlignment
+                          .center,
+                  crossAxisAlignment:
+                      CrossAxisAlignment
+                          .start,
+                  children: [
+                    Text(
+                      dayTitle,
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.white,
+                        fontSize: 17,
+                        fontWeight:
+                            FontWeight
+                                .bold,
+                      ),
+                    ),
+                    Text(
+                      fullDateTime,
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.white,
+                        fontSize: 12,
+                        fontWeight:
+                            FontWeight
+                                .w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
 
@@ -14623,7 +14814,7 @@ title: Row(
   subtitle: Padding(
     padding: const EdgeInsets.only(top: 7),
     child: Text(
-      '📅 $matchDate  •  $matchTime\n'
+      '🗓️ $matchDate  •  $matchTime\n'
       '${match.currentStatus == 'UPCOMING'
           ? '⏳ Starts in ${mins}:${secs.toString().padLeft(2, '0')}'
           : match.currentStatus == 'LIVE'
@@ -16799,55 +16990,100 @@ for (int i = 0; i < teams.length; i++) {
 }
 
 
-bool keepTeamMatch(String matchKey) {
-  MatchModel? linkedMatch;
-
+MatchModel? linkedTeamMatch(
+  String matchKey,
+) {
   for (final m in joinedMatches.value) {
-    final parts = m.time.split('•');
-    final date =
-        parts.isNotEmpty ? parts[0].trim() : '';
-    final time =
-        parts.length > 1 ? parts[1].trim() : '';
-
-    final key =
-        '${m.team1}_${m.team2}_${date}_$time';
-
-    if (key == matchKey) {
-      linkedMatch = m;
-      break;
+    if (_userStorageKeysForMatch(m)
+        .contains(matchKey)) {
+      return m;
     }
   }
 
+  final parts =
+      matchKey.split('_');
+
+  if (parts.length >= 2) {
+    final team1 =
+        parts[0].trim();
+
+    final team2 =
+        parts[1].trim();
+
+    final sameTeams =
+        joinedMatches.value
+            .where(
+              (m) =>
+                  m.team1.trim() ==
+                      team1 &&
+                  m.team2.trim() ==
+                      team2,
+            )
+            .toList();
+
+    if (sameTeams.isNotEmpty) {
+      sameTeams.sort(
+        (a, b) =>
+            (b.startTime ??
+                    DateTime(2000))
+                .compareTo(
+          a.startTime ??
+              DateTime(2000),
+        ),
+      );
+
+      return sameTeams.first;
+    }
+  }
+
+  return null;
+}
+
+bool keepTeamMatch(
+  String matchKey,
+) {
+  final linkedMatch =
+      linkedTeamMatch(matchKey);
+
+  if (linkedMatch == null ||
+      linkedMatch.currentStatus !=
+          'COMPLETED') {
+    return true;
+  }
+
+  final completionTime =
+      linkedMatch.completedAt ??
+      linkedMatch.startTime?.add(
+        linkedMatch.liveDuration,
+      );
+
+  if (completionTime == null) {
+    return true;
+  }
+
+  final deleteAt =
+      completionTime.add(
+    const Duration(days: 5),
+  );
+
+  return DateTime.now()
+      .isBefore(deleteAt);
+}
+
+DateTime matchTimeForKey(
+  String matchKey,
+) {
+  return linkedTeamMatch(matchKey)
+          ?.startTime ??
+      DateTime(2000);
+}
   if (linkedMatch == null ||
       linkedMatch.currentStatus != 'COMPLETED') {
     return true;
   }
 
   final completionTime =
-      linkedMatch.completedAt ??
-      linkedMatch.startTime?.add(linkedMatch.liveDuration);
-
-  if (completionTime == null) {
-    return true;
-  }
-
-    final deleteAt =
-      completionTime.add(
-    const Duration(days: 5),
-  );
-
-  return DateTime.now().isBefore(deleteAt);
-}
-
-DateTime matchTimeForKey(String matchKey) {
-  for (final m in joinedMatches.value) {
-    if (_userStorageKeysForMatch(m).contains(matchKey)) {
-      return m.startTime ?? DateTime(2000);
-    }
-  }
-
-  return DateTime(2000);
-}
+  
 
 final matchKeys =
     matchGroups.keys.where(keepTeamMatch).toList()
@@ -16863,96 +17099,222 @@ return ListView.builder(
     final matchKey = matchKeys[matchIndex];
     final teamIndexes = matchGroups[matchKey]!;
 
+        final linkedMatch =
+        linkedTeamMatch(matchKey);
+
     String matchName = matchKey;
-String matchDate = '';
-String matchTime = '';
-final keyParts = matchKey.split('_');
-if (keyParts.length >= 2) {
-  matchName = '${keyParts[0]} vs ${keyParts[1]}';
-}
+    String matchDate = '';
+    String matchTime = '';
+    String dayTitle = 'DATE';
+    String dateTimeLabel =
+        'Date/Time unavailable';
 
-    for (final m in joinedMatches.value) {
-      final parts = m.time.split('•');
-      final date = parts.isNotEmpty ? parts[0].trim() : '';
-      final time = parts.length > 1 ? parts[1].trim() : '';
+    if (linkedMatch != null) {
+      matchName =
+          '${linkedMatch.team1} vs ${linkedMatch.team2}';
 
-      final key =
-          '${m.team1}_${m.team2}_${date}_$time';
+      final start =
+          linkedMatch.startTime;
 
-      if (key == matchKey) {
-        matchName = '${m.team1} vs ${m.team2}';
-        matchDate = date;
-matchTime = time;
-        break;
+      if (start != null) {
+        matchDate =
+            '${start.day.toString().padLeft(2, '0')}/'
+            '${start.month.toString().padLeft(2, '0')}/'
+            '${start.year}';
+
+        final hour =
+            start.hour % 12 == 0
+                ? 12
+                : start.hour % 12;
+
+        final minute =
+            start.minute
+                .toString()
+                .padLeft(2, '0');
+
+        final period =
+            start.hour >= 12
+                ? 'PM'
+                : 'AM';
+
+        matchTime =
+            '$hour:$minute $period';
+
+        final now = DateTime.now();
+
+        final today =
+            DateTime(
+          now.year,
+          now.month,
+          now.day,
+        );
+
+        final matchDay =
+            DateTime(
+          start.year,
+          start.month,
+          start.day,
+        );
+
+        final diff =
+            today
+                .difference(matchDay)
+                .inDays;
+
+        if (diff == 0) {
+          dayTitle = 'TODAY';
+        } else if (diff == 1) {
+          dayTitle = 'YESTERDAY';
+        } else {
+          dayTitle = 'DATE';
+        }
+
+        const months = [
+          'JAN',
+          'FEB',
+          'MAR',
+          'APR',
+          'MAY',
+          'JUN',
+          'JUL',
+          'AUG',
+          'SEP',
+          'OCT',
+          'NOV',
+          'DEC',
+        ];
+
+        dateTimeLabel =
+            '${start.day} '
+            '${months[start.month - 1]} '
+            '${start.year} • '
+            '$matchTime';
       }
     }
-String matchFormat = '';
 
-for (final m in adminMatches.value) {
-  final adminName =
-      '${m['team1'] ?? ''} vs ${m['team2'] ?? ''}'
-          .trim()
-          .toLowerCase();
+    if (linkedMatch == null) {
+      final keyParts =
+          matchKey.split('_');
 
-  if (adminName == matchName.trim().toLowerCase()) {
-    matchFormat = (m['matchFormat'] ?? '').toString();
-    break;
+      if (keyParts.length >= 2) {
+        matchName =
+            '${keyParts[0]} vs ${keyParts[1]}';
+      }
+
+      if (keyParts.length >= 4) {
+        matchDate =
+            keyParts[2];
+
+        matchTime =
+            keyParts
+                .sublist(3)
+                .join('_');
+
+        dateTimeLabel =
+            '$matchDate • $matchTime';
+      }
+    }
+
+String matchFormat =
+    linkedMatch?.matchFormat ?? '';
+
+if (matchFormat.trim().isEmpty) {
+  for (final m in adminMatches.value) {
+    final adminName =
+        '${m['team1'] ?? ''} vs ${m['team2'] ?? ''}'
+            .trim()
+            .toLowerCase();
+
+    if (adminName ==
+        matchName.trim().toLowerCase()) {
+      matchFormat =
+          (m['matchFormat'] ?? '')
+              .toString();
+      break;
+    }
   }
 }
-    final now = DateTime.now();
 
-String dateTimeLabel = '';
-
-if (matchDate.isNotEmpty) {
-  try {
-    final p = matchDate.split('/');
-    final d = DateTime(
-      int.parse(p[2]),
-      int.parse(p[1]),
-      int.parse(p[0]),
-    );
-
-    final isToday =
-        d.year == now.year &&
-        d.month == now.month &&
-        d.day == now.day;
-
-    dateTimeLabel = isToday
-        ? 'TODAY${matchTime.isNotEmpty ? ' • $matchTime' : ''}'
-        : '$matchDate${matchTime.isNotEmpty ? ' • $matchTime' : ''}';
-  } catch (_) {
-    dateTimeLabel =
-        '$matchDate${matchTime.isNotEmpty ? ' • $matchTime' : ''}';
-  }
-}
-    final dateHeader = Container(
-  padding: const EdgeInsets.symmetric(
-    horizontal: 12,
-    vertical: 7,
+final dateHeader = Container(
+  height: 56,
+  margin: const EdgeInsets.only(
+    bottom: 6,
   ),
   decoration: BoxDecoration(
-    color: const Color(0xFFFFE1E1),
-    borderRadius: BorderRadius.circular(10),
+    gradient: const LinearGradient(
+      colors: [
+        Color(0xFFFF4D6D),
+        Color(0xFFFF8FA3),
+        Color(0xFFFFD6DE),
+        Color(0xFFFFF1F4),
+      ],
+    ),
+    borderRadius:
+        BorderRadius.circular(14),
   ),
   child: Row(
-    mainAxisSize: MainAxisSize.min,
     children: [
-      const Icon(
-        Icons.calendar_month,
-        size: 18,
-        color: Color(0xFFD94B4B),
+      Container(
+        width: 62,
+        height: 56,
+        decoration:
+            const BoxDecoration(
+          color: Color(0xFFD9043D),
+          borderRadius:
+              BorderRadius.only(
+            topLeft:
+                Radius.circular(14),
+            bottomLeft:
+                Radius.circular(14),
+          ),
+        ),
+        child: const Icon(
+          Icons.calendar_month,
+          color: Colors.white,
+          size: 30,
+        ),
       ),
-      const SizedBox(width: 6),
-      Text(
-        dateTimeLabel,
-        style: const TextStyle(
-          color: Color(0xFFB53A3A),
-          fontWeight: FontWeight.bold,
+      Expanded(
+        child: Padding(
+          padding:
+              const EdgeInsets.symmetric(
+            horizontal: 18,
+          ),
+          child: Column(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                dayTitle,
+                style:
+                    const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+              Text(
+                dateTimeLabel,
+                style:
+                    const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight:
+                      FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     ],
   ),
 );
+    
+    
     final nameParts = matchName.split(' vs ');
 
 final team1Name =
