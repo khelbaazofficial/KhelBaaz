@@ -8018,34 +8018,40 @@ void dispose() {
     return aTime.compareTo(bTime);
   }
 
-  // LIVE:
-  // जो अभी शुरू हो चुका है वह ऊपर
-  // future LIVE वाला नीचे
-  int compareLive(MatchModel a, MatchModel b) {
+    // LIVE:
+  // Real Admin matches पहले,
+  // फिर newest start time पहले.
+  int compareLive(
+    MatchModel a,
+    MatchModel b,
+  ) {
+    final aIsAdmin =
+        widget.adminMatchModels.contains(a);
+
+    final bIsAdmin =
+        widget.adminMatchModels.contains(b);
+
+    if (aIsAdmin != bIsAdmin) {
+      return aIsAdmin ? -1 : 1;
+    }
+
     final aTime = a.startTime;
     final bTime = b.startTime;
 
-    final aStarted =
-        aTime != null && !aTime.isAfter(now);
-    final bStarted =
-        bTime != null && !bTime.isAfter(now);
-
-    if (aStarted != bStarted) {
-      return aStarted ? -1 : 1;
+    if (aTime == null &&
+        bTime == null) {
+      return 0;
     }
 
-    if (aTime == null && bTime == null) return 0;
-    if (aTime == null) return 1;
-    if (bTime == null) return -1;
-
-    // दोनों LIVE चल रहे हैं:
-    // जो हाल में start हुआ वह ऊपर
-    if (aStarted && bStarted) {
-      return bTime.compareTo(aTime);
+    if (aTime == null) {
+      return 1;
     }
 
-    // दोनों future हों तो जो पहले LIVE होगा वह ऊपर
-    return aTime.compareTo(bTime);
+    if (bTime == null) {
+      return -1;
+    }
+
+    return bTime.compareTo(aTime);
   }
 
   bool keepHomeCompleted(MatchModel m) {
@@ -13621,37 +13627,75 @@ const SizedBox(height: 18),
     ),
   );
 }
-                    final matchNames = <String>[];
+                              final matchNames = <String>[];
+
+          DateTime matchSortTime(
+            String matchName,
+          ) {
+            DateTime? linkedTime;
+            DateTime? joinedTime;
+
+            for (final contest in sourceContests) {
+              if ((contest['match'] ?? '').toString() !=
+                  matchName) {
+                continue;
+              }
+
+              final linked =
+                  findLinkedMatch(contest);
+
+              final currentLinkedTime =
+                  linked?.startTime ??
+                  linked?.completedAt;
+
+              if (currentLinkedTime != null &&
+                  (linkedTime == null ||
+                      currentLinkedTime.isAfter(
+                        linkedTime,
+                      ))) {
+                linkedTime =
+                    currentLinkedTime;
+              }
+
+              final rawJoinedAt =
+                  contest['joinedAt'];
+
+              if (rawJoinedAt is DateTime &&
+                  (joinedTime == null ||
+                      rawJoinedAt.isAfter(
+                        joinedTime,
+                      ))) {
+                joinedTime =
+                    rawJoinedAt;
+              }
+            }
+
+            return linkedTime ??
+                joinedTime ??
+                DateTime(2000);
+          }
 
           for (final contest in sourceContests) {
             final matchName =
-                (contest['match'] ?? '').toString();
+                (contest['match'] ?? '')
+                    .toString();
 
             if (matchName.isNotEmpty &&
-                !matchNames.contains(matchName)) {
-              matchNames.add(matchName);
+                !matchNames.contains(
+                  matchName,
+                )) {
+              matchNames.add(
+                matchName,
+              );
             }
           }
 
-          matchNames.sort((a, b) {
-            final aContest = sourceContests.firstWhere(
-              (c) => (c['match'] ?? '').toString() == a,
-            );
-
-            final bContest = sourceContests.firstWhere(
-              (c) => (c['match'] ?? '').toString() == b,
-            );
-
-            final aTime =
-                findLinkedMatch(aContest)?.startTime ??
-                    DateTime(2000);
-
-            final bTime =
-                findLinkedMatch(bContest)?.startTime ??
-                    DateTime(2000);
-
-            return bTime.compareTo(aTime);
-          });
+          matchNames.sort(
+            (a, b) =>
+                matchSortTime(b).compareTo(
+              matchSortTime(a),
+            ),
+          );
 
 return ListView.builder(
   padding: const EdgeInsets.all(12),
