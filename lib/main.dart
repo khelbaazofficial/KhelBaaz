@@ -24553,6 +24553,10 @@ class AdminContestsPage extends StatefulWidget {
 }
 
 class _AdminContestsPageState extends State<AdminContestsPage> {
+    int _selectedContestFilter = 0;
+
+  String?
+      _expandedContestMatchKey;
 void _refreshAdminContestPage() {
   if (!mounted) return;
 
@@ -24695,28 +24699,366 @@ DateTime contestDateTime(Map<String, dynamic> contest) {
 sortedContests.sort(
   (a, b) => contestDateTime(b).compareTo(contestDateTime(a)),
 );
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Contests'),
+    Map<String, dynamic>
+    contestMatchData(
+  Map<String, dynamic> contest,
+) {
+  try {
+    final current =
+        adminMatches.value.firstWhere(
+      (match) =>
+          (match['team1'] ?? '') ==
+              (contest['team1'] ?? '') &&
+          (match['team2'] ?? '') ==
+              (contest['team2'] ?? ''),
+    );
+
+    return Map<String, dynamic>.from(
+      current,
+    );
+  } catch (_) {}
+
+  final raw = contest['match'];
+
+  if (raw is Map) {
+    return Map<String, dynamic>.from(
+      raw,
+    );
+  }
+
+  return <String, dynamic>{};
+}
+
+String contestDateText(
+  Map<String, dynamic> contest,
+) {
+  final data =
+      contestMatchData(contest);
+
+  return (data['date'] ?? '')
+      .toString()
+      .trim();
+}
+
+String contestGroupKey(
+  Map<String, dynamic> contest,
+) {
+  final data =
+      contestMatchData(contest);
+
+  return '${contest['team1'] ?? ''}|||'
+      '${contest['team2'] ?? ''}|||'
+      '${data['date'] ?? ''}|||'
+      '${data['time'] ?? ''}';
+}
+
+String contestStatus(
+  Map<String, dynamic> contest,
+) {
+  final data =
+      contestMatchData(contest);
+
+  final savedStatus =
+      (data['status'] ?? '')
+          .toString()
+          .trim()
+          .toUpperCase();
+
+  if (savedStatus == 'COMPLETED') {
+    return 'COMPLETED';
+  }
+
+  final start =
+      contestDateTime(contest);
+
+  if (start.year == 2000) {
+    return savedStatus.isEmpty
+        ? 'UPCOMING'
+        : savedStatus;
+  }
+
+  final now = DateTime.now();
+
+  if (now.isBefore(start)) {
+    return 'UPCOMING';
+  }
+
+  final durationMinutes =
+      int.tryParse(
+            (data['durationMinutes'] ??
+                    '180')
+                .toString(),
+          ) ??
+          180;
+
+  final end = start.add(
+    Duration(
+      minutes: durationMinutes,
+    ),
+  );
+
+  if (now.isBefore(end)) {
+    return 'LIVE';
+  }
+
+  return 'COMPLETED';
+}
+
+final contestStatusByKey =
+    <String, String>{};
+
+for (final contest
+    in sortedContests) {
+  final key =
+      contestGroupKey(contest);
+
+  contestStatusByKey.putIfAbsent(
+    key,
+    () => contestStatus(contest),
+  );
+}
+
+final liveContestMatchCount =
+    contestStatusByKey.values
+        .where(
+          (status) =>
+              status == 'LIVE',
+        )
+        .length;
+
+final upcomingContestMatchCount =
+    contestStatusByKey.values
+        .where(
+          (status) =>
+              status == 'UPCOMING',
+        )
+        .length;
+
+final completedContestMatchCount =
+    contestStatusByKey.values
+        .where(
+          (status) =>
+              status == 'COMPLETED',
+        )
+        .length;
+
+Widget contestFilterButton({
+  required String title,
+  required int count,
+  required int index,
+  required IconData icon,
+  required Color color,
+  required Color softColor,
+}) {
+  final selected =
+      _selectedContestFilter ==
+          index;
+
+  return Expanded(
+    child: InkWell(
+      borderRadius:
+          BorderRadius.circular(
+        20,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Text(
-            'Contest Management',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+      onTap: () {
+        setState(() {
+          _selectedContestFilter =
+              index;
+
+          _expandedContestMatchKey =
+              null;
+        });
+      },
+      child: AnimatedContainer(
+        duration:
+            const Duration(
+          milliseconds: 180,
+        ),
+        height: 48,
+        padding:
+            const EdgeInsets.symmetric(
+          horizontal: 3,
+        ),
+        decoration:
+            BoxDecoration(
+          color: selected
+              ? color
+              : softColor,
+          borderRadius:
+              BorderRadius.circular(
+            20,
+          ),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize:
+                MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: selected
+                    ? Colors.white
+                    : color,
+              ),
+              const SizedBox(
+                width: 4,
+              ),
+              Text(
+                '$title ($count)',
+                style: TextStyle(
+                  color: selected
+                      ? Colors.white
+                      : const Color(
+                          0xFF302A2D,
+                        ),
+                  fontSize: 11.5,
+                  fontWeight:
+                      FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget contestTeamBlock(
+  String flag,
+  String team,
+) {
+  return SizedBox(
+    width: 45,
+    child: Column(
+      mainAxisSize:
+          MainAxisSize.min,
+      children: [
+        Container(
+          width: 39,
+          height: 39,
+          alignment:
+              Alignment.center,
+          decoration:
+              BoxDecoration(
+            color:
+                const Color(
+              0xFFFFFFFF,
+            ),
+            shape:
+                BoxShape.circle,
+            border: Border.all(
+              color:
+                  const Color(
+                0xFFE7E0E3,
+              ),
             ),
           ),
-          const SizedBox(height: 20),
+          child: Text(
+            flag.isEmpty
+                ? '🏏'
+                : flag,
+            style:
+                const TextStyle(
+              fontSize: 22,
+            ),
+          ),
+        ),
+        const SizedBox(
+          height: 3,
+        ),
+        Text(
+          makeShortName(team),
+          maxLines: 1,
+          overflow:
+              TextOverflow.ellipsis,
+          style:
+              const TextStyle(
+            fontSize: 12,
+            fontWeight:
+                FontWeight.w900,
+            color:
+                Color(
+              0xFF221D20,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+        return Scaffold(
+      backgroundColor:
+          const Color(
+        0xFFFFF9F7,
+      ),
+      appBar: AppBar(
+        backgroundColor:
+            const Color(
+          0xFFFFF9F7,
+        ),
+        surfaceTintColor:
+            Colors.transparent,
+        elevation: 0,
+        toolbarHeight: 82,
+        titleSpacing: 0,
+        title: const Column(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Manage Contests',
+              style: TextStyle(
+                color:
+                    Color(
+                  0xFF211B1D,
+                ),
+                fontSize: 27,
+                fontWeight:
+                    FontWeight.w900,
+              ),
+            ),
+            SizedBox(
+              height: 2,
+            ),
+            Text(
+              'View, edit and manage all contests',
+              style: TextStyle(
+                color:
+                    Color(
+                  0xFF756B70,
+                ),
+                fontSize: 12.5,
+                fontWeight:
+                    FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: ListView(
+        padding:
+            const EdgeInsets.fromLTRB(
+          14,
+          8,
+          14,
+          24,
+        ),
+        children: [
+          const SizedBox(
+            height: 6,
+          ),
 
-          Center(
-  child: SizedBox(
-    width: 260,
-    height: 48,
-    child: ElevatedButton.icon(
-            onPressed: () async {
+                    Center(
+            child: SizedBox(
+              width: double.infinity,
+              height: 90,
+              child:
+                  ElevatedButton.icon(
   
   final feeController = TextEditingController();
   final prizeController = TextEditingController();
@@ -25222,158 +25564,952 @@ if (!contestSaved) {
     },
   );
 },
-            icon: const Icon(Icons.add),
-label: const Text('CREATE NEW CONTEST'),
-style: ElevatedButton.styleFrom(
-  backgroundColor: const Color(0xFF1B5E20),
-  foregroundColor: Colors.white,
-),
+                        icon: Container(
+              width: 50,
+              height: 50,
+              decoration:
+                  const BoxDecoration(
+                color:
+                    Color(
+                  0xFF2FA842,
+                ),
+                shape:
+                    BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.add,
+                color: Colors.white,
+                size: 34,
+              ),
+            ),
+            label: const Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Create New Contest',
+                  style: TextStyle(
+                    color:
+                        Color(
+                      0xFF167226,
+                    ),
+                    fontSize: 20,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
+                SizedBox(
+                  height: 3,
+                ),
+                Text(
+                  'Create contests for any match',
+                  style: TextStyle(
+                    color:
+                        Color(
+                      0xFF46774D,
+                    ),
+                    fontSize: 12,
+                    fontWeight:
+                        FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            style:
+                ElevatedButton.styleFrom(
+              backgroundColor:
+                  const Color(
+                0xFFEAF8EE,
+              ),
+              foregroundColor:
+                  const Color(
+                0xFF167226,
+              ),
+              elevation: 0,
+              padding:
+                  const EdgeInsets
+                      .symmetric(
+                horizontal: 18,
+              ),
+              side:
+                  const BorderSide(
+                color:
+                    Color(
+                  0xFF8DD39A,
+                ),
+                width: 1.2,
+              ),
+              shape:
+                  RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.circular(
+                  22,
+                ),
+              ),
+            ),
 ),
       ),
 ),
           const SizedBox(height: 20),
+                    Container(
+            padding:
+                const EdgeInsets.all(
+              4,
+            ),
+            decoration:
+                BoxDecoration(
+              color: Colors.white,
+              borderRadius:
+                  BorderRadius.circular(
+                24,
+              ),
+              boxShadow:
+                  const [
+                BoxShadow(
+                  color:
+                      Color(
+                    0x10000000,
+                  ),
+                  blurRadius: 8,
+                  offset:
+                      Offset(
+                    0,
+                    3,
+                  ),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                contestFilterButton(
+                  title: 'All',
+                  count:
+                      contestStatusByKey
+                          .length,
+                  index: 0,
+                  icon:
+                      Icons
+                          .calendar_month,
+                  color:
+                      const Color(
+                    0xFFE83D62,
+                  ),
+                  softColor:
+                      const Color(
+                    0xFFFFEEF2,
+                  ),
+                ),
+                const SizedBox(
+                  width: 3,
+                ),
+                contestFilterButton(
+                  title: 'Live',
+                  count:
+                      liveContestMatchCount,
+                  index: 1,
+                  icon:
+                      Icons.sensors,
+                  color:
+                      const Color(
+                    0xFFE52346,
+                  ),
+                  softColor:
+                      const Color(
+                    0xFFFFF0F3,
+                  ),
+                ),
+                const SizedBox(
+                  width: 3,
+                ),
+                contestFilterButton(
+                  title: 'Upcoming',
+                  count:
+                      upcomingContestMatchCount,
+                  index: 2,
+                  icon:
+                      Icons.schedule,
+                  color:
+                      const Color(
+                    0xFFF28B00,
+                  ),
+                  softColor:
+                      const Color(
+                    0xFFFFF8EC,
+                  ),
+                ),
+                const SizedBox(
+                  width: 3,
+                ),
+                contestFilterButton(
+                  title: 'Completed',
+                  count:
+                      completedContestMatchCount,
+                  index: 3,
+                  icon:
+                      Icons.check_circle,
+                  color:
+                      const Color(
+                    0xFF7046D8,
+                  ),
+                  softColor:
+                      const Color(
+                    0xFFF6F2FF,
+                  ),
+                ),
+              ],
+            ),
+          ),
 
+          const SizedBox(
+            height: 15,
+          ),
 ...(() {
   final groupedContests =
-      <String, List<Map<String, dynamic>>>{};
+      <String,
+          List<Map<String, dynamic>>>{};
 
-  for (final contest in sortedContests) {
+  for (final contest
+      in sortedContests) {
     final key =
-        '${contest['team1']}|||${contest['team2']}';
+        contestGroupKey(contest);
 
-    groupedContests
-        .putIfAbsent(
-          key,
-          () => <Map<String, dynamic>>[],
-        )
-        .add(contest);
+    groupedContests.putIfAbsent(
+      key,
+      () =>
+          <Map<String, dynamic>>[],
+    );
+
+    groupedContests[key]!.add(
+      contest,
+    );
   }
 
-  return groupedContests.entries.expand<Widget>((entry) {
-    final matchContests = entry.value;
-    final firstContest = matchContests.first;
+  String? lastVisibleDate;
 
-    final matchData = firstContest['match'];
+  return groupedContests.entries
+      .expand<Widget>(
+    (entry) {
+      final matchContests =
+          entry.value;
 
-String format = '';
-String date = '';
-String time = '';
+      final firstContest =
+          matchContests.first;
 
-if (matchData is Map) {
-  format =
-      (matchData['matchFormat'] ??
-              matchData['format'] ??
-              '')
-          .toString()
-          .trim();
+      final status =
+          contestStatus(
+        firstContest,
+      );
 
-  date = (matchData['date'] ?? '')
-      .toString()
-      .trim();
+      if (_selectedContestFilter ==
+              1 &&
+          status != 'LIVE') {
+        return const <Widget>[];
+      }
 
-  time = (matchData['time'] ?? '')
-      .toString()
-      .trim();
-}
+      if (_selectedContestFilter ==
+              2 &&
+          status != 'UPCOMING') {
+        return const <Widget>[];
+      }
 
-    final team1 =
-    firstContest['team1']?.toString() ?? '';
+      if (_selectedContestFilter ==
+              3 &&
+          status != 'COMPLETED') {
+        return const <Widget>[];
+      }
 
-final team2 =
-    firstContest['team2']?.toString() ?? '';
+      final matchData =
+          contestMatchData(
+        firstContest,
+      );
 
-final team1Short = makeShortName(team1);
-final team2Short = makeShortName(team2);
-
-final team1Flag =
-    ((matchData is Map
-                ? (matchData['team1Logo'] ??
-                    matchData['team1Flag'])
-                : null) ??
-            firstContest['team1Logo'] ??
-            firstContest['team1Flag'] ??
-            '')
-        .toString()
-        .trim();
-
-final team2Flag =
-    ((matchData is Map
-                ? (matchData['team2Logo'] ??
-                    matchData['team2Flag'])
-                : null) ??
-            firstContest['team2Logo'] ??
-            firstContest['team2Flag'] ??
-            '')
-        .toString()
-        .trim();
-
-final leftTeam = team1Flag.isNotEmpty
-    ? '$team1Flag $team1Short'
-    : team1Short;
-
-final rightTeam = team2Flag.isNotEmpty
-    ? '$team2Short $team2Flag'
-    : team2Short;
-    team2Flag.isNotEmpty ? '$team2 $team2Flag' : team2;
-
-    return <Widget>[
-      Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(
-          top: 8,
-          bottom: 10,
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 12,
-        ),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: const Color(0xFFE3F2FD),
-        ),
-        child: Text(
-          [
-  '$leftTeam vs $rightTeam',
-  if (format.isNotEmpty) format,
-  if (date.isNotEmpty) date,
-  if (time.isNotEmpty) time,
-].join(' • '),
-          style: const TextStyle(
-  fontSize: 17,
-  fontWeight: FontWeight.bold,
-  color: Color(0xFF721D3A),
-),
-        ),
-      ),
-
-      ...matchContests.map(
-        (contest) => Card(
-          color: const Color(0xFFF3E5F5),
-          
-    margin: const EdgeInsets.only(bottom: 12),
-    child: ListTile(
-      leading: const Icon(Icons.emoji_events),
-      title: Text(
-  contest['name'] == 'Head to Head' &&
-          (contest['h2hWinningType'] ?? contest['winningType'] ?? '')
+      final format =
+          (matchData[
+                      'matchFormat'] ??
+                  matchData['format'] ??
+                  '')
               .toString()
-              .trim()
-              .isNotEmpty
-      ? '${contest['name']} • ${contest['h2hWinningType'] ?? contest['winningType']}'
-      : contest['name'],
-        style: const TextStyle(
-  fontWeight: FontWeight.bold,
-  fontSize: 16,
-  color: Color(0xFF4F3038),
-),
-      ),
-      subtitle: Text(
-        'Entry Fee: ₹${contest['fee']}\n'
-        'Prize Pool: ₹${contest['prize']}\n'
-        'Total Spots: ${contest['spots']}',
-      ),
-      isThreeLine: true,
-      trailing: const Icon(Icons.chevron_right),
+              .trim();
+
+      final date =
+          contestDateText(
+        firstContest,
+      );
+
+      final time =
+          (matchData['time'] ?? '')
+              .toString()
+              .trim();
+
+      final team1 =
+          (firstContest['team1'] ??
+                  '')
+              .toString();
+
+      final team2 =
+          (firstContest['team2'] ??
+                  '')
+              .toString();
+
+      final team1Flag =
+          (matchData['team1Logo'] ??
+                  matchData[
+                      'team1Flag'] ??
+                  firstContest[
+                      'team1Logo'] ??
+                  firstContest[
+                      'team1Flag'] ??
+                  '')
+              .toString()
+              .trim();
+
+      final team2Flag =
+          (matchData['team2Logo'] ??
+                  matchData[
+                      'team2Flag'] ??
+                  firstContest[
+                      'team2Logo'] ??
+                  firstContest[
+                      'team2Flag'] ??
+                  '')
+              .toString()
+              .trim();
+
+      final matchKey =
+          entry.key;
+
+      final isExpanded =
+          _expandedContestMatchKey ==
+              matchKey;
+
+      final showDateHeader =
+          lastVisibleDate != date;
+
+      if (showDateHeader) {
+        lastVisibleDate = date;
+      }
+
+      final sameDateMatchCount =
+          groupedContests.entries
+              .where(
+                (other) =>
+                    contestDateText(
+                      other.value.first,
+                    ) ==
+                    date,
+              )
+              .length;
+
+      Color statusColor =
+          const Color(
+        0xFFE52346,
+      );
+
+      Color matchBackground =
+          const Color(
+        0xFFFFF2F5,
+      );
+
+      if (status == 'UPCOMING') {
+        statusColor =
+            const Color(
+          0xFFE87500,
+        );
+
+        matchBackground =
+            const Color(
+          0xFFFFF8EC,
+        );
+      }
+
+      if (status == 'COMPLETED') {
+        statusColor =
+            const Color(
+          0xFF6841D9,
+        );
+
+        matchBackground =
+            const Color(
+          0xFFF7F3FF,
+        );
+      }
+
+      return <Widget>[
+        if (showDateHeader)
+          Container(
+            width:
+                double.infinity,
+            margin:
+                const EdgeInsets.only(
+              top: 5,
+              bottom: 8,
+            ),
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
+            decoration:
+                BoxDecoration(
+              color:
+                  statusColor
+                      .withOpacity(
+                0.09,
+              ),
+              borderRadius:
+                  BorderRadius.circular(
+                17,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons
+                      .calendar_month_rounded,
+                  color: statusColor,
+                  size: 23,
+                ),
+                const SizedBox(
+                  width: 9,
+                ),
+                Expanded(
+                  child: Text(
+                    date.isEmpty
+                        ? 'DATE'
+                        : date,
+                    style: TextStyle(
+                      color:
+                          statusColor,
+                      fontSize: 17,
+                      fontWeight:
+                          FontWeight
+                              .w900,
+                    ),
+                  ),
+                ),
+                Text(
+                  '$sameDateMatchCount '
+                  '${sameDateMatchCount == 1 ? 'Match' : 'Matches'}',
+                  style: TextStyle(
+                    color:
+                        statusColor,
+                    fontSize: 11,
+                    fontWeight:
+                        FontWeight
+                            .bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        Container(
+          margin:
+              const EdgeInsets.only(
+            bottom: 9,
+          ),
+          decoration:
+              BoxDecoration(
+            color: matchBackground,
+            borderRadius:
+                BorderRadius.circular(
+              18,
+            ),
+            border: Border.all(
+              color:
+                  statusColor
+                      .withOpacity(
+                0.20,
+              ),
+            ),
+          ),
+          child: Material(
+            color:
+                Colors.transparent,
+            child: InkWell(
+              borderRadius:
+                  BorderRadius.circular(
+                18,
+              ),
+              onTap: () {
+                setState(() {
+                  if (isExpanded) {
+                    _expandedContestMatchKey =
+                        null;
+                  } else {
+                    _expandedContestMatchKey =
+                        matchKey;
+                  }
+                });
+              },
+              child: Padding(
+                padding:
+                    const EdgeInsets
+                        .fromLTRB(
+                  10,
+                  11,
+                  8,
+                  11,
+                ),
+                child: Row(
+                  children: [
+                    contestTeamBlock(
+                      team1Flag,
+                      team1,
+                    ),
+
+                    const Padding(
+                      padding:
+                          EdgeInsets
+                              .symmetric(
+                        horizontal: 4,
+                      ),
+                      child: Text(
+                        'vs',
+                        style:
+                            TextStyle(
+                          fontSize: 12,
+                          fontWeight:
+                              FontWeight
+                                  .bold,
+                          color:
+                              Color(
+                            0xFF665E63,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    contestTeamBlock(
+                      team2Flag,
+                      team2,
+                    ),
+
+                    const SizedBox(
+                      width: 7,
+                    ),
+
+                    Container(
+                      width: 1,
+                      height: 57,
+                      color:
+                          const Color(
+                        0xFFE4DDE1,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      width: 8,
+                    ),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
+                        children: [
+                          Container(
+                            padding:
+                                const EdgeInsets
+                                    .symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration:
+                                BoxDecoration(
+                              color:
+                                  const Color(
+                                0xFFE8E5FF,
+                              ),
+                              borderRadius:
+                                  BorderRadius
+                                      .circular(
+                                12,
+                              ),
+                            ),
+                            child: Text(
+                              format.isEmpty
+                                  ? 'MATCH'
+                                  : format,
+                              maxLines: 1,
+                              overflow:
+                                  TextOverflow
+                                      .ellipsis,
+                              style:
+                                  const TextStyle(
+                                color:
+                                    Color(
+                                  0xFF403B8A,
+                                ),
+                                fontSize:
+                                    10.5,
+                                fontWeight:
+                                    FontWeight
+                                        .bold,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(
+                            height: 5,
+                          ),
+
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons
+                                    .calendar_month_outlined,
+                                size: 14,
+                                color:
+                                    Color(
+                                  0xFF555A65,
+                                ),
+                              ),
+                              const SizedBox(
+                                width: 4,
+                              ),
+                              Expanded(
+                                child: Text(
+                                  date,
+                                  maxLines: 1,
+                                  overflow:
+                                      TextOverflow
+                                          .ellipsis,
+                                  style:
+                                      const TextStyle(
+                                    color:
+                                        Color(
+                                      0xFF2263D8,
+                                    ),
+                                    fontSize:
+                                        10.5,
+                                    fontWeight:
+                                        FontWeight
+                                            .w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(
+                            height: 3,
+                          ),
+
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons
+                                    .schedule_outlined,
+                                size: 14,
+                                color:
+                                    Color(
+                                  0xFF555A65,
+                                ),
+                              ),
+                              const SizedBox(
+                                width: 4,
+                              ),
+                              Text(
+                                time,
+                                style:
+                                    const TextStyle(
+                                  color:
+                                      Color(
+                                    0xFF4D4850,
+                                  ),
+                                  fontSize:
+                                      10.5,
+                                  fontWeight:
+                                      FontWeight
+                                          .w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(
+                      width: 4,
+                    ),
+
+                    Container(
+                      width: 77,
+                      height: 34,
+                      alignment:
+                          Alignment.center,
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        horizontal: 5,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            statusColor
+                                .withOpacity(
+                          0.10,
+                        ),
+                        borderRadius:
+                            BorderRadius
+                                .circular(
+                          18,
+                        ),
+                      ),
+                      child: FittedBox(
+                        fit:
+                            BoxFit.scaleDown,
+                        child: Row(
+                          children: [
+                            if (status ==
+                                'LIVE') ...[
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration:
+                                    const BoxDecoration(
+                                  color:
+                                      Colors.red,
+                                  shape:
+                                      BoxShape
+                                          .circle,
+                                ),
+                              ),
+                              const SizedBox(
+                                width: 4,
+                              ),
+                            ],
+                            Text(
+                              status,
+                              style:
+                                  TextStyle(
+                                color:
+                                    statusColor,
+                                fontSize: 11,
+                                fontWeight:
+                                    FontWeight
+                                        .w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    Icon(
+                      isExpanded
+                          ? Icons
+                              .keyboard_arrow_up_rounded
+                          : Icons
+                              .keyboard_arrow_down_rounded,
+                      color:
+                          statusColor,
+                      size: 25,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+            if (isExpanded)
+        ...matchContests.map(
+          (contest) => Card(
+            color: const Color(
+              0xFFF8F2FF,
+            ),
+            elevation: 0,
+            margin: const EdgeInsets.only(
+              bottom: 9,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius:
+                  BorderRadius.circular(
+                16,
+              ),
+              side: const BorderSide(
+                color: Color(
+                  0xFFE7D9F4,
+                ),
+              ),
+            ),
+            child: ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 7,
+              ),
+              leading: const CircleAvatar(
+                radius: 21,
+                backgroundColor:
+                    Color(
+                  0xFFF0DFFF,
+                ),
+                child: Icon(
+                  Icons.emoji_events,
+                  color:
+                      Color(
+                    0xFF6A1B9A,
+                  ),
+                  size: 23,
+                ),
+              ),
+              title: Text(
+                contest['name'] ==
+                            'Head to Head' &&
+                        (contest[
+                                    'h2hWinningType'] ??
+                                contest[
+                                    'winningType'] ??
+                                '')
+                            .toString()
+                            .trim()
+                            .isNotEmpty
+                    ? '${contest['name']} • '
+                        '${contest['h2hWinningType'] ?? contest['winningType']}'
+                    : (contest['name'] ??
+                            'Contest')
+                        .toString(),
+                maxLines: 1,
+                overflow:
+                    TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight:
+                      FontWeight.w800,
+                  fontSize: 15,
+                  color:
+                      Color(
+                    0xFF421353,
+                  ),
+                ),
+              ),
+              subtitle: Padding(
+                padding:
+                    const EdgeInsets.only(
+                  top: 8,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
+                        children: [
+                          const Text(
+                            'Entry Fee',
+                            style:
+                                TextStyle(
+                              fontSize:
+                                  9.5,
+                              color:
+                                  Color(
+                                0xFF766C7A,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '₹${contest['fee']}',
+                            style:
+                                const TextStyle(
+                              fontSize: 13,
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
+                              color:
+                                  Color(
+                                0xFF302532,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
+                        children: [
+                          const Text(
+                            'Prize Pool',
+                            style:
+                                TextStyle(
+                              fontSize:
+                                  9.5,
+                              color:
+                                  Color(
+                                0xFF766C7A,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '₹${contest['prize']}',
+                            style:
+                                const TextStyle(
+                              fontSize: 13,
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
+                              color:
+                                  Color(
+                                0xFF302532,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
+                        children: [
+                          const Text(
+                            'Total Spots',
+                            style:
+                                TextStyle(
+                              fontSize:
+                                  9.5,
+                              color:
+                                  Color(
+                                0xFF766C7A,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${contest['spots']}',
+                            style:
+                                const TextStyle(
+                              fontSize: 13,
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
+                              color:
+                                  Color(
+                                0xFF302532,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color:
+                    Color(
+                  0xFF6A385D,
+                ),
+              ),
       onTap: () {
   showDialog(
     context: context,
