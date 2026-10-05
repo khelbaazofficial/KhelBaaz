@@ -13621,16 +13621,37 @@ const SizedBox(height: 18),
     ),
   );
 }
-          final matchNames = <String>[];
+                    final matchNames = <String>[];
 
-            for (final contest in sourceContests) {
-  final matchName =
-      (contest['match'] ?? '').toString();
-  if (matchName.isNotEmpty &&
-      !matchNames.contains(matchName)) {
-    matchNames.add(matchName);
-  }
-}
+          for (final contest in sourceContests) {
+            final matchName =
+                (contest['match'] ?? '').toString();
+
+            if (matchName.isNotEmpty &&
+                !matchNames.contains(matchName)) {
+              matchNames.add(matchName);
+            }
+          }
+
+          matchNames.sort((a, b) {
+            final aContest = sourceContests.firstWhere(
+              (c) => (c['match'] ?? '').toString() == a,
+            );
+
+            final bContest = sourceContests.firstWhere(
+              (c) => (c['match'] ?? '').toString() == b,
+            );
+
+            final aTime =
+                findLinkedMatch(aContest)?.startTime ??
+                    DateTime(2000);
+
+            final bTime =
+                findLinkedMatch(bContest)?.startTime ??
+                    DateTime(2000);
+
+            return bTime.compareTo(aTime);
+          });
 
 return ListView.builder(
   padding: const EdgeInsets.all(12),
@@ -15311,10 +15332,20 @@ else
           continue;
         }
 
-        displayUsers.add(
+                displayUsers.add(
           entry,
         );
       }
+
+      displayUsers.sort(
+        (a, b) => _userGameInt(
+          a['rank'],
+        ).compareTo(
+          _userGameInt(
+            b['rank'],
+          ),
+        ),
+      );
 
       return Column(
         children:
@@ -16756,13 +16787,31 @@ bool keepTeamMatch(String matchKey) {
     return true;
   }
 
-  final deleteAt =
-    completionTime.add(const Duration(days: 6));
+    final deleteAt =
+      completionTime.add(
+    const Duration(days: 5),
+  );
 
-return DateTime.now().isBefore(deleteAt);
+  return DateTime.now().isBefore(deleteAt);
 }
-          final matchKeys =
-    matchGroups.keys.where(keepTeamMatch).toList();
+
+DateTime matchTimeForKey(String matchKey) {
+  for (final m in joinedMatches.value) {
+    if (_userStorageKeysForMatch(m).contains(matchKey)) {
+      return m.startTime ?? DateTime(2000);
+    }
+  }
+
+  return DateTime(2000);
+}
+
+final matchKeys =
+    matchGroups.keys.where(keepTeamMatch).toList()
+      ..sort(
+        (a, b) => matchTimeForKey(b).compareTo(
+          matchTimeForKey(a),
+        ),
+      );
 return ListView.builder(
   padding: const EdgeInsets.all(12),
   itemCount: matchKeys.length,
