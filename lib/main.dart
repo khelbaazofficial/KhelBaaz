@@ -25059,7 +25059,7 @@ Widget contestTeamBlock(
               height: 90,
               child:
                   ElevatedButton.icon(
-  
+  onPressed: () async {
   final feeController = TextEditingController();
   final prizeController = TextEditingController();
   final spotsController = TextEditingController();
