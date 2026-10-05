@@ -8236,129 +8236,134 @@ const SizedBox(
                 // HEADER
                 // ===============================
 
-                Stack(
-                  children: [
-                    Positioned(
-                      right: 82,
-                      top: -20,
-                      child: Icon(
-                        Icons
-                            .sports_cricket,
-                        size: 110,
+                                Container(
+                  width:
+                      double.infinity,
+                  padding:
+                      const EdgeInsets
+                          .fromLTRB(
+                    16,
+                    14,
+                    14,
+                    14,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        adminAppBarColor,
+                    borderRadius:
+                        BorderRadius.circular(
+                      22,
+                    ),
+                    boxShadow:
+                        const [
+                      BoxShadow(
                         color:
-                            const Color(
-                          0xFFE84266,
-                        ).withOpacity(
-                          0.07,
+                            Color(
+                          0x243B2B5A,
+                        ),
+                        blurRadius: 12,
+                        offset:
+                            Offset(
+                          0,
+                          4,
                         ),
                       ),
-                    ),
-
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
-                            children: [
-                              Text(
-                                'Admin Home',
-                                style:
-                                    TextStyle(
-                                  fontSize:
-                                      31,
-                                  height:
-                                      1.05,
-                                  fontWeight:
-                                      FontWeight
-                                          .w900,
-                                  color:
-                                      Color(
-                                    0xFF211B1D,
-                                  ),
-                                ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+                          children: [
+                            Text(
+                              'Admin Home',
+                              style:
+                                  TextStyle(
+                                fontSize: 27,
+                                height: 1.05,
+                                fontWeight:
+                                    FontWeight
+                                        .w900,
+                                color:
+                                    Colors.white,
                               ),
-                              SizedBox(
-                                height: 5,
-                              ),
-                              Text(
-                                'Manage KhelBaaz',
-                                style:
-                                    TextStyle(
-                                  color:
-                                      Color(
-                                    0xFF756B70,
-                                  ),
-                                  fontSize:
-                                      15,
-                                  fontWeight:
-                                      FontWeight
-                                          .w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        Container(
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration:
-                              BoxDecoration(
-                            color:
-                                const Color(
-                              0xFFFFE5EA,
                             ),
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              22,
+                            SizedBox(
+                              height: 5,
                             ),
-                          ),
-                          child:
-                              const Row(
-                            children: [
-                              Icon(
-                                Icons
-                                    .workspace_premium,
-                                size: 18,
+                            Text(
+                              'Manage KhelBaaz',
+                              style:
+                                  TextStyle(
                                 color:
                                     Color(
-                                  0xFFD91D44,
+                                  0xFFE7DFF2,
                                 ),
+                                fontSize: 14,
+                                fontWeight:
+                                    FontWeight
+                                        .w600,
                               ),
-                              SizedBox(
-                                width: 5,
-                              ),
-                              Text(
-                                'ADMIN',
-                                style:
-                                    TextStyle(
-                                  color:
-                                      Color(
-                                    0xFFD91D44,
-                                  ),
-                                  fontWeight:
-                                      FontWeight
-                                          .w900,
-                                ),
-                              ),
-                            ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      Container(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal: 11,
+                          vertical: 7,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              const Color(
+                            0x26FFFFFF,
+                          ),
+                          borderRadius:
+                              BorderRadius
+                                  .circular(
+                            20,
                           ),
                         ),
-                      ],
-                    ),
-                  ],
+                        child:
+                            const Row(
+                          children: [
+                            Icon(
+                              Icons
+                                  .workspace_premium,
+                              color:
+                                  Colors.white,
+                              size: 18,
+                            ),
+                            SizedBox(
+                              width: 5,
+                            ),
+                            Text(
+                              'ADMIN',
+                              style:
+                                  TextStyle(
+                                color:
+                                    Colors.white,
+                                fontWeight:
+                                    FontWeight
+                                        .w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
-                const SizedBox(
-                  height: 22,
-                ),
+                    
 
 // ===============================
                 // COUNTERS
@@ -8481,6 +8486,64 @@ const SizedBox(
                           0xFFE84165,
                         ),
                       ),
+                      
+                                      const SizedBox(
+                  height: 12,
+                ),
+
+                _managementTabs(
+                  context,
+                ),
+
+                const SizedBox(
+                  height: 14,
+                ),
+
+                Container(
+                  padding:
+                      const EdgeInsets.all(
+                    4,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color: Colors.white,
+                    borderRadius:
+                        BorderRadius.circular(
+                      24,
+                    ),
+                    boxShadow:
+                        const [
+                      BoxShadow(
+                        color:
+                            Color(
+                          0x10000000,
+                        ),
+                        blurRadius: 9,
+                        offset:
+                            Offset(
+                          0,
+                          3,
+                        ),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      _filterButton(
+                        text: 'Upcoming',
+                        index: 2,
+                        icon:
+                            Icons.schedule,
+                        color:
+                            const Color(
+                          0xFFF28C00,
+                        ),
+                      ),
+
+                      const SizedBox(
+                        width: 3,
+                      ),
+
                       _filterButton(
                         text: 'Live',
                         index: 1,
@@ -8491,23 +8554,17 @@ const SizedBox(
                           0xFFE52542,
                         ),
                       ),
-                      _filterButton(
-                        text:
-                            'Upcoming',
-                        index: 2,
-                        icon: Icons
-                            .calendar_month,
-                        color:
-                            const Color(
-                          0xFFF28C00,
-                        ),
+
+                      const SizedBox(
+                        width: 3,
                       ),
+
                       _filterButton(
                         text:
                             'Completed',
                         index: 3,
-                        icon: Icons
-                            .check_circle,
+                        icon:
+                            Icons.check_circle,
                         color:
                             const Color(
                           0xFF7048D8,
@@ -8518,30 +8575,32 @@ const SizedBox(
                 ),
 
                 const SizedBox(
-                  height: 18,
+                  height: 16,
                 ),
 
-                _manageMatchesCard(
-                  context,
-                  matches.length,
-                ),
-
-                const SizedBox(
-                  height: 18,
-                ),
-
-                // ===============================
-                // MATCH SECTIONS
-                // Live -> Upcoming -> Completed
-                // ===============================
-
-                if (selectedFilter ==
-                        0 ||
-                    selectedFilter ==
-                        1)
+                if (selectedFilter == -1 ||
+                    selectedFilter == 2)
                   _matchSection(
-                    title:
-                        'Live Now',
+                    title: 'Upcoming',
+                    matches:
+                        upcomingMatches,
+                    color:
+                        const Color(
+                      0xFFE87500,
+                    ),
+                    softColor:
+                        const Color(
+                      0xFFFFF6E7,
+                    ),
+                    icon:
+                        Icons.schedule,
+                    filterIndex: 2,
+                  ),
+
+                if (selectedFilter == -1 ||
+                    selectedFilter == 1)
+                  _matchSection(
+                    title: 'Live Now',
                     matches:
                         liveMatches,
                     color:
@@ -8557,35 +8616,10 @@ const SizedBox(
                     filterIndex: 1,
                   ),
 
-                if (selectedFilter ==
-                        0 ||
-                    selectedFilter ==
-                        2)
+                if (selectedFilter == -1 ||
+                    selectedFilter == 3)
                   _matchSection(
-                    title:
-                        'Upcoming',
-                    matches:
-                        upcomingMatches,
-                    color:
-                        const Color(
-                      0xFFE87500,
-                    ),
-                    softColor:
-                        const Color(
-                      0xFFFFF6E7,
-                    ),
-                    icon: Icons
-                        .calendar_month,
-                    filterIndex: 2,
-                  ),
-
-                if (selectedFilter ==
-                        0 ||
-                    selectedFilter ==
-                        3)
-                  _matchSection(
-                    title:
-                        'Completed',
+                    title: 'Completed',
                     matches:
                         completedMatches,
                     color:
@@ -8596,10 +8630,14 @@ const SizedBox(
                         const Color(
                       0xFFF3EFFF,
                     ),
-                    icon: Icons
-                        .check_circle,
+                    icon:
+                        Icons.check_circle,
                     filterIndex: 3,
                   ),
+                
+                
+
+                
 
                 if ((selectedFilter ==
                             1 &&
@@ -22800,26 +22838,7 @@ const SizedBox(
                 ),
                 child: Row(
                   children: [
-                                        _statusSummary(
-                      title: 'Live',
-                      count:
-                          liveMatches.length,
-                      icon: Icons.sensors,
-                      color:
-                          const Color(
-                        0xFFE52346,
-                      ),
-                      background:
-                          const Color(
-                        0xFFFFEEF2,
-                      ),
-                      index: 0,
-                    ),
-
-                    const SizedBox(
-                      width: 4,
-                    ),
-
+                                        
                     _statusSummary(
                       title: 'Upcoming',
                       count:
@@ -22834,6 +22853,26 @@ const SizedBox(
                         0xFFFFF8ED,
                       ),
                       index: 1,
+                    ),
+
+                    const SizedBox(
+                      width: 4,
+                    ),
+
+                    _statusSummary(
+                      title: 'Live',
+                      count:
+                          liveMatches.length,
+                      icon: Icons.sensors,
+                      color:
+                          const Color(
+                        0xFFE52346,
+                      ),
+                      background:
+                          const Color(
+                        0xFFFFEEF2,
+                      ),
+                      index: 0,
                     ),
 
                     const SizedBox(
@@ -22864,7 +22903,7 @@ const SizedBox(
                 height: 14,
               ),
 
-                            if (_selectedStatus == -1 ||
+              if (_selectedStatus == -1 ||
                   _selectedStatus == 1)
                 _section(
                   title:
@@ -22887,8 +22926,10 @@ const SizedBox(
               if (_selectedStatus == -1 ||
                   _selectedStatus == 0)
                 _section(
-                  title: 'Live Matches',
-                  matches: liveMatches,
+                  title:
+                      'Live Matches',
+                  matches:
+                      liveMatches,
                   color:
                       const Color(
                     0xFFE52346,
@@ -22920,10 +22961,7 @@ const SizedBox(
                       Icons.check_circle,
                   filterIndex: 2,
                 ),
-                  
-                      Icons.check_circle,
-                  filterIndex: 2,
-                ),              
+              
             ],
           );
         },
@@ -25083,7 +25121,7 @@ Widget contestTeamBlock(
           ],
         ),
       ),
-      ),
+    
       body: ListView(
         padding:
             const EdgeInsets.fromLTRB(
