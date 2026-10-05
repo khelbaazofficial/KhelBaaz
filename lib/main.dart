@@ -7441,7 +7441,7 @@ class _AdminHomePageState
             MainAxisAlignment.center,
         children: [
           if (status == 'LIVE') ...[
-            const Container(
+            Container(
               width: 8,
               height: 8,
               decoration:
