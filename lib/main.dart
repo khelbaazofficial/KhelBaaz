@@ -33743,6 +33743,7 @@ class AdminMatchesPage extends StatefulWidget {
 
 class _AdminMatchesPageState extends State<AdminMatchesPage> {
   Timer? adminMatchStatusTimer;
+    int _selectedMatchFilter = 0;
   String _shortTeamName(String name) {
   final words = name.trim().split(RegExp(r'\s+'));
 
@@ -36060,426 +36061,1495 @@ joinedMatches.value = syncedJoinedMatches;
     },
   );
 }
+
   @override
   Widget build(BuildContext context) {
-    final sortedMatches =
-    List<Map<String, String>>.from(adminMatches.value);
+    DateTime matchDate(
+      Map<String, String> match,
+    ) {
+      return _parseMatchDateTime(
+            match['date'] ?? '',
+            match['time'] ?? '',
+          ) ??
+          DateTime(2000);
+    }
 
-final today = DateTime.now();
-final todayOnly =
-    DateTime(today.year, today.month, today.day);
+    String matchStatus(
+      Map<String, String> match,
+    ) {
+      final savedStatus =
+          (match['status'] ?? '')
+              .trim()
+              .toUpperCase();
 
-DateTime matchDate(Map<String, String> match) {
-  return _parseMatchDateTime(
+      if (savedStatus == 'COMPLETED') {
+        return 'COMPLETED';
+      }
+
+      final start =
+          _parseMatchDateTime(
         match['date'] ?? '',
         match['time'] ?? '',
-      ) ??
-      DateTime(2000);
-}
+      );
 
-sortedMatches.sort((a, b) {
-  final aDt = matchDate(a);
-  final bDt = matchDate(b);
+      if (start == null) {
+        return savedStatus.isEmpty
+            ? 'UPCOMING'
+            : savedStatus;
+      }
 
-  final aDay = DateTime(aDt.year, aDt.month, aDt.day);
-  final bDay = DateTime(bDt.year, bDt.month, bDt.day);
+      final now = DateTime.now();
 
-  int group(DateTime day) {
-    if (day == todayOnly) return 0;       // TODAY
-    if (day.isAfter(todayOnly)) return 1; // FUTURE
-    return 2;                             // PAST
-  }
+      if (now.isBefore(start)) {
+        return 'UPCOMING';
+      }
 
-  final aGroup = group(aDay);
-  final bGroup = group(bDay);
+      final durationMinutes =
+          int.tryParse(
+                match['durationMinutes'] ??
+                    '180',
+              ) ??
+              180;
 
-  if (aGroup != bGroup) {
-    return aGroup.compareTo(bGroup);
-  }
+      final end = start.add(
+        Duration(
+          minutes: durationMinutes,
+        ),
+      );
 
-  // Future dates: nearest first
-  if (aGroup == 1 && aDay != bDay) {
-    return aDay.compareTo(bDay);
-  }
+      if (now.isBefore(end)) {
+        return 'LIVE';
+      }
 
-  // Past dates: latest first
-  if (aGroup == 2 && aDay != bDay) {
-    return bDay.compareTo(aDay);
-  }
+      return 'COMPLETED';
+    }
 
-  // Same date: latest time first
-  return bDt.compareTo(aDt);
-});
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Matches'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Container(
-  margin: const EdgeInsets.fromLTRB(24, 18, 24, 20),
-  decoration: BoxDecoration(
-    color: const Color(0xFFE8F5E9),
-    borderRadius: BorderRadius.circular(18),
-    border: Border.all(
-      color: const Color(0xFFA5D6A7),
-      width: 1.2,
-    ),
-    boxShadow: const [
-      BoxShadow(
-        color: Color(0x18000000),
-        blurRadius: 8,
-        offset: Offset(0, 3),
-      ),
-    ],
-  ),
-  child: InkWell(
-    borderRadius: BorderRadius.circular(18),
-    onTap: _createMatch,
-    child: const Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 16,
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 23,
-            backgroundColor: Color(0xFF43A047),
-            child: Icon(
-              Icons.add,
-              size: 30,
-              color: Colors.white,
+    final allMatches =
+        List<Map<String, String>>.from(
+      adminMatches.value,
+    )
+          ..sort(
+            (a, b) => matchDate(b)
+                .compareTo(
+              matchDate(a),
             ),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Create New Match',
-                  style: TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2E7D32),
+          );
+
+    final liveMatches = allMatches
+        .where(
+          (m) =>
+              matchStatus(m) == 'LIVE',
+        )
+        .toList();
+
+    final upcomingMatches = allMatches
+        .where(
+          (m) =>
+              matchStatus(m) ==
+              'UPCOMING',
+        )
+        .toList();
+
+    final completedMatches = allMatches
+        .where(
+          (m) =>
+              matchStatus(m) ==
+              'COMPLETED',
+        )
+        .toList();
+
+    Widget teamBlock(
+      String flag,
+      String team,
+    ) {
+      final displayFlag =
+          flag.trim().isEmpty
+              ? _flagForTeam(team)
+              : flag;
+
+      return SizedBox(
+        width: 44,
+        child: Column(
+          mainAxisSize:
+              MainAxisSize.min,
+          children: [
+            Container(
+              width: 39,
+              height: 39,
+              alignment:
+                  Alignment.center,
+              decoration: BoxDecoration(
+                color:
+                    const Color(
+                  0xFFFFF7F7,
+                ),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color:
+                      const Color(
+                    0xFFFFE1E6,
                   ),
                 ),
-                SizedBox(height: 3),
-                Text(
-                  'Add teams, players and schedule',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF557A58),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            Icons.chevron_right,
-            size: 28,
-            color: Color(0xFF9A3C50),
-          ),
-        ],
-      ),
-    ),
-  ),
-),
-          const SizedBox(height: 20),
-
-          if (adminMatches.value.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(30),
-                child: Text(
-                  'No matches created yet',
-                  style: TextStyle(fontSize: 18),
+              ),
+              child: Text(
+                displayFlag,
+                style:
+                    const TextStyle(
+                  fontSize: 22,
                 ),
               ),
             ),
-
-          
-          ...sortedMatches.asMap().entries.map((entry) {
-  final index = entry.key;
-  final match = entry.value;
-
-  final currentDt = matchDate(match);
-  final currentDay =
-      DateTime(currentDt.year, currentDt.month, currentDt.day);
-
-  DateTime? previousDay;
-
-  if (index > 0) {
-    final previousDt =
-    matchDate(sortedMatches[index - 1]);
-    previousDay = DateTime(
-      previousDt.year,
-      previousDt.month,
-      previousDt.day,
-    );
-  }
-
-  final showRibbon =
-      index == 0 || currentDay != previousDay;
-
-  String ribbonText;
-
-  final tomorrow =
-      todayOnly.add(const Duration(days: 1));
-  final yesterday =
-      todayOnly.subtract(const Duration(days: 1));
-
-  if (currentDay == todayOnly) {
-    ribbonText = 'TODAY';
-  } else if (currentDay == tomorrow) {
-    ribbonText = 'TOMORROW';
-  } else if (currentDay == yesterday) {
-    ribbonText = 'YESTERDAY';
-  } else {
-    ribbonText =
-        '${currentDt.day.toString().padLeft(2, '0')}/'
-        '${currentDt.month.toString().padLeft(2, '0')}/'
-        '${currentDt.year}';
-  }
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-
-      if (showRibbon)
-        Container(
-          margin: const EdgeInsets.only(
-            top: 8,
-            bottom: 10,
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 8,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFFC84F68),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            ribbonText,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
+            const SizedBox(
+              height: 3,
             ),
-          ),
-        ),
-
-      Card(
-    margin: const EdgeInsets.only(bottom: 12),
-    elevation: 2,
-    color: const Color(0xFFFFD9DE),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(18),
-      side: const BorderSide(
-        color: Color(0xFFE99AAA),
-        width: 1.2,
-      ),
-    ),
-    child: ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 8,
-      ),
-
-      leading: Container(
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(
-          color: const Color(0xFFC84F68),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: const Icon(
-          Icons.sports_cricket,
-          color: Colors.white,
-          size: 26,
-        ),
-      ),
-
-      title: Text(
-  '${(match['team1Logo'] ?? match['team1Flag'] ?? '').toString().trim().isNotEmpty
-      ? (match['team1Logo'] ?? match['team1Flag']).toString()
-      : _flagForTeam(match['team1'] ?? '')} '
-  '${_shortTeamName(match['team1'] ?? '')}'
-  '  vs  '
-  '${_shortTeamName(match['team2'] ?? '')} '
-  '${(match['team2Logo'] ?? match['team2Flag'] ?? '').toString().trim().isNotEmpty
-      ? (match['team2Logo'] ?? match['team2Flag']).toString()
-      : _flagForTeam(match['team2'] ?? '')}'
-  '  •  ${match['matchFormat'] ?? ''}',
-  style: const TextStyle(
-    fontSize: 17,
-    fontWeight: FontWeight.bold,
-    color: Color(0xFF3F252B),
-  ),
-),
-
-subtitle: Padding(
-  padding: const EdgeInsets.only(top: 5),
-  child: Text(
-    '${match['date'] ?? ''} • ${match['time'] ?? ''}\n'
-    '${match['status'] ?? ''}',
-    style: const TextStyle(
-      fontSize: 14,
-      height: 1.35,
-      fontWeight: FontWeight.w600,
-      color: Color(0xFF70454F),
-    ),
-  ),
-),
-
-      isThreeLine: true,
-
-      trailing: const Icon(
-        Icons.chevron_right,
-        size: 28,
-        color: Color(0xFFA83F57),
-      ),
-      onTap: () {
-  showModalBottomSheet(
-    context: context,
-    builder: (context) {
-      return SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('EDIT MATCH'),
-              onTap: () {
-  Navigator.pop(context);
-  _editMatch(match);
-},
-            ),
-         
-            ListTile(
-              leading: const Icon(Icons.delete),
-              title: const Text('DELETE MATCH'),
-              onTap: () {
-                Navigator.pop(context);
-
-                final deletedTeam1 =
-    match['team1'] ?? '';
-
-final deletedTeam2 =
-    match['team2'] ?? '';
-
-final relatedContests =
-    createdContests.where((contest) {
-  return (contest['team1'] ?? '') ==
-          deletedTeam1 &&
-      (contest['team2'] ?? '') ==
-          deletedTeam2;
-}).toList();
-
-final hasJoinedContest =
-    relatedContests.any((contest) {
-  final contestId =
-      (contest['id'] ?? '').toString();
-
-  return _globalContestJoinedCount(
-        contestId,
-      ) >
-      0;
-});
-
-if (hasJoinedContest) {
-  ScaffoldMessenger.of(this.context)
-      .showSnackBar(
-    const SnackBar(
-      content: Text(
-        'Joined contest वाले match को delete नहीं कर सकते',
-      ),
-    ),
-  );
-
-  return;
-}
-
-final updated =
-    List<Map<String, String>>.from(
-  adminMatches.value,
-);
-
-updated.remove(match);
-adminMatches.value = updated;
-
-createdContests.removeWhere((contest) {
-  return (contest['team1'] ?? '') ==
-          deletedTeam1 &&
-      (contest['team2'] ?? '') ==
-          deletedTeam2;
-});
-
-createdContestsVersion.value++;
-
-_saveAdminContestsToFirebase();
-                
-final deletedMatchName =
-    '$deletedTeam1 vs $deletedTeam2'
-        .trim()
-        .toLowerCase();
-
-// My Matches से उसी match को हटाओ
-joinedMatches.value =
-    joinedMatches.value.where((m) {
-  return !(m.team1 == deletedTeam1 &&
-      m.team2 == deletedTeam2);
-}).toList();
-
-// My Contests से उसी match के contests हटाओ
-joinedContests.value =
-    joinedContests.value.where((c) {
-  final contestMatch =
-      (c['match'] ?? '').toString().trim().toLowerCase();
-
-  return contestMatch != deletedMatchName;
-}).toList();
-
-// My Teams से उसी match की saved teams हटाओ
-final keyPrefix =
-    '${deletedTeam1}_${deletedTeam2}_'.toLowerCase();
-
-for (int i = savedTeamMatchKeys.length - 1;
-    i >= 0;
-    i--) {
-  if (savedTeamMatchKeys[i]
-      .toLowerCase()
-      .startsWith(keyPrefix)) {
-
-    savedTeamMatchKeys.removeAt(i);
-
-    if (i < savedTeams.value.length) {
-      final updatedTeams =
-          List<List<Player>>.from(savedTeams.value);
-
-      updatedTeams.removeAt(i);
-      savedTeams.value = updatedTeams;
-    }
-  }
-}
-              },
+            Text(
+              _shortTeamName(team),
+              maxLines: 1,
+              overflow:
+                  TextOverflow.ellipsis,
+              textAlign:
+                  TextAlign.center,
+              style:
+                  const TextStyle(
+                fontSize: 12.5,
+                fontWeight:
+                    FontWeight.w900,
+                color:
+                    Color(
+                  0xFF211B1D,
+                ),
+              ),
             ),
           ],
         ),
       );
-    },
-  );
-},
+    }
+
+    Widget statusPill(
+      String status,
+    ) {
+      return Container(
+        width: 74,
+        height: 36,
+        alignment:
+            Alignment.center,
+        padding:
+            const EdgeInsets.symmetric(
+          horizontal: 5,
+        ),
+        decoration: BoxDecoration(
+          color:
+              const Color(
+            0xFFFFE8EB,
+          ),
+          borderRadius:
+              BorderRadius.circular(
+            18,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+          children: [
+            if (status == 'LIVE') ...[
+              Container(
+                width: 8,
+                height: 8,
+                decoration:
+                    const BoxDecoration(
+                  color: Colors.red,
+                  shape:
+                      BoxShape.circle,
+                ),
+              ),
+              const SizedBox(
+                width: 4,
+              ),
+            ],
+            Flexible(
+              child: FittedBox(
+                fit:
+                    BoxFit.scaleDown,
+                child: Text(
+                  status,
+                  maxLines: 1,
+                  style:
+                      const TextStyle(
+                    color:
+                        Color(
+                      0xFFE51E38,
+                    ),
+                    fontSize: 11,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
               ),
             ),
-      
+          ],
+        ),
+      );
+    }
+
+void deleteMatch(
+      Map<String, String> match,
+    ) {
+      final deletedTeam1 =
+          match['team1'] ?? '';
+
+      final deletedTeam2 =
+          match['team2'] ?? '';
+
+      final relatedContests =
+          createdContests.where(
+        (contest) {
+          return (contest['team1'] ??
+                      '') ==
+                  deletedTeam1 &&
+              (contest['team2'] ??
+                      '') ==
+                  deletedTeam2;
+        },
+      ).toList();
+
+      final hasJoinedContest =
+          relatedContests.any(
+        (contest) {
+          final contestId =
+              (contest['id'] ?? '')
+                  .toString();
+
+          return _globalContestJoinedCount(
+                contestId,
+              ) >
+              0;
+        },
+      );
+
+      if (hasJoinedContest) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Joined contest वाले match को delete नहीं कर सकते',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final updated =
+          List<Map<String, String>>.from(
+        adminMatches.value,
+      );
+
+      updated.remove(match);
+
+      adminMatches.value = updated;
+
+      createdContests.removeWhere(
+        (contest) {
+          return (contest['team1'] ??
+                      '') ==
+                  deletedTeam1 &&
+              (contest['team2'] ??
+                      '') ==
+                  deletedTeam2;
+        },
+      );
+
+      createdContestsVersion.value++;
+
+      _saveAdminContestsToFirebase();
+
+      final deletedMatchName =
+          '$deletedTeam1 vs $deletedTeam2'
+              .trim()
+              .toLowerCase();
+
+      joinedMatches.value =
+          joinedMatches.value.where(
+        (m) {
+          return !(m.team1 ==
+                  deletedTeam1 &&
+              m.team2 ==
+                  deletedTeam2);
+        },
+      ).toList();
+
+      joinedContests.value =
+          joinedContests.value.where(
+        (c) {
+          final contestMatch =
+              (c['match'] ?? '')
+                  .toString()
+                  .trim()
+                  .toLowerCase();
+
+          return contestMatch !=
+              deletedMatchName;
+        },
+      ).toList();
+
+      final keyPrefix =
+          '${deletedTeam1}_${deletedTeam2}_'
+              .toLowerCase();
+
+      for (int i =
+              savedTeamMatchKeys.length -
+                  1;
+          i >= 0;
+          i--) {
+        if (savedTeamMatchKeys[i]
+            .toLowerCase()
+            .startsWith(
+              keyPrefix,
+            )) {
+          savedTeamMatchKeys.removeAt(i);
+
+          if (i <
+              savedTeams.value.length) {
+            final updatedTeams =
+                List<List<Player>>.from(
+              savedTeams.value,
+            );
+
+            updatedTeams.removeAt(i);
+
+            savedTeams.value =
+                updatedTeams;
+          }
+        }
+      }
+    }
+
+    void showMatchActions(
+      Map<String, String> match,
+    ) {
+      showModalBottomSheet(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) {
+          return SafeArea(
+            child: Wrap(
+              children: [
+                ListTile(
+                  leading: const Icon(
+                    Icons.edit,
+                    color:
+                        Color(
+                      0xFFE63C61,
+                    ),
+                  ),
+                  title: const Text(
+                    'EDIT MATCH',
+                    style: TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(
+                      sheetContext,
+                    );
+
+                    _editMatch(match);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.red,
+                  ),
+                  title: const Text(
+                    'DELETE MATCH',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(
+                      sheetContext,
+                    );
+
+                    deleteMatch(match);
+                  },
+                ),
               ],
-  );
-}),
+            ),
+          );
+        },
+      );
+    }
+
+    Widget filterButton({
+      required String title,
+      required int count,
+      required int index,
+      required IconData icon,
+      required Color color,
+      required Color softColor,
+    }) {
+      final selected =
+          _selectedMatchFilter == index;
+
+      return Expanded(
+        child: InkWell(
+          borderRadius:
+              BorderRadius.circular(20),
+          onTap: () {
+            setState(() {
+              _selectedMatchFilter =
+                  index;
+            });
+          },
+          child: AnimatedContainer(
+            duration:
+                const Duration(
+              milliseconds: 180,
+            ),
+            height: 48,
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 4,
+            ),
+            decoration: BoxDecoration(
+              color: selected
+                  ? color
+                  : softColor,
+              borderRadius:
+                  BorderRadius.circular(
+                20,
+              ),
+              border: Border.all(
+                color:
+                    color.withOpacity(
+                  0.13,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 18,
+                  color: selected
+                      ? Colors.white
+                      : color,
+                ),
+                const SizedBox(
+                  width: 4,
+                ),
+                Flexible(
+                  child: Text(
+                    '$title ($count)',
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow
+                            .ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight:
+                          FontWeight.w800,
+                      color: selected
+                          ? Colors.white
+                          : const Color(
+                              0xFF312B2E,
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    Widget matchCard(
+      Map<String, String> match,
+    ) {
+      final status =
+          matchStatus(match);
+
+      final team1 =
+          match['team1'] ?? '';
+
+      final team2 =
+          match['team2'] ?? '';
+
+      final flag1 =
+          (match['team1Logo'] ??
+                  match['team1Flag'] ??
+                  '')
+              .trim();
+
+      final flag2 =
+          (match['team2Logo'] ??
+                  match['team2Flag'] ??
+                  '')
+              .trim();
+
+      final format =
+          (match['matchFormat'] ?? '')
+              .trim();
+
+      final date =
+          (match['date'] ?? '')
+              .trim();
+
+      final time =
+          (match['time'] ?? '')
+              .trim();
+
+      Color borderColor =
+          const Color(
+        0xFFFFC9D2,
+      );
+
+      if (status == 'UPCOMING') {
+        borderColor =
+            const Color(
+          0xFFFFD59A,
+        );
+      }
+
+      if (status == 'COMPLETED') {
+        borderColor =
+            const Color(
+          0xFFD8CDFD,
+        );
+      }
+
+      return Container(
+        margin:
+            const EdgeInsets.only(
+          bottom: 10,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius:
+              BorderRadius.circular(
+            18,
+          ),
+          border: Border.all(
+            color: borderColor,
+            width: 1.1,
+          ),
+          boxShadow:
+              const [
+            BoxShadow(
+              color:
+                  Color(
+                0x0F000000,
+              ),
+              blurRadius: 8,
+              offset:
+                  Offset(
+                0,
+                3,
+              ),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius:
+                BorderRadius.circular(
+              18,
+            ),
+            onTap: () {
+              _editMatch(match);
+            },
+            child: Padding(
+              padding:
+                  const EdgeInsets.fromLTRB(
+                9,
+                10,
+                7,
+                8,
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      teamBlock(
+                        flag1,
+                        team1,
+                      ),
+
+                      const Padding(
+                        padding:
+                            EdgeInsets
+                                .symmetric(
+                          horizontal: 2,
+                        ),
+                        child: Text(
+                          'vs',
+                          style:
+                              TextStyle(
+                            fontSize: 12,
+                            color:
+                                Color(
+                              0xFF625C61,
+                            ),
+                            fontWeight:
+                                FontWeight
+                                    .bold,
+                          ),
+                        ),
+                      ),
+teamBlock(
+                        flag2,
+                        team2,
+                      ),
+
+                      const SizedBox(
+                        width: 5,
+                      ),
+
+                      Container(
+                        width: 1,
+                        height: 64,
+                        color:
+                            const Color(
+                          0xFFE5DFE2,
+                        ),
+                      ),
+
+                      const SizedBox(
+                        width: 7,
+                      ),
+
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+                          children: [
+                            Container(
+                              padding:
+                                  const EdgeInsets
+                                      .symmetric(
+                                horizontal: 7,
+                                vertical: 3,
+                              ),
+                              decoration:
+                                  BoxDecoration(
+                                color:
+                                    const Color(
+                                  0xFFF0EDFF,
+                                ),
+                                borderRadius:
+                                    BorderRadius
+                                        .circular(
+                                  11,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize:
+                                    MainAxisSize
+                                        .min,
+                                children: [
+                                  const Icon(
+                                    Icons
+                                        .emoji_events_outlined,
+                                    size: 13,
+                                    color:
+                                        Color(
+                                      0xFF575361,
+                                    ),
+                                  ),
+                                  const SizedBox(
+                                    width: 3,
+                                  ),
+                                  Flexible(
+                                    child: Text(
+                                      format.isEmpty
+                                          ? 'MATCH'
+                                          : format,
+                                      maxLines: 1,
+                                      overflow:
+                                          TextOverflow
+                                              .ellipsis,
+                                      style:
+                                          const TextStyle(
+                                        color:
+                                            Color(
+                                          0xFF443A8C,
+                                        ),
+                                        fontSize:
+                                            10.5,
+                                        fontWeight:
+                                            FontWeight
+                                                .w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(
+                              height: 5,
+                            ),
+
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons
+                                      .calendar_month_outlined,
+                                  size: 15,
+                                  color:
+                                      Color(
+                                    0xFF555A66,
+                                  ),
+                                ),
+                                const SizedBox(
+                                  width: 4,
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    date,
+                                    maxLines: 1,
+                                    overflow:
+                                        TextOverflow
+                                            .ellipsis,
+                                    style:
+                                        const TextStyle(
+                                      color:
+                                          Color(
+                                        0xFF2364DD,
+                                      ),
+                                      fontSize:
+                                          11.5,
+                                      fontWeight:
+                                          FontWeight
+                                              .w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(
+                              height: 3,
+                            ),
+
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons
+                                      .schedule_outlined,
+                                  size: 15,
+                                  color:
+                                      Color(
+                                    0xFF555A66,
+                                  ),
+                                ),
+                                const SizedBox(
+                                  width: 4,
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    time,
+                                    maxLines: 1,
+                                    overflow:
+                                        TextOverflow
+                                            .ellipsis,
+                                    style:
+                                        const TextStyle(
+                                      color:
+                                          Color(
+                                        0xFF4D4B52,
+                                      ),
+                                      fontSize:
+                                          11.5,
+                                      fontWeight:
+                                          FontWeight
+                                              .w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+const SizedBox(
+                        width: 3,
+                      ),
+
+                      statusPill(
+                        status,
+                      ),
+
+                      InkWell(
+                        borderRadius:
+                            BorderRadius.circular(
+                          20,
+                        ),
+                        onTap: () {
+                          showMatchActions(
+                            match,
+                          );
+                        },
+                        child: const Padding(
+                          padding:
+                              EdgeInsets
+                                  .symmetric(
+                            vertical: 18,
+                            horizontal: 2,
+                          ),
+                          child: Icon(
+                            Icons
+                                .chevron_right,
+                            size: 22,
+                            color:
+                                Color(
+                              0xFFE5365A,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(
+                    height: 8,
+                  ),
+
+                  Container(
+                    width:
+                        double.infinity,
+                    height: 29,
+                    padding:
+                        const EdgeInsets
+                            .symmetric(
+                      horizontal: 11,
+                    ),
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          const Color(
+                        0xFFFFEDF1,
+                      ),
+                      borderRadius:
+                          BorderRadius.circular(
+                        11,
+                      ),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.edit,
+                          color:
+                              Color(
+                            0xFFE44C6E,
+                          ),
+                          size: 15,
+                        ),
+                        SizedBox(
+                          width: 6,
+                        ),
+                        Text(
+                          'Tap to edit match',
+                          style:
+                              TextStyle(
+                            color:
+                                Color(
+                              0xFFD95D79,
+                            ),
+                            fontSize:
+                                11.5,
+                            fontWeight:
+                                FontWeight
+                                    .w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    Widget section({
+      required String title,
+      required List<
+              Map<String, String>>
+          matches,
+      required Color color,
+      required Color background,
+      required IconData icon,
+      required int filterIndex,
+    }) {
+      if (matches.isEmpty) {
+        return const SizedBox
+            .shrink();
+      }
+
+      return Column(
+        children: [
+          Container(
+            margin:
+                const EdgeInsets.only(
+              top: 3,
+              bottom: 8,
+            ),
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 7,
+            ),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius:
+                  BorderRadius.circular(
+                18,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: color,
+                  size: 22,
+                ),
+
+                const SizedBox(
+                  width: 7,
+                ),
+
+                Expanded(
+                  child: Text(
+                    '$title (${matches.length})',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 18,
+                      fontWeight:
+                          FontWeight.w900,
+                    ),
+                  ),
+                ),
+
+                InkWell(
+                  borderRadius:
+                      BorderRadius.circular(
+                    15,
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _selectedMatchFilter =
+                          filterIndex;
+                    });
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets
+                            .symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          Colors.white
+                              .withOpacity(
+                        0.75,
+                      ),
+                      borderRadius:
+                          BorderRadius.circular(
+                        15,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          'See All',
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 11,
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                        Icon(
+                          Icons
+                              .chevron_right,
+                          color: color,
+                          size: 17,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+...matches.map(
+            matchCard,
+          ),
+
+          const SizedBox(
+            height: 5,
+          ),
+        ],
+      );
+    }
+
+    return Scaffold(
+      backgroundColor:
+          const Color(
+        0xFFFFF9F7,
+      ),
+
+      appBar: AppBar(
+        backgroundColor:
+            const Color(
+          0xFFFFF9F7,
+        ),
+        surfaceTintColor:
+            Colors.transparent,
+        elevation: 0,
+        toolbarHeight: 82,
+        titleSpacing: 0,
+        title: const Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+          children: [
+            Text(
+              'Manage Matches',
+              style: TextStyle(
+                color:
+                    Color(
+                  0xFF211B1D,
+                ),
+                fontSize: 27,
+                fontWeight:
+                    FontWeight.w900,
+              ),
+            ),
+            SizedBox(
+              height: 2,
+            ),
+            Text(
+              'Create, edit and manage all matches',
+              style: TextStyle(
+                color:
+                    Color(
+                  0xFF756B70,
+                ),
+                fontSize: 12.5,
+                fontWeight:
+                    FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      body: ListView(
+        padding:
+            const EdgeInsets.fromLTRB(
+          14,
+          8,
+          14,
+          20,
+        ),
+        children: [
+          InkWell(
+            borderRadius:
+                BorderRadius.circular(
+              22,
+            ),
+            onTap: _createMatch,
+            child: Container(
+              height: 106,
+              padding:
+                  const EdgeInsets.symmetric(
+                horizontal: 18,
+              ),
+              decoration: BoxDecoration(
+                gradient:
+                    const LinearGradient(
+                  colors: [
+                    Color(
+                      0xFFF2FFF4,
+                    ),
+                    Color(
+                      0xFFE2F7E7,
+                    ),
+                  ],
+                ),
+                borderRadius:
+                    BorderRadius.circular(
+                  22,
+                ),
+                border: Border.all(
+                  color:
+                      const Color(
+                    0xFF9FD6AA,
+                  ),
+                  width: 1.1,
+                ),
+                boxShadow:
+                    const [
+                  BoxShadow(
+                    color:
+                        Color(
+                      0x10000000,
+                    ),
+                    blurRadius: 8,
+                    offset:
+                        Offset(
+                      0,
+                      3,
+                    ),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration:
+                        const BoxDecoration(
+                      color:
+                          Color(
+                        0xFF39A844,
+                      ),
+                      shape:
+                          BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add,
+                      color: Colors.white,
+                      size: 36,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    width: 16,
+                  ),
+
+                  const Expanded(
+                    child: Column(
+                      mainAxisAlignment:
+                          MainAxisAlignment
+                              .center,
+                      crossAxisAlignment:
+                          CrossAxisAlignment
+                              .start,
+                      children: [
+                        Text(
+                          'Create New Match',
+                          style:
+                              TextStyle(
+                            fontSize: 21,
+                            fontWeight:
+                                FontWeight
+                                    .w900,
+                            color:
+                                Color(
+                              0xFF237D30,
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          height: 4,
+                        ),
+                        Text(
+                          'Add teams, players and schedule',
+                          style:
+                              TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                                FontWeight
+                                    .w600,
+                            color:
+                                Color(
+                              0xFF55775B,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+const Icon(
+                    Icons.chevron_right,
+                    size: 29,
+                    color:
+                        Color(
+                      0xFF258332,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(
+            height: 16,
+          ),
+
+          Container(
+            padding:
+                const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius:
+                  BorderRadius.circular(
+                24,
+              ),
+              boxShadow:
+                  const [
+                BoxShadow(
+                  color:
+                      Color(
+                    0x10000000,
+                  ),
+                  blurRadius: 9,
+                  offset:
+                      Offset(
+                    0,
+                    3,
+                  ),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                filterButton(
+                  title: 'All',
+                  count:
+                      allMatches.length,
+                  index: 0,
+                  icon:
+                      Icons.apps_rounded,
+                  color:
+                      const Color(
+                    0xFFE83D62,
+                  ),
+                  softColor:
+                      const Color(
+                    0xFFFFEEF2,
+                  ),
+                ),
+
+                const SizedBox(
+                  width: 3,
+                ),
+
+                filterButton(
+                  title: 'Live',
+                  count:
+                      liveMatches.length,
+                  index: 1,
+                  icon: Icons.sensors,
+                  color:
+                      const Color(
+                    0xFFE52346,
+                  ),
+                  softColor:
+                      const Color(
+                    0xFFFFF0F3,
+                  ),
+                ),
+
+                const SizedBox(
+                  width: 3,
+                ),
+
+                filterButton(
+                  title: 'Upcoming',
+                  count:
+                      upcomingMatches
+                          .length,
+                  index: 2,
+                  icon:
+                      Icons.schedule,
+                  color:
+                      const Color(
+                    0xFFF28B00,
+                  ),
+                  softColor:
+                      const Color(
+                    0xFFFFF8EC,
+                  ),
+                ),
+
+                const SizedBox(
+                  width: 3,
+                ),
+
+                filterButton(
+                  title: 'Completed',
+                  count:
+                      completedMatches
+                          .length,
+                  index: 3,
+                  icon: Icons
+                      .check_circle,
+                  color:
+                      const Color(
+                    0xFF7046D8,
+                  ),
+                  softColor:
+                      const Color(
+                    0xFFF6F2FF,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(
+            height: 15,
+          ),
+
+          if (allMatches.isEmpty)
+            Container(
+              padding:
+                  const EdgeInsets.all(
+                28,
+              ),
+              decoration:
+                  BoxDecoration(
+                color: Colors.white,
+                borderRadius:
+                    BorderRadius.circular(
+                  18,
+                ),
+              ),
+              child: const Center(
+                child: Text(
+                  'No matches created yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight:
+                        FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+
+          if (_selectedMatchFilter ==
+                  0 ||
+              _selectedMatchFilter ==
+                  1)
+            section(
+              title: 'Live Matches',
+              matches: liveMatches,
+              color:
+                  const Color(
+                0xFFE52346,
+              ),
+              background:
+                  const Color(
+                0xFFFFEDF1,
+              ),
+              icon: Icons.circle,
+              filterIndex: 1,
+            ),
+
+          if (_selectedMatchFilter ==
+                  0 ||
+              _selectedMatchFilter ==
+                  2)
+            section(
+              title:
+                  'Upcoming Matches',
+              matches:
+                  upcomingMatches,
+              color:
+                  const Color(
+                0xFFE87500,
+              ),
+              background:
+                  const Color(
+                0xFFFFF6E8,
+              ),
+              icon: Icons.schedule,
+              filterIndex: 2,
+            ),
+
+          if (_selectedMatchFilter ==
+                  0 ||
+              _selectedMatchFilter ==
+                  3)
+            section(
+              title:
+                  'Completed Matches',
+              matches:
+                  completedMatches,
+              color:
+                  const Color(
+                0xFF5633C4,
+              ),
+              background:
+                  const Color(
+                0xFFF2EEFF,
+              ),
+              icon:
+                  Icons.check_circle,
+              filterIndex: 3,
+            ),
+
+          if ((_selectedMatchFilter ==
+                      1 &&
+                  liveMatches.isEmpty) ||
+              (_selectedMatchFilter ==
+                      2 &&
+                  upcomingMatches
+                      .isEmpty) ||
+              (_selectedMatchFilter ==
+                      3 &&
+                  completedMatches
+                      .isEmpty))
+            Container(
+              padding:
+                  const EdgeInsets.all(
+                26,
+              ),
+              decoration:
+                  BoxDecoration(
+                color: Colors.white,
+                borderRadius:
+                    BorderRadius.circular(
+                  18,
+                ),
+              ),
+              child: const Center(
+                child: Text(
+                  'No matches available',
+                  style: TextStyle(
+                    fontWeight:
+                        FontWeight.w700,
+                    color:
+                        Color(
+                      0xFF756B70,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
-}
+
+  
