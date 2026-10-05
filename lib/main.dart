@@ -21617,7 +21617,7 @@ class AdminPlayerStatsPage
 class _AdminPlayerStatsPageState
     extends State<AdminPlayerStatsPage> {
   Timer? _statusTimer;
-
+  int _selectedStatus = -1;
   @override
   void initState() {
     super.initState();
@@ -21833,76 +21833,97 @@ class _AdminPlayerStatsPageState
   // TOP STATUS BOX
   // =============================================
 
-  Widget _statusSummary({
+    Widget _statusSummary({
     required String title,
     required int count,
     required IconData icon,
     required Color color,
     required Color background,
-    bool selected = false,
+    required int index,
   }) {
+    final selected =
+        _selectedStatus == index;
+
     return Expanded(
-      child: Container(
-        height: 58,
-        padding:
-            const EdgeInsets.symmetric(
-          horizontal: 7,
-        ),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(
-                  0xFFE84266,
-                )
-              : background,
-          borderRadius:
-              BorderRadius.circular(
-            18,
+      child: InkWell(
+        borderRadius:
+            BorderRadius.circular(18),
+        onTap: () {
+          setState(() {
+            if (_selectedStatus ==
+                index) {
+              _selectedStatus = -1;
+            } else {
+              _selectedStatus =
+                  index;
+            }
+          });
+        },
+        child: Container(
+          height: 58,
+          padding:
+              const EdgeInsets.symmetric(
+            horizontal: 7,
           ),
-          border: Border.all(
-            color:
-                color.withOpacity(
-              0.16,
+          decoration: BoxDecoration(
+            color: selected
+                ? const Color(
+                    0xFFE84266,
+                  )
+                : background,
+            borderRadius:
+                BorderRadius.circular(
+              18,
             ),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 21,
-              color: selected
-                  ? Colors.white
-                  : color,
-            ),
-            const SizedBox(
-              width: 5,
-            ),
-            Flexible(
-              child: Text(
-                '$title ($count)',
-                maxLines: 1,
-                overflow:
-                    TextOverflow
-                        .ellipsis,
-                style: TextStyle(
-                  color: selected
-                      ? Colors.white
-                      : const Color(
-                          0xFF2C2528,
-                        ),
-                  fontSize: 12,
-                  fontWeight:
-                      FontWeight.w800,
-                ),
+            border: Border.all(
+              color:
+                  color.withOpacity(
+                0.16,
               ),
             ),
-          ],
+          ),
+          child: Row(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 21,
+                color: selected
+                    ? Colors.white
+                    : color,
+              ),
+
+              const SizedBox(
+                width: 5,
+              ),
+
+              Flexible(
+                child: Text(
+                  '$title ($count)',
+                  maxLines: 1,
+                  overflow:
+                      TextOverflow
+                          .ellipsis,
+                  style: TextStyle(
+                    color: selected
+                        ? Colors.white
+                        : const Color(
+                            0xFF2C2528,
+                          ),
+                    fontSize: 12,
+                    fontWeight:
+                        FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
-  }
+    }
+            
 
   // =============================================
   // TEAM FLAG ABOVE + SHORT NAME BELOW
@@ -22446,18 +22467,17 @@ const SizedBox(
   // SECTION HEADER + MATCHES
   // =============================================
 
-  Widget _section({
+    Widget _section({
     required String title,
-    required List<
-            Map<String, dynamic>>
+    required List<Map<String, dynamic>>
         matches,
     required Color color,
     required Color background,
     required IconData icon,
+    required int filterIndex,
   }) {
     if (matches.isEmpty) {
-      return const SizedBox
-          .shrink();
+      return const SizedBox.shrink();
     }
 
     return Column(
@@ -22469,8 +22489,7 @@ const SizedBox(
             bottom: 8,
           ),
           padding:
-              const EdgeInsets
-                  .symmetric(
+              const EdgeInsets.symmetric(
             horizontal: 10,
             vertical: 7,
           ),
@@ -22488,9 +22507,11 @@ const SizedBox(
                 color: color,
                 size: 23,
               ),
+
               const SizedBox(
                 width: 7,
               ),
+
               Expanded(
                 child: Text(
                   '$title (${matches.length})',
@@ -22502,46 +22523,58 @@ const SizedBox(
                   ),
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets
-                        .symmetric(
-                  horizontal: 10,
-                  vertical: 5,
+
+              InkWell(
+                borderRadius:
+                    BorderRadius.circular(
+                  15,
                 ),
-                decoration:
-                    BoxDecoration(
-                  color:
-                      Colors.white
-                          .withOpacity(
-                    0.72,
+                onTap: () {
+                  setState(() {
+                    _selectedStatus =
+                        filterIndex;
+                  });
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
+                    horizontal: 10,
+                    vertical: 5,
                   ),
-                  borderRadius:
-                      BorderRadius
-                          .circular(
-                    15,
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        Colors.white
+                            .withOpacity(
+                      0.72,
+                    ),
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      15,
+                    ),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      'See All',
-                      style:
-                          TextStyle(
-                        color: color,
-                        fontSize: 11,
-                        fontWeight:
-                            FontWeight
-                                .bold,
+                  child: Row(
+                    children: [
+                      Text(
+                        'See All',
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 11,
+                          fontWeight:
+                              FontWeight
+                                  .bold,
+                        ),
                       ),
-                    ),
-                    Icon(
-                      Icons
-                          .chevron_right,
-                      color: color,
-                      size: 17,
-                    ),
-                  ],
+                      Icon(
+                        Icons
+                            .chevron_right,
+                        color: color,
+                        size: 17,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -22557,7 +22590,8 @@ const SizedBox(
         ),
       ],
     );
-  }
+    }
+                      
 @override
   Widget build(
     BuildContext context,
@@ -22735,13 +22769,11 @@ const SizedBox(
                 ),
                 child: Row(
                   children: [
-                    _statusSummary(
+                                        _statusSummary(
                       title: 'Live',
                       count:
-                          liveMatches
-                              .length,
-                      icon:
-                          Icons.sensors,
+                          liveMatches.length,
+                      icon: Icons.sensors,
                       color:
                           const Color(
                         0xFFE52346,
@@ -22750,7 +22782,7 @@ const SizedBox(
                           const Color(
                         0xFFFFEEF2,
                       ),
-                      selected: true,
+                      index: 0,
                     ),
 
                     const SizedBox(
@@ -22758,13 +22790,10 @@ const SizedBox(
                     ),
 
                     _statusSummary(
-                      title:
-                          'Upcoming',
+                      title: 'Upcoming',
                       count:
-                          upcomingMatches
-                              .length,
-                      icon: Icons
-                          .schedule,
+                          upcomingMatches.length,
+                      icon: Icons.schedule,
                       color:
                           const Color(
                         0xFFF28B00,
@@ -22773,6 +22802,7 @@ const SizedBox(
                           const Color(
                         0xFFFFF8ED,
                       ),
+                      index: 1,
                     ),
 
                     const SizedBox(
@@ -22780,13 +22810,11 @@ const SizedBox(
                     ),
 
                     _statusSummary(
-                      title:
-                          'Completed',
+                      title: 'Completed',
                       count:
-                          completedMatches
-                              .length,
-                      icon: Icons
-                          .check_circle,
+                          completedMatches.length,
+                      icon:
+                          Icons.check_circle,
                       color:
                           const Color(
                         0xFF7046D8,
@@ -22795,68 +22823,72 @@ const SizedBox(
                           const Color(
                         0xFFF6F2FF,
                       ),
+                      index: 2,
                     ),
                   ],
                 ),
               ),
 
-  const SizedBox(
+              const SizedBox(
                 height: 14,
               ),
 
-              // LIVE FIRST
-              _section(
-                title:
-                    'Live Matches',
-                matches:
-                    liveMatches,
-                color:
-                    const Color(
-                  0xFFE52346,
+              if (_selectedStatus == -1 ||
+                  _selectedStatus == 0)
+                _section(
+                  title: 'Live Matches',
+                  matches: liveMatches,
+                  color:
+                      const Color(
+                    0xFFE52346,
+                  ),
+                  background:
+                      const Color(
+                    0xFFFFEDF1,
+                  ),
+                  icon: Icons.circle,
+                  filterIndex: 0,
                 ),
-                background:
-                    const Color(
-                  0xFFFFEDF1,
-                ),
-                icon:
-                    Icons.circle,
-              ),
 
-              // UPCOMING SECOND
-              _section(
-                title:
-                    'Upcoming Matches',
-                matches:
-                    upcomingMatches,
-                color:
-                    const Color(
-                  0xFFE87500,
+              if (_selectedStatus == -1 ||
+                  _selectedStatus == 1)
+                _section(
+                  title:
+                      'Upcoming Matches',
+                  matches:
+                      upcomingMatches,
+                  color:
+                      const Color(
+                    0xFFE87500,
+                  ),
+                  background:
+                      const Color(
+                    0xFFFFF6E8,
+                  ),
+                  icon:
+                      Icons.schedule,
+                  filterIndex: 1,
                 ),
-                background:
-                    const Color(
-                  0xFFFFF6E8,
-                ),
-                icon:
-                    Icons.schedule,
-              ),
 
-              // COMPLETED LAST
-              _section(
-                title:
-                    'Completed Matches',
-                matches:
-                    completedMatches,
-                color:
-                    const Color(
-                  0xFF5633C4,
-                ),
-                background:
-                    const Color(
-                  0xFFF2EEFF,
-                ),
-                icon:
-                    Icons.check_circle,
-              ),
+              if (_selectedStatus == -1 ||
+                  _selectedStatus == 2)
+                _section(
+                  title:
+                      'Completed Matches',
+                  matches:
+                      completedMatches,
+                  color:
+                      const Color(
+                    0xFF5633C4,
+                  ),
+                  background:
+                      const Color(
+                    0xFFF2EEFF,
+                  ),
+                  icon:
+                      Icons.check_circle,
+                  filterIndex: 2,
+                ),              
             ],
           );
         },
