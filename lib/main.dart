@@ -17077,13 +17077,7 @@ DateTime matchTimeForKey(
           ?.startTime ??
       DateTime(2000);
 }
-  if (linkedMatch == null ||
-      linkedMatch.currentStatus != 'COMPLETED') {
-    return true;
-  }
 
-  final completionTime =
-  
 
 final matchKeys =
     matchGroups.keys.where(keepTeamMatch).toList()
