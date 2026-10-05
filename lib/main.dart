@@ -6927,8 +6927,6 @@ class _AdminMainPageState
           ),
         ),
       ),
-                  
-      ),
     );
   }
 }
@@ -8363,7 +8361,9 @@ const SizedBox(
                   ),
                 ),
 
-                    
+                                    const SizedBox(
+                  height: 14,
+                ),
 
 // ===============================
                 // COUNTERS
@@ -8436,58 +8436,7 @@ const SizedBox(
                   ],
                 ),
 
-                const SizedBox(
-                  height: 17,
-                ),
-
-                // ===============================
-                // FILTERS
-                // ===============================
-
-                Container(
-                  padding:
-                      const EdgeInsets
-                          .all(4),
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        Colors.white,
-                    borderRadius:
-                        BorderRadius
-                            .circular(
-                      26,
-                    ),
-                    boxShadow:
-                        const [
-                      BoxShadow(
-                        color:
-                            Color(
-                          0x10000000,
-                        ),
-                        blurRadius:
-                            10,
-                        offset:
-                            Offset(
-                          0,
-                          3,
-                        ),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      _filterButton(
-                        text: 'All',
-                        index: 0,
-                        icon:
-                            Icons.apps,
-                        color:
-                            const Color(
-                          0xFFE84165,
-                        ),
-                      ),
-                      
-                                      const SizedBox(
+                                const SizedBox(
                   height: 12,
                 ),
 
@@ -8635,10 +8584,6 @@ const SizedBox(
                     filterIndex: 3,
                   ),
                 
-                
-
-                
-
                 if ((selectedFilter ==
                             1 &&
                         liveMatches
