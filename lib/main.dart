@@ -22047,7 +22047,9 @@ class NotificationsPage
 
 class _NotificationsPageState
     extends State<NotificationsPage> {
-  String? _selectedCategory;
+  final Set<String>
+      _expandedCategories =
+      <String>{};
 
   Future<void> _markRead(
     String notificationId,
@@ -22096,30 +22098,29 @@ class _NotificationsPageState
         DateTime.now()
             .difference(date);
 
-    if (difference.inMinutes <
-        1) {
+    if (difference.inMinutes < 1) {
       return 'Just now';
     }
 
-    if (difference.inMinutes <
-        60) {
+    if (difference.inMinutes < 60) {
       return '${difference.inMinutes} min ago';
     }
 
-    if (difference.inHours <
-        24) {
+    if (difference.inHours < 24) {
       return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
     }
 
     return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
   }
 
-  void _openNotification(
+  Future<void> _openNotification(
     QueryDocumentSnapshot<
             Map<String, dynamic>>
         doc,
   ) async {
-    await _markRead(doc.id);
+    await _markRead(
+      doc.id,
+    );
 
     if (!mounted) {
       return;
@@ -22147,50 +22148,522 @@ class _NotificationsPageState
         0xFFFFF9F7,
       ),
       showDragHandle: true,
+      isScrollControlled: true,
       shape:
           const RoundedRectangleBorder(
         borderRadius:
             BorderRadius.vertical(
           top: Radius.circular(
-            26,
+            28,
           ),
         ),
       ),
       builder: (context) {
-        return Padding(
-          padding:
-              const EdgeInsets.fromLTRB(
-            22,
-            4,
-            22,
-            28,
+        final color =
+            notificationCategoryColor(
+          category,
+        );
+
+        return SafeArea(
+          child: Padding(
+            padding:
+                const EdgeInsets.fromLTRB(
+              22,
+              4,
+              22,
+              26,
+            ),
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 23,
+                      backgroundColor:
+                          notificationCategoryBackground(
+                        category,
+                      ),
+                      child: Icon(
+                        notificationCategoryIcon(
+                          category,
+                        ),
+                        color: color,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      width: 12,
+                    ),
+
+                    Expanded(
+                      child: Text(
+                        category,
+                        style:
+                            TextStyle(
+                          color: color,
+                          fontSize: 16,
+                          fontWeight:
+                              FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(
+                  height: 20,
+                ),
+
+                Text(
+                  title,
+                  style:
+                      const TextStyle(
+                    fontSize: 24,
+                    fontWeight:
+                        FontWeight.w900,
+                    color:
+                        Color(
+                      0xFF281F1F,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 12,
+                ),
+
+                Text(
+                  message,
+                  style:
+                      const TextStyle(
+                    fontSize: 15,
+                    height: 1.45,
+                    color:
+                        Color(
+                      0xFF554C4C,
+                    ),
+                    fontWeight:
+                        FontWeight.w500,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 18,
+                ),
+
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      color:
+                          Color(
+                        0xFF20A464,
+                      ),
+                      size: 18,
+                    ),
+
+                    const SizedBox(
+                      width: 6,
+                    ),
+
+                    Text(
+                      _timeText(
+                        data[
+                            'createdAt'],
+                      ),
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.grey,
+                        fontSize: 12,
+                        fontWeight:
+                            FontWeight.w600,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      width: 7,
+                    ),
+
+                    const Text(
+                      '• Marked as read',
+                      style:
+                          TextStyle(
+                        color:
+                            Color(
+                          0xFF20A464,
+                        ),
+                        fontSize: 12,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(
+                  height: 22,
+                ),
+
+                SizedBox(
+                  width:
+                      double.infinity,
+                  height: 48,
+                  child:
+                      ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(
+                        context,
+                      );
+                    },
+                    style:
+                        ElevatedButton
+                            .styleFrom(
+                      backgroundColor:
+                          const Color(
+                        0xFFED2851,
+                      ),
+                      foregroundColor:
+                          Colors.white,
+                      shape:
+                          RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(
+                          22,
+                        ),
+                      ),
+                    ),
+                    child:
+                        const Text(
+                      'GOT IT',
+                      style:
+                          TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          child: Column(
-            mainAxisSize:
-                MainAxisSize.min,
+        );
+      },
+    );
+  }
+
+  Widget _notificationCard(
+    QueryDocumentSnapshot<
+            Map<String, dynamic>>
+        doc,
+    Set<String> readIds,
+  ) {
+    final data = doc.data();
+
+    final category =
+        (data['category'] ??
+                'System Alert')
+            .toString();
+
+    final title =
+        (data['title'] ?? '')
+            .toString();
+
+    final message =
+        (data['message'] ?? '')
+            .toString();
+
+    final isRead =
+        readIds.contains(
+      doc.id,
+    );
+
+    final color =
+        notificationCategoryColor(
+      category,
+    );
+
+    return Container(
+      margin:
+          const EdgeInsets.only(
+        top: 8,
+      ),
+      decoration: BoxDecoration(
+        color: isRead
+            ? Colors.white
+            : notificationCategoryBackground(
+                category,
+              ),
+        borderRadius:
+            BorderRadius.circular(
+          16,
+        ),
+        border: Border.all(
+          color: isRead
+              ? const Color(
+                  0xFFE8DEDE,
+                )
+              : color.withOpacity(
+                  0.23,
+                ),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color:
+                Color(
+              0x10000000,
+            ),
+            blurRadius: 6,
+            offset:
+                Offset(
+              0,
+              2,
+            ),
+          ),
+        ],
+      ),
+      child: InkWell(
+        borderRadius:
+            BorderRadius.circular(
+          16,
+        ),
+        onTap: () {
+          _openNotification(
+            doc,
+          );
+        },
+        child: Padding(
+          padding:
+              const EdgeInsets.all(
+            12,
+          ),
+          child: Row(
             crossAxisAlignment:
                 CrossAxisAlignment.start,
             children: [
-              Row(
+              Stack(
+                clipBehavior:
+                    Clip.none,
                 children: [
                   CircleAvatar(
+                    radius: 20,
                     backgroundColor:
-                        notificationCategoryBackground(
-                      category,
-                    ),
+                        Colors.white,
                     child: Icon(
                       notificationCategoryIcon(
                         category,
                       ),
-                      color:
-                          notificationCategoryColor(
-                        category,
-                      ),
+                      color: color,
+                      size: 21,
                     ),
                   ),
 
+                  if (!isRead)
+                    const Positioned(
+                      right: -1,
+                      top: -1,
+                      child:
+                          CircleAvatar(
+                        radius: 5,
+                        backgroundColor:
+                            Color(
+                          0xFFE8294F,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+
+              const SizedBox(
+                width: 11,
+              ),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style:
+                                TextStyle(
+                              color:
+                                  const Color(
+                                0xFF302626,
+                              ),
+                              fontSize: 14,
+                              fontWeight:
+                                  isRead
+                                      ? FontWeight.w700
+                                      : FontWeight.w900,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(
+                          width: 6,
+                        ),
+
+                        Text(
+                          _timeText(
+                            data[
+                                'createdAt'],
+                          ),
+                          style:
+                              const TextStyle(
+                            color:
+                                Colors.grey,
+                            fontSize: 10,
+                            fontWeight:
+                                FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(
+                      height: 4,
+                    ),
+
+                    Text(
+                      message,
+                      maxLines: 2,
+                      overflow:
+                          TextOverflow
+                              .ellipsis,
+                      style:
+                          TextStyle(
+                        color:
+                            const Color(
+                          0xFF625858,
+                        ),
+                        fontSize: 12,
+                        height: 1.3,
+                        fontWeight:
+                            isRead
+                                ? FontWeight.w400
+                                : FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _categorySection({
+    required String category,
+    required List<
+            QueryDocumentSnapshot<
+                Map<String, dynamic>>>
+        notifications,
+    required Set<String>
+        readIds,
+  }) {
+    final expanded =
+        _expandedCategories
+            .contains(
+      category,
+    );
+
+    final unreadCount =
+        notifications
+            .where(
+              (doc) =>
+                  !readIds.contains(
+                doc.id,
+              ),
+            )
+            .length;
+
+    final color =
+        notificationCategoryColor(
+      category,
+    );
+
+    return Padding(
+      padding:
+          const EdgeInsets.only(
+        bottom: 10,
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius:
+                BorderRadius.circular(
+              17,
+            ),
+            onTap: () {
+              setState(() {
+                if (expanded) {
+                  _expandedCategories
+                      .remove(
+                    category,
+                  );
+                } else {
+                  _expandedCategories
+                      .add(
+                    category,
+                  );
+                }
+              });
+            },
+            child: Container(
+              minHeight: 58,
+              padding:
+                  const EdgeInsets
+                      .symmetric(
+                horizontal: 14,
+                vertical: 10,
+              ),
+              decoration:
+                  BoxDecoration(
+                color:
+                    notificationCategoryBackground(
+                  category,
+                ),
+                borderRadius:
+                    BorderRadius.circular(
+                  17,
+                ),
+                border: Border.all(
+                  color:
+                      color.withOpacity(
+                    expanded
+                        ? 0.55
+                        : 0.17,
+                  ),
+                  width:
+                      expanded
+                          ? 1.4
+                          : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    notificationCategoryIcon(
+                      category,
+                    ),
+                    color: color,
+                    size: 23,
+                  ),
+
                   const SizedBox(
-                    width: 12,
+                    width: 10,
                   ),
 
                   Expanded(
@@ -22198,203 +22671,148 @@ class _NotificationsPageState
                       category,
                       style:
                           TextStyle(
-                        color:
-                            notificationCategoryColor(
-                          category,
-                        ),
-                        fontWeight:
-                            FontWeight.bold,
+                        color: color,
                         fontSize: 15,
+                        fontWeight:
+                            FontWeight.w900,
+                      ),
+                    ),
+                  ),
+
+                  if (unreadCount >
+                      0) ...[
+                    Container(
+                      constraints:
+                          const BoxConstraints(
+                        minWidth: 23,
+                        minHeight: 23,
+                      ),
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        horizontal: 6,
+                      ),
+                      alignment:
+                          Alignment.center,
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            const Color(
+                          0xFFE8294F,
+                        ),
+                        borderRadius:
+                            BorderRadius.circular(
+                          13,
+                        ),
+                      ),
+                      child: Text(
+                        unreadCount >
+                                99
+                            ? '99+'
+                            : unreadCount
+                                .toString(),
+                        style:
+                            const TextStyle(
+                          color:
+                              Colors.white,
+                          fontSize: 10,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(
+                      width: 9,
+                    ),
+                  ],
+
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration:
+                        const BoxDecoration(
+                      color:
+                          Colors.white,
+                      shape:
+                          BoxShape.circle,
+                    ),
+                    child: Icon(
+                      expanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color:
+                          const Color(
+                        0xFF4D4444,
                       ),
                     ),
                   ),
                 ],
               ),
-
-              const SizedBox(
-                height: 18,
-              ),
-
-              Text(
-                title,
-                style:
-                    const TextStyle(
-                  fontSize: 22,
-                  fontWeight:
-                      FontWeight.w900,
-                  color:
-                      Color(
-                    0xFF2B2323,
-                  ),
-                ),
-              ),
-
-              const SizedBox(
-                height: 10,
-              ),
-
-              Text(
-                message,
-                style:
-                    const TextStyle(
-                  fontSize: 15,
-                  height: 1.45,
-                  color:
-                      Color(
-                    0xFF554C4C,
-                  ),
-                ),
-              ),
-
-              const SizedBox(
-                height: 14,
-              ),
-
-              Text(
-                _timeText(
-                  data['createdAt'],
-                ),
-                style:
-                    const TextStyle(
-                  fontSize: 12,
-                  color:
-                      Colors.grey,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-  Widget _categoryChip({
-    required String category,
-    required int unread,
-    required double width,
-  }) {
-    final selected =
-        _selectedCategory ==
-            category;
-
-    final color =
-        notificationCategoryColor(
-      category,
-    );
-
-    return InkWell(
-      borderRadius:
-          BorderRadius.circular(
-        14,
-      ),
-      onTap: () {
-        setState(() {
-          _selectedCategory =
-              selected
-                  ? null
-                  : category;
-        });
-      },
-      child: Container(
-        width: width,
-        padding:
-            const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 11,
-        ),
-        decoration:
-            BoxDecoration(
-          color:
-              notificationCategoryBackground(
-            category,
-          ),
-          borderRadius:
-              BorderRadius.circular(
-            14,
-          ),
-          border: Border.all(
-            color: selected
-                ? color
-                : color.withOpacity(
-                    0.15,
-                  ),
-            width:
-                selected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              notificationCategoryIcon(
-                category,
-              ),
-              color: color,
-              size: 19,
             ),
+          ),
 
-            const SizedBox(
-              width: 7,
-            ),
-
-            Expanded(
-              child: Text(
-                category,
-                maxLines: 1,
-                overflow:
-                    TextOverflow
-                        .ellipsis,
-                style:
-                    TextStyle(
-                  fontSize: 12,
-                  color: color,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
+          if (expanded)
+            Padding(
+              padding:
+                  const EdgeInsets
+                      .fromLTRB(
+                8,
+                3,
+                8,
+                2,
               ),
+              child:
+                  notifications
+                          .isEmpty
+                      ? Container(
+                          width:
+                              double.infinity,
+                          margin:
+                              const EdgeInsets.only(
+                            top: 8,
+                          ),
+                          padding:
+                              const EdgeInsets.all(
+                            14,
+                          ),
+                          decoration:
+                              BoxDecoration(
+                            color:
+                                Colors.white,
+                            borderRadius:
+                                BorderRadius.circular(
+                              14,
+                            ),
+                          ),
+                          child:
+                              const Text(
+                            'No notifications in this category',
+                            textAlign:
+                                TextAlign.center,
+                            
+                                style:
+                                TextStyle(
+                              color:
+                                  Colors.grey,
+                              fontSize: 12,
+                            ),
+                          ),
+                        )
+                      : Column(
+                          children:
+                              notifications
+                                  .map(
+                                    (doc) =>
+                                        _notificationCard(
+                                      doc,
+                                      readIds,
+                                    ),
+                                  )
+                                  .toList(),
+                        ),
             ),
-
-            if (unread > 0)
-              Container(
-                constraints:
-                    const BoxConstraints(
-                  minWidth: 20,
-                  minHeight: 20,
-                ),
-                alignment:
-                    Alignment.center,
-                padding:
-                    const EdgeInsets
-                        .symmetric(
-                  horizontal: 5,
-                ),
-                decoration:
-                    BoxDecoration(
-                  color:
-                      const Color(
-                    0xFFE52548,
-                  ),
-                  borderRadius:
-                      BorderRadius
-                          .circular(
-                    12,
-                  ),
-                ),
-                child: Text(
-                  unread > 99
-                      ? '99+'
-                      : unread
-                          .toString(),
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.white,
-                    fontSize: 10,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -22410,11 +22828,13 @@ class _NotificationsPageState
     if (user == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text(
+          title:
+              const Text(
             'Notifications',
           ),
         ),
-        body: const Center(
+        body:
+            const Center(
           child: Text(
             'Please login first',
           ),
@@ -22434,6 +22854,10 @@ class _NotificationsPageState
             const Color(
           0xFFFFF9F7,
         ),
+        foregroundColor:
+            const Color(
+          0xFF281F1F,
+        ),
         surfaceTintColor:
             Colors.transparent,
         elevation: 0,
@@ -22442,10 +22866,6 @@ class _NotificationsPageState
           style: TextStyle(
             fontWeight:
                 FontWeight.w900,
-            color:
-                Color(
-              0xFF241C1C,
-            ),
           ),
         ),
       ),
@@ -22461,7 +22881,8 @@ class _NotificationsPageState
                 )
                 .where(
                   'targetType',
-                  isEqualTo: 'ALL',
+                  isEqualTo:
+                      'ALL',
                 )
                 .snapshots(),
         builder:
@@ -22516,408 +22937,59 @@ class _NotificationsPageState
                     );
                   }
 
-                  final notifications =
+                  final allNotifications =
                       mergeNotificationDocs(
-                    allSnapshot.data!,
+                    allSnapshot
+                        .data!,
                     selectedSnapshot
                         .data!,
                   );
 
                   final readIds =
                       readSnapshot
-                          .data!.docs
+                          .data!
+                          .docs
                           .map(
                             (doc) =>
                                 doc.id,
                           )
                           .toSet();
 
-                  final Map<
-                          String,
-                          int>
-                      unreadCounts = {
-                    for (final category
-                        in notificationCategories)
-                      category: 0,
-                  };
+                  return ListView(
+                    padding:
+                        const EdgeInsets
+                            .fromLTRB(
+                      14,
+                      10,
+                      14,
+                      24,
+                    ),
+                    children:
+                        notificationCategories
+                            .map(
+                      (category) {
+                        final categoryNotifications =
+                            allNotifications
+                                .where(
+                                  (doc) =>
+                                      (doc.data()[
+                                                  'category'] ??
+                                              '')
+                                          .toString() ==
+                                      category,
+                                )
+                                .toList();
 
-                  for (final doc
-                      in notifications) {
-                    if (!readIds
-                        .contains(
-                      doc.id,
-                    )) {
-                      final category =
-                          (doc.data()[
-                                      'category'] ??
-                                  '')
-                              .toString();
-
-                      if (unreadCounts
-                          .containsKey(
-                        category,
-                      )) {
-                        unreadCounts[
-                                category] =
-                            (unreadCounts[
-                                        category] ??
-                                    0) +
-                                1;
-                      }
-                    }
-                  }
-
-                  final filtered =
-                      _selectedCategory ==
-                              null
-                          ? notifications
-                          : notifications
-                              .where(
-                                (doc) =>
-                                    (doc.data()[
-                                                'category'] ??
-                                            '')
-                                        .toString() ==
-                                    _selectedCategory,
-                              )
-                              .toList();
-
-                  return Column(
-                    children: [
-                      Padding(
-                        padding:
-                            const EdgeInsets
-                                .fromLTRB(
-                          16,
-                          10,
-                          16,
-                          8,
-                        ),
-                        child:
-                            LayoutBuilder(
-                          builder:
-                              (context,
-                                  constraints) {
-                            final width =
-                                (constraints
-                                            .maxWidth -
-                                        10) /
-                                    2;
-
-                            return Wrap(
-                              spacing: 10,
-                              runSpacing:
-                                  10,
-                              children:
-                                  notificationCategories
-                                      .map(
-                                        (category) =>
-                                            _categoryChip(
-                                          category:
-                                              category,
-                                          unread:
-                                              unreadCounts[
-                                                      category] ??
-                                                  0,
-                                          width:
-                                              width,
-                                        ),
-                                      )
-                                      .toList(),
-                            );
-                          },
-                        ),
-                      ),
-if (_selectedCategory !=
-                          null)
-                        Padding(
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            horizontal:
-                                16,
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  _selectedCategory!,
-                                  style:
-                                      const TextStyle(
-                                    fontWeight:
-                                        FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed:
-                                    () {
-                                  setState(
-                                    () {
-                                      _selectedCategory =
-                                          null;
-                                    },
-                                  );
-                                },
-                                child:
-                                    const Text(
-                                  'Show All',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                      Expanded(
-                        child:
-                            filtered.isEmpty
-                                ? const Center(
-                                    child:
-                                        Text(
-                                      'No notifications',
-                                      style:
-                                          TextStyle(
-                                        color:
-                                            Colors.grey,
-                                      ),
-                                    ),
-                                  )
-                                : ListView.builder(
-                                    padding:
-                                        const EdgeInsets
-                                            .fromLTRB(
-                                      14,
-                                      6,
-                                      14,
-                                      20,
-                                    ),
-                                    itemCount:
-                                        filtered.length,
-                                    itemBuilder:
-                                        (context,
-                                            index) {
-                                      final doc =
-                                          filtered[
-                                              index];
-
-                                      final data =
-                                          doc.data();
-
-                                      final category =
-                                          (data['category'] ??
-                                                  'System Alert')
-                                              .toString();
-
-                                      final title =
-                                          (data['title'] ??
-                                                  '')
-                                              .toString();
-
-                                      final message =
-                                          (data['message'] ??
-                                                  '')
-                                              .toString();
-
-                                      final isRead =
-                                          readIds
-                                              .contains(
-                                        doc.id,
-                                      );
-
-                                      final color =
-                                          notificationCategoryColor(
-                                        category,
-                                      );
-
-                                      return Card(
-                                        elevation:
-                                            isRead
-                                                ? 1
-                                                : 2.5,
-                                        margin:
-                                            const EdgeInsets
-                                                .only(
-                                          bottom:
-                                              10,
-                                        ),
-                                        color: isRead
-                                            ? Colors
-                                                .white
-                                            : notificationCategoryBackground(
-                                                category,
-                                              ),
-                                        shape:
-                                            RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(
-                                            18,
-                                          ),
-                                          side:
-                                              BorderSide(
-                                            color: isRead
-                                                ? const Color(
-                                                    0xFFE8DEDE,
-                                                  )
-                                                : color.withOpacity(
-                                                    0.20,
-                                                  ),
-                                          ),
-                                        ),
-                                        child:
-                                            InkWell(
-                                          borderRadius:
-                                              BorderRadius.circular(
-                                            18,
-                                          ),
-                                          onTap:
-                                              () {
-                                            _openNotification(
-                                              doc,
-                                            );
-                                          },
-                                          child:
-                                              Padding(
-                                            padding:
-                                                const EdgeInsets
-                                                    .all(
-                                              14,
-                                            ),
-                                            child:
-                                                Row(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Stack(
-                                                  clipBehavior:
-                                                      Clip.none,
-                                                  children: [
-                                                    CircleAvatar(
-                                                      radius:
-                                                          22,
-                                                      backgroundColor:
-                                                          Colors.white,
-                                                      child:
-                                                          Icon(
-                                                        notificationCategoryIcon(
-                                                          category,
-                                                        ),
-                                                        color:
-                                                            color,
-                                                      ),
-                                                    ),
-                                                    if (!isRead)
-                                                      const Positioned(
-                                                        right:
-                                                            -1,
-                                                        top:
-                                                            -1,
-                                                        child:
-                                                            CircleAvatar(
-                                                          radius:
-                                                              5,
-                                                          backgroundColor:
-                                                              Color(
-                                                            0xFFE52548,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-
-                                                const SizedBox(
-                                                  width:
-                                                      12,
-                                                ),
-
-                                                Expanded(
-                                                  child:
-                                                      Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment.start,
-                                                    children: [
-                                                      Row(
-                                                        children: [
-                                                          Expanded(
-                                                            child:
-                                                                Text(
-                                                              title,
-                                                              style:
-                                                                  TextStyle(
-                                                                fontSize:
-                                                                    15.5,
-                                                                fontWeight:
-                                                                    isRead
-                                                                        ? FontWeight.w700
-                                                                        : FontWeight.w900,
-                                                                color:
-                                                                    const Color(
-                                                                  0xFF302626,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                            width:
-                                                                6,
-                                                          ),
-                                                          Text(
-                                                            _timeText(
-                                                              data['createdAt'],
-                                                            ),
-                                                            style:
-                                                                const TextStyle(
-                                                              fontSize:
-                                                                  10,
-                                                              color:
-                                                                  Colors.grey,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-
-                                                      const SizedBox(
-                                                        height:
-                                                            5,
-                                                      ),
-
-                                                      Text(
-                                                        message,
-                                                        maxLines:
-                                                            3,
-                                                        overflow:
-                                                            TextOverflow.ellipsis,
-                                                        style:
-                                                            TextStyle(
-                                                          fontSize:
-                                                              12.5,
-                                                          height:
-                                                              1.3,
-                                                          color:
-                                                              isRead
-                                                                  ? const Color(
-                                                                      0xFF6A6262,
-                                                                    )
-                                                                  : const Color(
-                                                                      0xFF403737,
-                                                                    ),
-                                                          fontWeight:
-                                                              isRead
-                                                                  ? FontWeight.w400
-                                                                  : FontWeight.w600,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                      ),
-                    ],
+                        return _categorySection(
+                          category:
+                              category,
+                          notifications:
+                              categoryNotifications,
+                          readIds:
+                              readIds,
+                        );
+                      },
+                    ).toList(),
                   );
                 },
               );
@@ -22928,7 +23000,7 @@ if (_selectedCategory !=
     );
   }
 }
-
+      
 
 class AdminPlayerStatsPage
     extends StatefulWidget {
@@ -24767,6 +24839,468 @@ void addReferralRecord({
     ...referralHistory.value,
   ];
 }
+class AdminNotificationUserPickerPage
+    extends StatefulWidget {
+  final Map<
+      String,
+      Map<String, dynamic>>
+      initialSelected;
+
+  const AdminNotificationUserPickerPage({
+    super.key,
+    required this.initialSelected,
+  });
+
+  @override
+  State<
+          AdminNotificationUserPickerPage>
+      createState() =>
+          _AdminNotificationUserPickerPageState();
+}
+
+class _AdminNotificationUserPickerPageState
+    extends State<
+        AdminNotificationUserPickerPage> {
+  final TextEditingController
+      _searchController =
+      TextEditingController();
+
+  late Map<
+      String,
+      Map<String, dynamic>>
+      _selectedUsers;
+
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+
+    _selectedUsers = {
+      ...widget.initialSelected,
+    };
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Scaffold(
+      backgroundColor:
+          const Color(
+        0xFFFFF9F7,
+      ),
+      appBar: AppBar(
+        backgroundColor:
+            const Color(
+          0xFFFFF9F7,
+        ),
+        surfaceTintColor:
+            Colors.transparent,
+        title: const Text(
+          'Select Users',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.w900,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(
+                context,
+                _selectedUsers,
+              );
+            },
+            child: Text(
+              'DONE (${_selectedUsers.length})',
+              style:
+                  const TextStyle(
+                fontWeight:
+                    FontWeight.bold,
+                color:
+                    Color(
+                  0xFFE8294F,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding:
+                const EdgeInsets
+                    .fromLTRB(
+              14,
+              10,
+              14,
+              8,
+            ),
+            child: TextField(
+              controller:
+                  _searchController,
+              decoration:
+                  InputDecoration(
+                hintText:
+                    'Search username or mobile...',
+                prefixIcon:
+                    const Icon(
+                  Icons.search,
+                ),
+                suffixIcon:
+                    _searchQuery
+                            .isEmpty
+                        ? null
+                        : IconButton(
+                            icon:
+                                const Icon(
+                              Icons.close,
+                            ),
+                            onPressed:
+                                () {
+                              _searchController
+                                  .clear();
+
+                              setState(
+                                () {
+                                  _searchQuery =
+                                      '';
+                                },
+                              );
+                            },
+                          ),
+                filled: true,
+                fillColor:
+                    const Color(
+                  0xFFFFF0EE,
+                ),
+                border:
+                    OutlineInputBorder(
+                  borderRadius:
+                      BorderRadius.circular(
+                    16,
+                  ),
+                  borderSide:
+                      BorderSide.none,
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery =
+                      value
+                          .trim()
+                          .toLowerCase()
+                          .replaceAll(
+                            '@',
+                            '',
+                          );
+                });
+              },
+            ),
+          ),
+
+          if (_selectedUsers
+              .isNotEmpty)
+            Container(
+              width:
+                  double.infinity,
+              margin:
+                  const EdgeInsets
+                      .fromLTRB(
+                14,
+                2,
+                14,
+                8,
+              ),
+              padding:
+                  const EdgeInsets
+                      .all(
+                10,
+              ),
+              decoration:
+                  BoxDecoration(
+                color:
+                    const Color(
+                  0xFFFFECEE,
+                ),
+                borderRadius:
+                    BorderRadius.circular(
+                  14,
+                ),
+              ),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children:
+                    _selectedUsers
+                        .entries
+                        .map(
+                  (entry) {
+                    final username =
+                        (entry.value[
+                                    'username'] ??
+                                'User')
+                            .toString();
+
+                    return Chip(
+                      label: Text(
+                        username
+                                .startsWith(
+                                  '@',
+                                )
+                            ? username
+                            : '@$username',
+                      ),
+                      onDeleted:
+                          () {
+                        setState(
+                          () {
+                            _selectedUsers
+                                .remove(
+                              entry.key,
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ).toList(),
+              ),
+            ),
+
+          Expanded(
+            child: StreamBuilder<
+                QuerySnapshot<
+                    Map<String,
+                        dynamic>>>(
+              stream:
+                  FirebaseFirestore
+                      .instance
+                      .collection(
+                        'users',
+                      )
+                      .snapshots(),
+              builder:
+                  (context,
+                      snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(
+                    child:
+                        CircularProgressIndicator(),
+                  );
+                }
+
+                final users =
+                    snapshot
+                        .data!.docs
+                        .map(
+                  (doc) {
+                    final data =
+                        Map<String,
+                            dynamic>.from(
+                      doc.data(),
+                    );
+
+                    data['id'] =
+                        doc.id;
+
+                    return data;
+                  },
+                ).where(
+                  (user) {
+                    final role =
+                        (user['role'] ??
+                                'USER')
+                            .toString()
+                            .toUpperCase();
+
+                    if (role ==
+                        'ADMIN') {
+                      return false;
+                    }
+
+                    if (_searchQuery
+                        .isEmpty) {
+                      return true;
+                    }
+
+                    final username =
+                        (user['username'] ??
+                                '')
+                            .toString()
+                            .toLowerCase()
+                            .replaceAll(
+                              '@',
+                              '',
+                            );
+
+                    final mobile =
+                        (user['mobile'] ??
+                                '')
+                            .toString();
+
+                    return username
+                            .contains(
+                          _searchQuery,
+                        ) ||
+                        mobile.contains(
+                          _searchQuery,
+                        );
+                  },
+                ).toList();
+
+                if (users.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No users found',
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  padding:
+                      const EdgeInsets
+                          .fromLTRB(
+                    14,
+                    4,
+                    14,
+                    20,
+                  ),
+                  itemCount:
+                      users.length,
+                  itemBuilder:
+                      (context,
+                          index) {
+                    final user =
+                        users[
+                            index];
+
+                    final uid =
+                        (user['id'] ??
+                                '')
+                            .toString();
+
+                    final username =
+                        (user['username'] ??
+                                'User')
+                            .toString();
+
+                    final mobile =
+                        (user['mobile'] ??
+                                '')
+                            .toString();
+
+                    final selected =
+                        _selectedUsers
+                            .containsKey(
+                      uid,
+                    );
+
+                    return Container(
+                      margin:
+                          const EdgeInsets
+                              .only(
+                        bottom: 8,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        color: selected
+                            ? const Color(
+                                0xFFFFE8EC,
+                              )
+                            : Colors.white,
+                        borderRadius:
+                            BorderRadius.circular(
+                          16,
+                        ),
+                        border:
+                            Border.all(
+                          color: selected
+                              ? const Color(
+                                  0xFFE8294F,
+                                )
+                              : const Color(
+                                  0xFFE9DFDF,
+                                ),
+                        ),
+                      ),
+                      child:
+                          CheckboxListTile(
+                        value:
+                            selected,
+                        activeColor:
+                            const Color(
+                          0xFFE8294F,
+                        ),
+                        secondary:
+                            const CircleAvatar(
+                          backgroundColor:
+                              Color(
+                            0xFFEAF2FF,
+                          ),
+                          child:
+                              Icon(
+                            Icons.person,
+                            color:
+                                Color(
+                              0xFF347BD1,
+                            ),
+                          ),
+                        ),
+                        title:
+                            Text(
+                          username.startsWith(
+                                  '@')
+                              ? username
+                              : '@$username',
+                          style:
+                              const TextStyle(
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                        subtitle:
+                            Text(
+                          mobile,
+                        ),
+                        onChanged:
+                            (value) {
+                          setState(
+                            () {
+                              if (value ==
+                                  true) {
+                                _selectedUsers[
+                                        uid] =
+                                    user;
+                              } else {
+                                _selectedUsers
+                                    .remove(
+                                  uid,
+                                );
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class AdminNotificationsPage
     extends StatefulWidget {
@@ -24797,7 +25331,9 @@ class _AdminNotificationsPageState
   String _targetType = 'ALL';
 
   bool _sending = false;
-
+final Set<String>
+    _expandedSentCategories =
+    <String>{};
   final Map<
           String,
           Map<String, dynamic>>
@@ -24811,270 +25347,38 @@ class _AdminNotificationsPageState
   }
 
   Future<void> _chooseUsers()
-      async {
-    final snapshot =
-        await FirebaseFirestore
-            .instance
-            .collection('users')
-            .get();
+    async {
+  final result =
+      await Navigator.push<
+          Map<
+              String,
+              Map<String,
+                  dynamic>>>(
+    context,
+    MaterialPageRoute(
+      builder: (_) =>
+          AdminNotificationUserPickerPage(
+        initialSelected:
+            _selectedUsers,
+      ),
+    ),
+  );
 
-    final users = snapshot.docs
-        .map(
-          (doc) {
-            final data =
-                Map<String,
-                    dynamic>.from(
-              doc.data(),
-            );
-
-            data['id'] =
-                doc.id;
-
-            return data;
-          },
-        )
-        .where(
-          (user) =>
-              (user['role'] ??
-                      'USER')
-                  .toString()
-                  .toUpperCase() !=
-              'ADMIN',
-        )
-        .toList();
-
-    if (!mounted) {
-      return;
-    }
-
-    final tempSelected =
-        <String,
-            Map<String, dynamic>>{
-      ..._selectedUsers,
-    };
-
-    final searchController =
-        TextEditingController();
-
-    String query = '';
-
-    final result =
-        await showDialog<
-            Map<
-                String,
-                Map<String,
-                    dynamic>>>(
-      context: context,
-      builder:
-          (dialogContext) {
-        return StatefulBuilder(
-          builder:
-              (context,
-                  setDialogState) {
-            final filtered =
-                users.where(
-              (user) {
-                if (query.isEmpty) {
-                  return true;
-                }
-
-                final username =
-                    (user['username'] ??
-                            '')
-                        .toString()
-                        .toLowerCase();
-
-                final mobile =
-                    (user['mobile'] ??
-                            '')
-                        .toString();
-
-                return username
-                        .contains(
-                      query,
-                    ) ||
-                    mobile.contains(
-                      query,
-                    );
-              },
-            ).toList();
-
-            return AlertDialog(
-              title:
-                  const Text(
-                'Select Users',
-              ),
-              content:
-                  SizedBox(
-                width:
-                    double.maxFinite,
-                height: 430,
-                child: Column(
-                  children: [
-                    TextField(
-                      controller:
-                          searchController,
-                      decoration:
-                          InputDecoration(
-                        hintText:
-                            'Search username or mobile...',
-                        prefixIcon:
-                            const Icon(
-                          Icons
-                              .search,
-                        ),
-                        filled:
-                            true,
-                        fillColor:
-                            const Color(
-                          0xFFFFF4F2,
-                        ),
-                        border:
-                            OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(
-                            14,
-                          ),
-                          borderSide:
-                              BorderSide.none,
-                        ),
-                      ),
-                      onChanged:
-                          (value) {
-                        setDialogState(
-                          () {
-                            query =
-                                value
-                                    .trim()
-                                    .toLowerCase()
-                                    .replaceAll(
-                                      '@',
-                                      '',
-                                    );
-                          },
-                        );
-                      },
-                    ),
-
-                    const SizedBox(
-                      height: 10,
-                    ),
-
-                    Expanded(
-                      child:
-                          ListView.builder(
-                        itemCount:
-                            filtered.length,
-                        itemBuilder:
-                            (context,
-                                index) {
-                          final user =
-                              filtered[
-                                  index];
-
-                          final uid =
-                              user['id']
-                                  .toString();
-
-                          final username =
-                              (user['username'] ??
-                                      'User')
-                                  .toString();
-
-                          final mobile =
-                              (user['mobile'] ??
-                                      '')
-                                  .toString();
-
-                          final checked =
-                              tempSelected.containsKey(
-                            uid,
-                          );
-
-                          return CheckboxListTile(
-                            value:
-                                checked,
-                            title:
-                                Text(
-                              username
-                                      .startsWith(
-                                        '@',
-                                      )
-                                  ? username
-                                  : '@$username',
-                            ),
-                            subtitle:
-                                Text(
-                              mobile,
-                            ),
-                            onChanged:
-                                (value) {
-                              setDialogState(
-                                () {
-                                  if (value ==
-                                      true) {
-                                    tempSelected[
-                                            uid] =
-                                        user;
-                                  } else {
-                                    tempSelected
-                                        .remove(
-                                      uid,
-                                    );
-                                  }
-                                },
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      dialogContext,
-                    );
-                  },
-                  child:
-                      const Text(
-                    'CANCEL',
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      dialogContext,
-                      tempSelected,
-                    );
-                  },
-                  child:
-                      const Text(
-                    'DONE',
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-      searchController.dispose();
-
-    if (result == null ||
-        !mounted) {
-      return;
-    }
-
-    setState(() {
-      _selectedUsers
-        ..clear()
-        ..addAll(result);
-    });
+  if (result == null ||
+      !mounted) {
+    return;
   }
+
+  setState(() {
+    _selectedUsers
+      ..clear()
+      ..addAll(
+        result,
+      );
+  });
+  }
+
+             
 
   Future<void>
       _sendNotification() async {
@@ -25305,150 +25609,362 @@ class _AdminNotificationsPageState
     );
   }
 
-  Widget _sentHistory() {
-    return StreamBuilder<
-        QuerySnapshot<
-            Map<String, dynamic>>>(
-      stream:
-          FirebaseFirestore.instance
-              .collection(
-                'notifications',
+  String _sentTimeText(
+  dynamic raw,
+) {
+  final date =
+      notificationDate(raw);
+
+  if (date == null) {
+    return '';
+  }
+
+  final difference =
+      DateTime.now()
+          .difference(date);
+
+  if (difference.inMinutes < 1) {
+    return 'Just now';
+  }
+
+  if (difference.inMinutes < 60) {
+    return '${difference.inMinutes} min ago';
+  }
+
+  if (difference.inHours < 24) {
+    return '${difference.inHours} hr ago';
+  }
+
+  return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+}
+
+Widget _sentHistory() {
+  return StreamBuilder<
+      QuerySnapshot<
+          Map<String, dynamic>>>(
+    stream:
+        FirebaseFirestore.instance
+            .collection(
+              'notifications',
+            )
+            .snapshots(),
+    builder:
+        (context, snapshot) {
+      if (!snapshot.hasData) {
+        return const Center(
+          child:
+              CircularProgressIndicator(),
+        );
+      }
+
+      final docs =
+          snapshot.data!.docs
+              .where(
+                (doc) =>
+                    notificationVisible(
+                  doc.data(),
+                ),
               )
-              .snapshots(),
-      builder:
-          (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(
-            child:
-                CircularProgressIndicator(),
+              .toList();
+
+      docs.sort(
+        (a, b) {
+          final aDate =
+              notificationDate(
+                    a.data()[
+                        'createdAt'],
+                  ) ??
+                  DateTime(1970);
+
+          final bDate =
+              notificationDate(
+                    b.data()[
+                        'createdAt'],
+                  ) ??
+                  DateTime(1970);
+
+          return bDate.compareTo(
+            aDate,
           );
-        }
+        },
+      );
 
-        final docs =
-            snapshot.data!.docs
-                .where(
-                  (doc) =>
-                      notificationVisible(
-                    doc.data(),
+      return Column(
+        children:
+            notificationCategories
+                .map(
+          (category) {
+            final categoryDocs =
+                docs.where(
+              (doc) =>
+                  (doc.data()[
+                              'category'] ??
+                          '')
+                      .toString() ==
+                  category,
+            ).toList();
+
+            final expanded =
+                _expandedSentCategories
+                    .contains(
+              category,
+            );
+
+            final color =
+                notificationCategoryColor(
+              category,
+            );
+
+            return Padding(
+              padding:
+                  const EdgeInsets.only(
+                bottom: 10,
+              ),
+              child: Column(
+                children: [
+                  InkWell(
+                    borderRadius:
+                        BorderRadius.circular(
+                      16,
+                    ),
+                    onTap: () {
+                      setState(() {
+                        if (expanded) {
+                          _expandedSentCategories
+                              .remove(
+                            category,
+                          );
+                        } else {
+                          _expandedSentCategories
+                              .add(
+                            category,
+                          );
+                        }
+                      });
+                    },
+                    child: Container(
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        horizontal: 13,
+                        vertical: 11,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            notificationCategoryBackground(
+                          category,
+                        ),
+                        borderRadius:
+                            BorderRadius.circular(
+                          16,
+                        ),
+                        border:
+                            Border.all(
+                          color:
+                              color.withOpacity(
+                            expanded
+                                ? 0.50
+                                : 0.16,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            notificationCategoryIcon(
+                              category,
+                            ),
+                            color: color,
+                            size: 21,
+                          ),
+
+                          const SizedBox(
+                            width: 9,
+                          ),
+
+                          Expanded(
+                            child: Text(
+                              category,
+                              style:
+                                  TextStyle(
+                                color:
+                                    color,
+                                fontWeight:
+                                    FontWeight.w900,
+                                fontSize:
+                                    14,
+                              ),
+                            ),
+                          ),
+
+                          Container(
+                            constraints:
+                                const BoxConstraints(
+                              minWidth: 24,
+                              minHeight: 24,
+                            ),
+                            alignment:
+                                Alignment.center,
+                            padding:
+                                const EdgeInsets
+                                    .symmetric(
+                              horizontal: 6,
+                            ),
+                            decoration:
+                                BoxDecoration(
+                              color:
+                                  Colors.white,
+                              borderRadius:
+                                  BorderRadius.circular(
+                                12,
+                              ),
+                            ),
+                            child: Text(
+                              categoryDocs
+                                  .length
+                                  .toString(),
+                              style:
+                                  TextStyle(
+                                color:
+                                    color,
+                                fontSize:
+                                    10,
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(
+                            width: 8,
+                          ),
+
+                          Icon(
+                            expanded
+                                ? Icons.keyboard_arrow_up
+                                : Icons.keyboard_arrow_down,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                )
-                .toList();
 
-        docs.sort(
-          (a, b) {
-            final aDate =
-                notificationDate(
-                      a.data()[
-                          'createdAt'],
-                    ) ??
-                    DateTime(
-                      1970,
-                    );
+                  if (expanded)
+                    Padding(
+                      padding:
+                          const EdgeInsets
+                              .fromLTRB(
+                        7,
+                        5,
+                        7,
+                        0,
+                      ),
+                      child:
+                          categoryDocs.isEmpty
+                              ? Container(
+                                  width:
+                                      double.infinity,
+                                  padding:
+                                      const EdgeInsets.all(
+                                    13,
+                                  ),
+                                  child:
+                                      const Text(
+                                    'No sent notifications',
+                                    textAlign:
+                                        TextAlign.center,
+                                  ),
+                                )
+                              : Column(
+                                  children:
+                                      categoryDocs
+                                          .map(
+                                    (doc) {
+                                      final data =
+                                          doc.data();
 
-            final bDate =
-                notificationDate(
-                      b.data()[
-                          'createdAt'],
-                    ) ??
-                    DateTime(
-                      1970,
-                    );
+                                      final target =
+                                          (data['targetType'] ??
+                                                  'ALL')
+                                              .toString();
 
-            return bDate
-                .compareTo(
-              aDate,
+                                      final selected =
+                                          (data['targetUserIds']
+                                                      as List?) ??
+                                              const [];
+
+                                      return Card(
+                                        margin:
+                                            const EdgeInsets.only(
+                                          bottom: 7,
+                                        ),
+                                        child:
+                                            ListTile(
+                                          leading:
+                                              CircleAvatar(
+                                            backgroundColor:
+                                                notificationCategoryBackground(
+                                              category,
+                                            ),
+                                            child:
+                                                Icon(
+                                              notificationCategoryIcon(
+                                                category,
+                                              ),
+                                              color:
+                                                  color,
+                                            ),
+                                          ),
+                                          title:
+                                              Text(
+                                            (data['title'] ??
+                                                    '')
+                                                .toString(),
+                                            style:
+                                                const TextStyle(
+                                              fontWeight:
+                                                  FontWeight.bold,
+                                            ),
+                                          ),
+                                          subtitle:
+                                              Text(
+                                            target ==
+                                                    'ALL'
+                                                ? '$category • All Users'
+                                                : '$category • ${selected.length} Selected Users',
+                                          ),
+                                          trailing:
+                                              Text(
+                                            _sentTimeText(
+                                              data[
+                                                  'createdAt'],
+                                            ),
+                                            style:
+                                                const TextStyle(
+                                              color:
+                                                  Colors.grey,
+                                              fontSize:
+                                                  10,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ).toList(),
+                                ),
+                    ),
+                ],
+              ),
             );
           },
-        );
+        ).toList(),
+      );
+    },
+  );
+}
 
-        if (docs.isEmpty) {
-          return const Padding(
-            padding:
-                EdgeInsets.all(
-              20,
-            ),
-            child: Center(
-              child: Text(
-                'No notifications sent in last 5 days',
-                style:
-                    TextStyle(
-                  color:
-                      Colors.grey,
-                ),
-              ),
-            ),
-          );
-        }
-
-        return Column(
-          children:
-              docs.map(
-            (doc) {
-              final data =
-                  doc.data();
-
-              final category =
-                  (data['category'] ??
-                          '')
-                      .toString();
-
-              final target =
-                  (data['targetType'] ??
-                          'ALL')
-                      .toString();
-
-              final selected =
-                  (data['targetUserIds']
-                              as List?) ??
-                      const [];
-
-              return Card(
-                margin:
-                    const EdgeInsets
-                        .only(
-                  bottom: 8,
-                ),
-                child:
-                    ListTile(
-                  leading:
-                      CircleAvatar(
-                    backgroundColor:
-                        notificationCategoryBackground(
-                      category,
-                    ),
-                    child: Icon(
-                      notificationCategoryIcon(
-                        category,
-                      ),
-                      color:
-                          notificationCategoryColor(
-                        category,
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    (data['title'] ??
-                            '')
-                        .toString(),
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-                  subtitle: Text(
-                    target == 'ALL'
-                        ? '$category • All Users'
-                        : '$category • ${selected.length} Selected Users',
-                  ),
-                ),
-              );
-            },
-          ).toList(),
-        );
-      },
-    );
-  }
+              
         @override
   Widget build(
     BuildContext context,
