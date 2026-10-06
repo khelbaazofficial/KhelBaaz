@@ -23061,15 +23061,104 @@ class AdminDashboardPage extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: [
          Row(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  mainAxisAlignment:
+      MainAxisAlignment.spaceBetween,
   children: [
     const Text(
       'Admin Controls',
       style: TextStyle(
         fontSize: 24,
-        fontWeight: FontWeight.bold,
+        fontWeight:
+            FontWeight.bold,
       ),
-    ),     
+    ),
+
+    Container(
+      decoration: BoxDecoration(
+        gradient:
+            const LinearGradient(
+          colors: [
+            Color(0xFFEF3157),
+            Color(0xFFC91F4A),
+          ],
+        ),
+        borderRadius:
+            BorderRadius.circular(
+          22,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color:
+                Color(0x33C91F4A),
+            blurRadius: 8,
+            offset:
+                Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  const AdminWalletPage(),
+            ),
+          );
+        },
+        style:
+            ElevatedButton.styleFrom(
+          backgroundColor:
+              Colors.transparent,
+          shadowColor:
+              Colors.transparent,
+          foregroundColor:
+              Colors.white,
+          padding:
+              const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          shape:
+              RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(
+              22,
+            ),
+          ),
+        ),
+        child: const Row(
+          mainAxisSize:
+              MainAxisSize.min,
+          children: [
+            Icon(
+              Icons
+                  .account_balance_wallet_rounded,
+              size: 23,
+              color: Colors.white,
+            ),
+
+            SizedBox(width: 8),
+
+            Text(
+              'Admin Wallet',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+
+            SizedBox(width: 9),
+
+            Icon(
+              Icons.arrow_forward,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    ),
   ],
 ),
     
@@ -23098,30 +23187,7 @@ Card(
   ),
 ),
            
-          Card(
-  child: ListTile(
-    leading: const CircleAvatar(
-  backgroundColor: Colors.green,
-  child: Icon(
-    Icons.account_balance,
-    color: Colors.white,
-  ),
-),
-    title: const Text('Admin Wallet'),
-    subtitle: const Text(
-      'Approved deposit & withdraw history',
-    ),
-    trailing: const Icon(Icons.chevron_right),
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const AdminWalletPage(),
-        ),
-      );
-    },
-  ),
-),
+          
           
    Card(
   child: ListTile(
