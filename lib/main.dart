@@ -26684,9 +26684,9 @@ class _AdminUsersPageState
                                   leading:
                                       CircleAvatar(
                                     radius: 22,
-                                    background
-                                        avatarColors[
-                                            colorIndex],
+                                    backgroundColor:
+    avatarColors[
+        colorIndex],
                                     child:
                                         const Icon(
                                       Icons.person,
