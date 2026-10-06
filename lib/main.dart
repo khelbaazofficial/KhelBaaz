@@ -38524,7 +38524,7 @@ const Icon(
                     BorderRadius.circular(
                   18,
                 ),
-              ),),
+              ),
               child: const Center(
                 child: Text(
                   'No matches created yet',
