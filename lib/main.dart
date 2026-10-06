@@ -6946,7 +6946,7 @@ class AdminHomePage
 
 class _AdminHomePageState
     extends State<AdminHomePage> {
-  int selectedFilter = -1;
+  int selectedFilter = 2;
 
   Timer? homeStatusTimer;
 
@@ -7187,16 +7187,12 @@ class _AdminHomePageState
           18,
         ),
         onTap: () {
-          setState(() {
-            selectedFilter =
-                selectedFilter ==
-                        filterIndex
-                    ? -1
-                    : filterIndex;
-          });
-        },
-        child: Container(
-          height: 88,
+  setState(() {
+    selectedFilter = filterIndex;
+  });
+},
+child: Container(
+  height: 100,
           padding:
               const EdgeInsets
                   .symmetric(
@@ -7311,14 +7307,10 @@ class _AdminHomePageState
           20,
         ),
         onTap: () {
-          setState(() {
-            selectedFilter =
-                selectedFilter ==
-                        index
-                    ? -1
-                    : index;
-          });
-        },
+  setState(() {
+    selectedFilter = index;
+  });
+},
         child: AnimatedContainer(
           duration:
               const Duration(
@@ -21637,7 +21629,7 @@ class AdminPlayerStatsPage
 class _AdminPlayerStatsPageState
     extends State<AdminPlayerStatsPage> {
   Timer? _statusTimer;
-  int _selectedStatus = -1;
+  int _selectedStatus = 1;
   @override
   void initState() {
     super.initState();
@@ -21869,16 +21861,10 @@ class _AdminPlayerStatsPageState
         borderRadius:
             BorderRadius.circular(18),
         onTap: () {
-          setState(() {
-            if (_selectedStatus ==
-                index) {
-              _selectedStatus = -1;
-            } else {
-              _selectedStatus =
-                  index;
-            }
-          });
-        },
+  setState(() {
+    _selectedStatus = index;
+  });
+},
         child: Container(
           height: 58,
           padding:
@@ -24581,7 +24567,7 @@ class AdminContestsPage extends StatefulWidget {
 }
 
 class _AdminContestsPageState extends State<AdminContestsPage> {
-    int _selectedContestFilter = -1;
+    int _selectedContestFilter = 2;
 
   String?
       _expandedContestMatchKey;
@@ -24889,17 +24875,11 @@ Widget contestFilterButton({
         20,
       ),
             onTap: () {
-        setState(() {
-          _selectedContestFilter =
-              _selectedContestFilter ==
-                      index
-                  ? -1
-                  : index;
-
-          _expandedContestMatchKey =
-              null;
-        });
-      },
+  setState(() {
+    _selectedContestFilter = index;
+    _expandedContestMatchKey = null;
+  });
+},
       child: AnimatedContainer(
         duration:
             const Duration(
@@ -34882,7 +34862,7 @@ class AdminMatchesPage extends StatefulWidget {
 
 class _AdminMatchesPageState extends State<AdminMatchesPage> {
   Timer? adminMatchStatusTimer;
-    int _selectedMatchFilter = -1;
+    int _selectedMatchFilter = 2;
   String _shortTeamName(String name) {
   final words = name.trim().split(RegExp(r'\s+'));
 
@@ -37638,15 +37618,12 @@ void deleteMatch(
         child: InkWell(
           borderRadius:
               BorderRadius.circular(20),
-                    onTap: () {
-            setState(() {
-              _selectedMatchFilter =
-                  _selectedMatchFilter ==
-                          index
-                      ? -1
-                      : index;
-            });
-          },
+
+          onTap: () {
+  setState(() {
+    _selectedMatchFilter = index;
+  });
+},
           child: AnimatedContainer(
             duration:
                 const Duration(
@@ -38547,7 +38524,7 @@ const Icon(
                     BorderRadius.circular(
                   18,
                 ),
-              ),
+              ),),
               child: const Center(
                 child: Text(
                   'No matches created yet',
