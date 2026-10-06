@@ -8144,7 +8144,19 @@ const SizedBox(
           const Color(
         0xFFFFF9F7,
       ),
-
+      appBar: AppBar(
+        backgroundColor:
+            adminAppBarColor,
+        foregroundColor:
+            Colors.white,
+        title: const Text(
+          'Admin Home',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.w800,
+          ),
+        ),
+      ),
       body: SafeArea(
         child:
             ValueListenableBuilder<
@@ -8221,141 +8233,7 @@ const SizedBox(
               ),
 
               children: [
-
-                // ===============================
-                // HEADER
-                // ===============================
-
-                                Container(
-                  width:
-                      double.infinity,
-                  padding:
-                      const EdgeInsets
-                          .fromLTRB(
-                    16,
-                    14,
-                    14,
-                    14,
-                  ),
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        adminAppBarColor,
-                    borderRadius:
-                        BorderRadius.circular(
-                      22,
-                    ),
-                    boxShadow:
-                        const [
-                      BoxShadow(
-                        color:
-                            Color(
-                          0x243B2B5A,
-                        ),
-                        blurRadius: 12,
-                        offset:
-                            Offset(
-                          0,
-                          4,
-                        ),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment
-                                  .start,
-                          children: [
-                            Text(
-                              'Admin Home',
-                              style:
-                                  TextStyle(
-                                fontSize: 27,
-                                height: 1.05,
-                                fontWeight:
-                                    FontWeight
-                                        .w900,
-                                color:
-                                    Colors.white,
-                              ),
-                            ),
-                            SizedBox(
-                              height: 5,
-                            ),
-                            Text(
-                              'Manage KhelBaaz',
-                              style:
-                                  TextStyle(
-                                color:
-                                    Color(
-                                  0xFFE7DFF2,
-                                ),
-                                fontSize: 14,
-                                fontWeight:
-                                    FontWeight
-                                        .w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      Container(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal: 11,
-                          vertical: 7,
-                        ),
-                        decoration:
-                            BoxDecoration(
-                          color:
-                              const Color(
-                            0x26FFFFFF,
-                          ),
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            20,
-                          ),
-                        ),
-                        child:
-                            const Row(
-                          children: [
-                            Icon(
-                              Icons
-                                  .workspace_premium,
-                              color:
-                                  Colors.white,
-                              size: 18,
-                            ),
-                            SizedBox(
-                              width: 5,
-                            ),
-                            Text(
-                              'ADMIN',
-                              style:
-                                  TextStyle(
-                                color:
-                                    Colors.white,
-                                fontWeight:
-                                    FontWeight
-                                        .w900,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                                    const SizedBox(
-                  height: 14,
-                ),
+     
 
 // ===============================
                 // COUNTERS
