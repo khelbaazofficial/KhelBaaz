@@ -9746,118 +9746,63 @@ b.startTime?.add(b.liveDuration);
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-  children: [
-    Container(
-  width: 48,
-  height: 48,
-  alignment: Alignment.center,
-  decoration: BoxDecoration(
-    color: const Color(0xFFE3F2FD),
-    borderRadius: BorderRadius.circular(14),
-    border: Border.all(
-      color: const Color(0xFF1976D2),
-      width: 1.2,
-    ),
-  ),
-  child: const Text(
-    '🏏',
-    style: TextStyle(
-      fontSize: 30,
-    ),
-  ),
-),
-    const SizedBox(width: 10),
-    const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'Fantasy Cricket',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-            color: Color(0xFF2D2424),
-          ),
-        ),
-        Text(
-          'Play • Compete • Win',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFFB05A50),
-          ),
-        ),
-      ],
-    ),
-  ],
-),
-        actions: [
-          IconButton(
-            onPressed: () {
-              hasUnreadNotification.value = false;
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NotificationsPage()),
-              );
-            },
-            icon: ValueListenableBuilder<bool>(
-  valueListenable: hasUnreadNotification,
-  builder: (context, hasUnread, child) {
-    return Container(
-  width: 42,
-  height: 42,
-  decoration: BoxDecoration(
-    gradient: const LinearGradient(
-      colors: [
-        Color(0xFFFFE3EC),
-        Color(0xFFFFF0E8),
-      ],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    shape: BoxShape.circle,
-    border: Border.all(
-      color: const Color(0xFFE8A5B7),
-      width: 1.2,
-    ),
-    boxShadow: const [
-      BoxShadow(
-        color: Colors.black12,
-        blurRadius: 6,
-        offset: Offset(0, 3),
-      ),
-    ],
-  ),
-  child: Stack(
-    clipBehavior: Clip.none,
-    alignment: Alignment.center,
+
+appBar: AppBar(
+  title: Row(
     children: [
-      const Text(
-  '🔔',
-  style: TextStyle(
-    fontSize: 25,
-  ),
-),
-      if (hasUnread)
-        const Positioned(
-          right: 5,
-          top: 5,
-          child: CircleAvatar(
-            radius: 4,
-            backgroundColor: Colors.red,
+      Container(
+        width: 48,
+        height: 48,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE3F2FD),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: const Color(0xFF1976D2),
+            width: 1.2,
           ),
         ),
-    ],
-  ),
-);
-  },
-),
+        child: const Text(
+          '🏏',
+          style: TextStyle(
+            fontSize: 30,
+          ),
+        ),
+      ),
+
+      const SizedBox(width: 10),
+
+      const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Fantasy Cricket',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              color: Color(0xFF2D2424),
             ),
-          const SizedBox(width: 6),
+          ),
+          Text(
+            'Play • Compete • Win',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFFB05A50),
+            ),
+          ),
         ],
       ),
+    ],
+  ),
+
+  actions: [
+    const NotificationBellButton(),
+    const SizedBox(width: 6),
+  ],
+),
+      
       body: Column(
         children: [
           Padding(
@@ -21636,71 +21581,1354 @@ const Card(
     );
   }
 }
-final ValueNotifier<List<Map<String, String>>> adminNotifications =
-    ValueNotifier<List<Map<String, String>>>([]);
-class NotificationsPage extends StatelessWidget {
-  const NotificationsPage({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children:  [
-          ValueListenableBuilder<List<Map<String, String>>>(
-  valueListenable: adminNotifications,
-  builder: (context, notifications, _) {
-    return Column(
-      children: notifications
-          .map(
-            (item) => Card(
-              child: ListTile(
-                leading: const Icon(Icons.campaign),
-                title: Text(item['title'] ?? ''),
-                subtitle: Text(item['message'] ?? ''),
+// ======================================================
+// NOTIFICATION SYSTEM
+// Admin -> All Users / Selected Users
+// User -> Category + Unread + Read Status
+// Display lifetime -> 5 Days
+// ======================================================
+
+const List<String> notificationCategories = [
+  'Match Alert',
+  'Team Reminder',
+  'Contest Update',
+  'Wallet Update',
+  'Offer/Bonus',
+  'System Alert',
+];
+
+IconData notificationCategoryIcon(
+  String category,
+) {
+  switch (category) {
+    case 'Match Alert':
+      return Icons.sports_cricket;
+
+    case 'Team Reminder':
+      return Icons.groups_rounded;
+
+    case 'Contest Update':
+      return Icons.emoji_events_rounded;
+
+    case 'Wallet Update':
+      return Icons.account_balance_wallet_outlined;
+
+    case 'Offer/Bonus':
+      return Icons.card_giftcard_rounded;
+
+    case 'System Alert':
+      return Icons.warning_amber_rounded;
+
+    default:
+      return Icons.notifications_rounded;
+  }
+}
+
+Color notificationCategoryColor(
+  String category,
+) {
+  switch (category) {
+    case 'Match Alert':
+      return const Color(0xFFE83F5B);
+
+    case 'Team Reminder':
+      return const Color(0xFF1976D2);
+
+    case 'Contest Update':
+      return const Color(0xFF009688);
+
+    case 'Wallet Update':
+      return const Color(0xFF5B45C6);
+
+    case 'Offer/Bonus':
+      return const Color(0xFFF39C12);
+
+    case 'System Alert':
+      return const Color(0xFFE53935);
+
+    default:
+      return const Color(0xFF6B5B63);
+  }
+}
+
+Color notificationCategoryBackground(
+  String category,
+) {
+  switch (category) {
+    case 'Match Alert':
+      return const Color(0xFFFFE7EC);
+
+    case 'Team Reminder':
+      return const Color(0xFFE8F3FF);
+
+    case 'Contest Update':
+      return const Color(0xFFE5F8F4);
+
+    case 'Wallet Update':
+      return const Color(0xFFF0ECFF);
+
+    case 'Offer/Bonus':
+      return const Color(0xFFFFF4D8);
+
+    case 'System Alert':
+      return const Color(0xFFFFE8E8);
+
+    default:
+      return const Color(0xFFF4EEEE);
+  }
+}
+
+DateTime? notificationDate(
+  dynamic value,
+) {
+  if (value is Timestamp) {
+    return value.toDate();
+  }
+
+  if (value is DateTime) {
+    return value;
+  }
+
+  if (value != null) {
+    return DateTime.tryParse(
+      value.toString(),
+    );
+  }
+
+  return null;
+}
+
+bool notificationVisible(
+  Map<String, dynamic> data,
+) {
+  final now = DateTime.now();
+
+  final expiresAt =
+      notificationDate(
+    data['expiresAt'],
+  );
+
+  if (expiresAt != null) {
+    return expiresAt.isAfter(now);
+  }
+
+  final createdAt =
+      notificationDate(
+    data['createdAt'],
+  );
+
+  if (createdAt == null) {
+    return true;
+  }
+
+  return now.difference(createdAt) <
+      const Duration(days: 5);
+}
+
+List<
+        QueryDocumentSnapshot<
+            Map<String, dynamic>>>
+    mergeNotificationDocs(
+  QuerySnapshot<Map<String, dynamic>>
+      allSnapshot,
+  QuerySnapshot<Map<String, dynamic>>
+      selectedSnapshot,
+) {
+  final Map<
+          String,
+          QueryDocumentSnapshot<
+              Map<String, dynamic>>>
+      unique = {};
+
+  for (final doc
+      in allSnapshot.docs) {
+    if (notificationVisible(
+      doc.data(),
+    )) {
+      unique[doc.id] = doc;
+    }
+  }
+
+  for (final doc
+      in selectedSnapshot.docs) {
+    if (notificationVisible(
+      doc.data(),
+    )) {
+      unique[doc.id] = doc;
+    }
+  }
+
+  final result =
+      unique.values.toList();
+
+  result.sort(
+    (a, b) {
+      final aDate =
+          notificationDate(
+                a.data()['createdAt'],
+              ) ??
+              DateTime(1970);
+
+      final bDate =
+          notificationDate(
+                b.data()['createdAt'],
+              ) ??
+              DateTime(1970);
+
+      return bDate.compareTo(aDate);
+    },
+  );
+
+  return result;
+}
+
+// ======================================================
+// HOME BELL WITH TOTAL UNREAD COUNT
+// ======================================================
+
+class NotificationBellButton
+    extends StatelessWidget {
+  const NotificationBellButton({
+    super.key,
+  });
+
+  Widget _bell(
+    BuildContext context,
+    int unreadCount,
+  ) {
+    return IconButton(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                const NotificationsPage(),
+          ),
+        );
+      },
+      icon: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          gradient:
+              const LinearGradient(
+            colors: [
+              Color(0xFFFFE3EC),
+              Color(0xFFFFF0E8),
+            ],
+            begin:
+                Alignment.topLeft,
+            end:
+                Alignment.bottomRight,
+          ),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color:
+                const Color(
+              0xFFE8A5B7,
+            ),
+            width: 1.2,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 6,
+              offset:
+                  Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Stack(
+          clipBehavior:
+              Clip.none,
+          alignment:
+              Alignment.center,
+          children: [
+            const Text(
+              '🔔',
+              style: TextStyle(
+                fontSize: 25,
               ),
             ),
-          )
-          .toList(),
+
+            if (unreadCount > 0)
+              Positioned(
+                right: -3,
+                top: -4,
+                child: Container(
+                  constraints:
+                      const BoxConstraints(
+                    minWidth: 19,
+                    minHeight: 19,
+                  ),
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
+                    horizontal: 5,
+                    vertical: 2,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        const Color(
+                      0xFFE52548,
+                    ),
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      12,
+                    ),
+                    border:
+                        Border.all(
+                      color:
+                          Colors.white,
+                      width: 1.5,
+                    ),
+                  ),
+                  alignment:
+                      Alignment.center,
+                  child: Text(
+                    unreadCount > 99
+                        ? '99+'
+                        : unreadCount
+                            .toString(),
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize: 9,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
-  },
-),
-          Card(
-            child: ListTile(
-              leading: Icon(Icons.sports_cricket),
-              title: Text('IND vs AUS'),
-              subtitle: Text('Match starts today at 7:30 PM'),
+  }
+@override
+  Widget build(
+    BuildContext context,
+  ) {
+    final user =
+        FirebaseAuth.instance
+            .currentUser;
+
+    if (user == null) {
+      return _bell(
+        context,
+        0,
+      );
+    }
+
+    final uid = user.uid;
+
+    return StreamBuilder<
+        QuerySnapshot<
+            Map<String, dynamic>>>(
+      stream:
+          FirebaseFirestore.instance
+              .collection(
+                'notifications',
+              )
+              .where(
+                'targetType',
+                isEqualTo: 'ALL',
+              )
+              .snapshots(),
+      builder:
+          (context, allSnapshot) {
+        return StreamBuilder<
+            QuerySnapshot<
+                Map<String,
+                    dynamic>>>(
+          stream:
+              FirebaseFirestore
+                  .instance
+                  .collection(
+                    'notifications',
+                  )
+                  .where(
+                    'targetUserIds',
+                    arrayContains: uid,
+                  )
+                  .snapshots(),
+          builder:
+              (context,
+                  selectedSnapshot) {
+            return StreamBuilder<
+                QuerySnapshot<
+                    Map<String,
+                        dynamic>>>(
+              stream:
+                  FirebaseFirestore
+                      .instance
+                      .collection(
+                        'users',
+                      )
+                      .doc(uid)
+                      .collection(
+                        'notification_reads',
+                      )
+                      .snapshots(),
+              builder:
+                  (context,
+                      readSnapshot) {
+                if (!allSnapshot
+                        .hasData ||
+                    !selectedSnapshot
+                        .hasData ||
+                    !readSnapshot
+                        .hasData) {
+                  return _bell(
+                    context,
+                    0,
+                  );
+                }
+
+                final notifications =
+                    mergeNotificationDocs(
+                  allSnapshot.data!,
+                  selectedSnapshot
+                      .data!,
+                );
+
+                final readIds =
+                    readSnapshot
+                        .data!.docs
+                        .map(
+                          (doc) =>
+                              doc.id,
+                        )
+                        .toSet();
+
+                final unreadCount =
+                    notifications
+                        .where(
+                          (doc) =>
+                              !readIds
+                                  .contains(
+                                doc.id,
+                              ),
+                        )
+                        .length;
+
+                return _bell(
+                  context,
+                  unreadCount,
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ======================================================
+// USER NOTIFICATIONS PAGE
+// ======================================================
+
+class NotificationsPage
+    extends StatefulWidget {
+  const NotificationsPage({
+    super.key,
+  });
+
+  @override
+  State<NotificationsPage>
+      createState() =>
+          _NotificationsPageState();
+}
+
+class _NotificationsPageState
+    extends State<NotificationsPage> {
+  String? _selectedCategory;
+
+  Future<void> _markRead(
+    String notificationId,
+  ) async {
+    final user =
+        FirebaseAuth.instance
+            .currentUser;
+
+    if (user == null) {
+      return;
+    }
+
+    await FirebaseFirestore
+        .instance
+        .collection('users')
+        .doc(user.uid)
+        .collection(
+          'notification_reads',
+        )
+        .doc(notificationId)
+        .set(
+      {
+        'notificationId':
+            notificationId,
+        'readAt':
+            FieldValue
+                .serverTimestamp(),
+      },
+      SetOptions(
+        merge: true,
+      ),
+    );
+  }
+
+  String _timeText(
+    dynamic raw,
+  ) {
+    final date =
+        notificationDate(raw);
+
+    if (date == null) {
+      return '';
+    }
+
+    final difference =
+        DateTime.now()
+            .difference(date);
+
+    if (difference.inMinutes <
+        1) {
+      return 'Just now';
+    }
+
+    if (difference.inMinutes <
+        60) {
+      return '${difference.inMinutes} min ago';
+    }
+
+    if (difference.inHours <
+        24) {
+      return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    }
+
+    return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+  }
+
+  void _openNotification(
+    QueryDocumentSnapshot<
+            Map<String, dynamic>>
+        doc,
+  ) async {
+    await _markRead(doc.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    final data = doc.data();
+
+    final category =
+        (data['category'] ??
+                'System Alert')
+            .toString();
+
+    final title =
+        (data['title'] ?? '')
+            .toString();
+
+    final message =
+        (data['message'] ?? '')
+            .toString();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor:
+          const Color(
+        0xFFFFF9F7,
+      ),
+      showDragHandle: true,
+      shape:
+          const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(
+          top: Radius.circular(
+            26,
+          ),
+        ),
+      ),
+      builder: (context) {
+        return Padding(
+          padding:
+              const EdgeInsets.fromLTRB(
+            22,
+            4,
+            22,
+            28,
+          ),
+          child: Column(
+            mainAxisSize:
+                MainAxisSize.min,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor:
+                        notificationCategoryBackground(
+                      category,
+                    ),
+                    child: Icon(
+                      notificationCategoryIcon(
+                        category,
+                      ),
+                      color:
+                          notificationCategoryColor(
+                        category,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    width: 12,
+                  ),
+
+                  Expanded(
+                    child: Text(
+                      category,
+                      style:
+                          TextStyle(
+                        color:
+                            notificationCategoryColor(
+                          category,
+                        ),
+                        fontWeight:
+                            FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(
+                height: 18,
+              ),
+
+              Text(
+                title,
+                style:
+                    const TextStyle(
+                  fontSize: 22,
+                  fontWeight:
+                      FontWeight.w900,
+                  color:
+                      Color(
+                    0xFF2B2323,
+                  ),
+                ),
+              ),
+
+              const SizedBox(
+                height: 10,
+              ),
+
+              Text(
+                message,
+                style:
+                    const TextStyle(
+                  fontSize: 15,
+                  height: 1.45,
+                  color:
+                      Color(
+                    0xFF554C4C,
+                  ),
+                ),
+              ),
+
+              const SizedBox(
+                height: 14,
+              ),
+
+              Text(
+                _timeText(
+                  data['createdAt'],
+                ),
+                style:
+                    const TextStyle(
+                  fontSize: 12,
+                  color:
+                      Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+  Widget _categoryChip({
+    required String category,
+    required int unread,
+    required double width,
+  }) {
+    final selected =
+        _selectedCategory ==
+            category;
+
+    final color =
+        notificationCategoryColor(
+      category,
+    );
+
+    return InkWell(
+      borderRadius:
+          BorderRadius.circular(
+        14,
+      ),
+      onTap: () {
+        setState(() {
+          _selectedCategory =
+              selected
+                  ? null
+                  : category;
+        });
+      },
+      child: Container(
+        width: width,
+        padding:
+            const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 11,
+        ),
+        decoration:
+            BoxDecoration(
+          color:
+              notificationCategoryBackground(
+            category,
+          ),
+          borderRadius:
+              BorderRadius.circular(
+            14,
+          ),
+          border: Border.all(
+            color: selected
+                ? color
+                : color.withOpacity(
+                    0.15,
+                  ),
+            width:
+                selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              notificationCategoryIcon(
+                category,
+              ),
+              color: color,
+              size: 19,
+            ),
+
+            const SizedBox(
+              width: 7,
+            ),
+
+            Expanded(
+              child: Text(
+                category,
+                maxLines: 1,
+                overflow:
+                    TextOverflow
+                        .ellipsis,
+                style:
+                    TextStyle(
+                  fontSize: 12,
+                  color: color,
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+            ),
+
+            if (unread > 0)
+              Container(
+                constraints:
+                    const BoxConstraints(
+                  minWidth: 20,
+                  minHeight: 20,
+                ),
+                alignment:
+                    Alignment.center,
+                padding:
+                    const EdgeInsets
+                        .symmetric(
+                  horizontal: 5,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      const Color(
+                    0xFFE52548,
+                  ),
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    12,
+                  ),
+                ),
+                child: Text(
+                  unread > 99
+                      ? '99+'
+                      : unread
+                          .toString(),
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize: 10,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final user =
+        FirebaseAuth.instance
+            .currentUser;
+
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'Notifications',
+          ),
+        ),
+        body: const Center(
+          child: Text(
+            'Please login first',
+          ),
+        ),
+      );
+    }
+
+    final uid = user.uid;
+
+    return Scaffold(
+      backgroundColor:
+          const Color(
+        0xFFFFF9F7,
+      ),
+      appBar: AppBar(
+        backgroundColor:
+            const Color(
+          0xFFFFF9F7,
+        ),
+        surfaceTintColor:
+            Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'Notifications',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.w900,
+            color:
+                Color(
+              0xFF241C1C,
             ),
           ),
-          Card(
-            child: ListTile(
-              leading: Icon(Icons.groups),
-              title: Text('Team Reminder'),
-              subtitle: Text('Create your team before the match starts.'),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: Icon(Icons.emoji_events),
-              title: Text('Contest Update'),
-subtitle: Text('New contests are available. Join before the match starts.'),
-            ),
-          ),
-          Card(
-  child: ListTile(
-    leading: Icon(Icons.account_balance_wallet_outlined),
-    title: Text('Wallet Update'),
-    subtitle: Text(
-      'Deposit, Withdraw या Winning update होने पर यहाँ notification दिखेगा.',
-    ),
-  ),
-),
-        ],
+        ),
+      ),
+      body: StreamBuilder<
+          QuerySnapshot<
+              Map<String,
+                  dynamic>>>(
+        stream:
+            FirebaseFirestore
+                .instance
+                .collection(
+                  'notifications',
+                )
+                .where(
+                  'targetType',
+                  isEqualTo: 'ALL',
+                )
+                .snapshots(),
+        builder:
+            (context,
+                allSnapshot) {
+          return StreamBuilder<
+              QuerySnapshot<
+                  Map<String,
+                      dynamic>>>(
+            stream:
+                FirebaseFirestore
+                    .instance
+                    .collection(
+                      'notifications',
+                    )
+                    .where(
+                      'targetUserIds',
+                      arrayContains:
+                          uid,
+                    )
+                    .snapshots(),
+            builder:
+                (context,
+                    selectedSnapshot) {
+              return StreamBuilder<
+                  QuerySnapshot<
+                      Map<String,
+                          dynamic>>>(
+                stream:
+                    FirebaseFirestore
+                        .instance
+                        .collection(
+                          'users',
+                        )
+                        .doc(uid)
+                        .collection(
+                          'notification_reads',
+                        )
+                        .snapshots(),
+                builder:
+                    (context,
+                        readSnapshot) {
+                  if (!allSnapshot
+                          .hasData ||
+                      !selectedSnapshot
+                          .hasData ||
+                      !readSnapshot
+                          .hasData) {
+                    return const Center(
+                      child:
+                          CircularProgressIndicator(),
+                    );
+                  }
+
+                  final notifications =
+                      mergeNotificationDocs(
+                    allSnapshot.data!,
+                    selectedSnapshot
+                        .data!,
+                  );
+
+                  final readIds =
+                      readSnapshot
+                          .data!.docs
+                          .map(
+                            (doc) =>
+                                doc.id,
+                          )
+                          .toSet();
+
+                  final Map<
+                          String,
+                          int>
+                      unreadCounts = {
+                    for (final category
+                        in notificationCategories)
+                      category: 0,
+                  };
+
+                  for (final doc
+                      in notifications) {
+                    if (!readIds
+                        .contains(
+                      doc.id,
+                    )) {
+                      final category =
+                          (doc.data()[
+                                      'category'] ??
+                                  '')
+                              .toString();
+
+                      if (unreadCounts
+                          .containsKey(
+                        category,
+                      )) {
+                        unreadCounts[
+                                category] =
+                            (unreadCounts[
+                                        category] ??
+                                    0) +
+                                1;
+                      }
+                    }
+                  }
+
+                  final filtered =
+                      _selectedCategory ==
+                              null
+                          ? notifications
+                          : notifications
+                              .where(
+                                (doc) =>
+                                    (doc.data()[
+                                                'category'] ??
+                                            '')
+                                        .toString() ==
+                                    _selectedCategory,
+                              )
+                              .toList();
+
+                  return Column(
+                    children: [
+                      Padding(
+                        padding:
+                            const EdgeInsets
+                                .fromLTRB(
+                          16,
+                          10,
+                          16,
+                          8,
+                        ),
+                        child:
+                            LayoutBuilder(
+                          builder:
+                              (context,
+                                  constraints) {
+                            final width =
+                                (constraints
+                                            .maxWidth -
+                                        10) /
+                                    2;
+
+                            return Wrap(
+                              spacing: 10,
+                              runSpacing:
+                                  10,
+                              children:
+                                  notificationCategories
+                                      .map(
+                                        (category) =>
+                                            _categoryChip(
+                                          category:
+                                              category,
+                                          unread:
+                                              unreadCounts[
+                                                      category] ??
+                                                  0,
+                                          width:
+                                              width,
+                                        ),
+                                      )
+                                      .toList(),
+                            );
+                          },
+                        ),
+                      ),
+if (_selectedCategory !=
+                          null)
+                        Padding(
+                          padding:
+                              const EdgeInsets
+                                  .symmetric(
+                            horizontal:
+                                16,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _selectedCategory!,
+                                  style:
+                                      const TextStyle(
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed:
+                                    () {
+                                  setState(
+                                    () {
+                                      _selectedCategory =
+                                          null;
+                                    },
+                                  );
+                                },
+                                child:
+                                    const Text(
+                                  'Show All',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      Expanded(
+                        child:
+                            filtered.isEmpty
+                                ? const Center(
+                                    child:
+                                        Text(
+                                      'No notifications',
+                                      style:
+                                          TextStyle(
+                                        color:
+                                            Colors.grey,
+                                      ),
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    padding:
+                                        const EdgeInsets
+                                            .fromLTRB(
+                                      14,
+                                      6,
+                                      14,
+                                      20,
+                                    ),
+                                    itemCount:
+                                        filtered.length,
+                                    itemBuilder:
+                                        (context,
+                                            index) {
+                                      final doc =
+                                          filtered[
+                                              index];
+
+                                      final data =
+                                          doc.data();
+
+                                      final category =
+                                          (data['category'] ??
+                                                  'System Alert')
+                                              .toString();
+
+                                      final title =
+                                          (data['title'] ??
+                                                  '')
+                                              .toString();
+
+                                      final message =
+                                          (data['message'] ??
+                                                  '')
+                                              .toString();
+
+                                      final isRead =
+                                          readIds
+                                              .contains(
+                                        doc.id,
+                                      );
+
+                                      final color =
+                                          notificationCategoryColor(
+                                        category,
+                                      );
+
+                                      return Card(
+                                        elevation:
+                                            isRead
+                                                ? 1
+                                                : 2.5,
+                                        margin:
+                                            const EdgeInsets
+                                                .only(
+                                          bottom:
+                                              10,
+                                        ),
+                                        color: isRead
+                                            ? Colors
+                                                .white
+                                            : notificationCategoryBackground(
+                                                category,
+                                              ),
+                                        shape:
+                                            RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(
+                                            18,
+                                          ),
+                                          side:
+                                              BorderSide(
+                                            color: isRead
+                                                ? const Color(
+                                                    0xFFE8DEDE,
+                                                  )
+                                                : color.withOpacity(
+                                                    0.20,
+                                                  ),
+                                          ),
+                                        ),
+                                        child:
+                                            InkWell(
+                                          borderRadius:
+                                              BorderRadius.circular(
+                                            18,
+                                          ),
+                                          onTap:
+                                              () {
+                                            _openNotification(
+                                              doc,
+                                            );
+                                          },
+                                          child:
+                                              Padding(
+                                            padding:
+                                                const EdgeInsets
+                                                    .all(
+                                              14,
+                                            ),
+                                            child:
+                                                Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Stack(
+                                                  clipBehavior:
+                                                      Clip.none,
+                                                  children: [
+                                                    CircleAvatar(
+                                                      radius:
+                                                          22,
+                                                      backgroundColor:
+                                                          Colors.white,
+                                                      child:
+                                                          Icon(
+                                                        notificationCategoryIcon(
+                                                          category,
+                                                        ),
+                                                        color:
+                                                            color,
+                                                      ),
+                                                    ),
+                                                    if (!isRead)
+                                                      const Positioned(
+                                                        right:
+                                                            -1,
+                                                        top:
+                                                            -1,
+                                                        child:
+                                                            CircleAvatar(
+                                                          radius:
+                                                              5,
+                                                          backgroundColor:
+                                                              Color(
+                                                            0xFFE52548,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+
+                                                const SizedBox(
+                                                  width:
+                                                      12,
+                                                ),
+
+                                                Expanded(
+                                                  child:
+                                                      Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment.start,
+                                                    children: [
+                                                      Row(
+                                                        children: [
+                                                          Expanded(
+                                                            child:
+                                                                Text(
+                                                              title,
+                                                              style:
+                                                                  TextStyle(
+                                                                fontSize:
+                                                                    15.5,
+                                                                fontWeight:
+                                                                    isRead
+                                                                        ? FontWeight.w700
+                                                                        : FontWeight.w900,
+                                                                color:
+                                                                    const Color(
+                                                                  0xFF302626,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            width:
+                                                                6,
+                                                          ),
+                                                          Text(
+                                                            _timeText(
+                                                              data['createdAt'],
+                                                            ),
+                                                            style:
+                                                                const TextStyle(
+                                                              fontSize:
+                                                                  10,
+                                                              color:
+                                                                  Colors.grey,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+
+                                                      const SizedBox(
+                                                        height:
+                                                            5,
+                                                      ),
+
+                                                      Text(
+                                                        message,
+                                                        maxLines:
+                                                            3,
+                                                        overflow:
+                                                            TextOverflow.ellipsis,
+                                                        style:
+                                                            TextStyle(
+                                                          fontSize:
+                                                              12.5,
+                                                          height:
+                                                              1.3,
+                                                          color:
+                                                              isRead
+                                                                  ? const Color(
+                                                                      0xFF6A6262,
+                                                                    )
+                                                                  : const Color(
+                                                                      0xFF403737,
+                                                                    ),
+                                                          fontWeight:
+                                                              isRead
+                                                                  ? FontWeight.w400
+                                                                  : FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          );
+        },
       ),
     );
   }
 }
+
 
 class AdminPlayerStatsPage
     extends StatefulWidget {
@@ -23539,82 +24767,536 @@ void addReferralRecord({
     ...referralHistory.value,
   ];
 }
-class AdminNotificationsPage extends StatefulWidget {
-  const AdminNotificationsPage({super.key});
+
+class AdminNotificationsPage
+    extends StatefulWidget {
+  const AdminNotificationsPage({
+    super.key,
+  });
 
   @override
-  State<AdminNotificationsPage> createState() =>
-      _AdminNotificationsPageState();
+  State<AdminNotificationsPage>
+      createState() =>
+          _AdminNotificationsPageState();
 }
 
 class _AdminNotificationsPageState
-    extends State<AdminNotificationsPage> {
-  final TextEditingController titleController =
+    extends State<
+        AdminNotificationsPage> {
+  final TextEditingController
+      titleController =
       TextEditingController();
 
-  final TextEditingController messageController =
+  final TextEditingController
+      messageController =
       TextEditingController();
+
+  String _category =
+      'Match Alert';
+
+  String _targetType = 'ALL';
+
+  bool _sending = false;
+
+  final Map<
+          String,
+          Map<String, dynamic>>
+      _selectedUsers = {};
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Send Notifications'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(
-                labelText: 'Notification Title',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: messageController,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Notification Message',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.send),
-                label: const Text('SEND NOTIFICATION'),
-                onPressed: () {
-                  if (titleController.text.trim().isEmpty ||
-                      messageController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content:
-                            Text('Please enter title and message'),
-                      ),
+  void dispose() {
+    titleController.dispose();
+    messageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _chooseUsers()
+      async {
+    final snapshot =
+        await FirebaseFirestore
+            .instance
+            .collection('users')
+            .get();
+
+    final users = snapshot.docs
+        .map(
+          (doc) {
+            final data =
+                Map<String,
+                    dynamic>.from(
+              doc.data(),
+            );
+
+            data['id'] =
+                doc.id;
+
+            return data;
+          },
+        )
+        .where(
+          (user) =>
+              (user['role'] ??
+                      'USER')
+                  .toString()
+                  .toUpperCase() !=
+              'ADMIN',
+        )
+        .toList();
+
+    if (!mounted) {
+      return;
+    }
+
+    final tempSelected =
+        <String,
+            Map<String, dynamic>>{
+      ..._selectedUsers,
+    };
+
+    final searchController =
+        TextEditingController();
+
+    String query = '';
+
+    final result =
+        await showDialog<
+            Map<
+                String,
+                Map<String,
+                    dynamic>>>(
+      context: context,
+      builder:
+          (dialogContext) {
+        return StatefulBuilder(
+          builder:
+              (context,
+                  setDialogState) {
+            final filtered =
+                users.where(
+              (user) {
+                if (query.isEmpty) {
+                  return true;
+                }
+
+                final username =
+                    (user['username'] ??
+                            '')
+                        .toString()
+                        .toLowerCase();
+
+                final mobile =
+                    (user['mobile'] ??
+                            '')
+                        .toString();
+
+                return username
+                        .contains(
+                      query,
+                    ) ||
+                    mobile.contains(
+                      query,
                     );
-                    return;
-                  }
+              },
+            ).toList();
 
-            adminNotifications.value = [
-  {
-    'title': titleController.text.trim(),
-    'message': messageController.text.trim(),
-  },
-  ...adminNotifications.value,         
-];     
-             hasUnreadNotification.value = true;     ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Notification sent successfully'),
+            return AlertDialog(
+              title:
+                  const Text(
+                'Select Users',
+              ),
+              content:
+                  SizedBox(
+                width:
+                    double.maxFinite,
+                height: 430,
+                child: Column(
+                  children: [
+                    TextField(
+                      controller:
+                          searchController,
+                      decoration:
+                          InputDecoration(
+                        hintText:
+                            'Search username or mobile...',
+                        prefixIcon:
+                            const Icon(
+                          Icons
+                              .search,
+                        ),
+                        filled:
+                            true,
+                        fillColor:
+                            const Color(
+                          0xFFFFF4F2,
+                        ),
+                        border:
+                            OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(
+                            14,
+                          ),
+                          borderSide:
+                              BorderSide.none,
+                        ),
+                      ),
+                      onChanged:
+                          (value) {
+                        setDialogState(
+                          () {
+                            query =
+                                value
+                                    .trim()
+                                    .toLowerCase()
+                                    .replaceAll(
+                                      '@',
+                                      '',
+                                    );
+                          },
+                        );
+                      },
                     ),
-                  );
 
-                  titleController.clear();
-                  messageController.clear();
-                },
+                    const SizedBox(
+                      height: 10,
+                    ),
+
+                    Expanded(
+                      child:
+                          ListView.builder(
+                        itemCount:
+                            filtered.length,
+                        itemBuilder:
+                            (context,
+                                index) {
+                          final user =
+                              filtered[
+                                  index];
+
+                          final uid =
+                              user['id']
+                                  .toString();
+
+                          final username =
+                              (user['username'] ??
+                                      'User')
+                                  .toString();
+
+                          final mobile =
+                              (user['mobile'] ??
+                                      '')
+                                  .toString();
+
+                          final checked =
+                              tempSelected.containsKey(
+                            uid,
+                          );
+
+                          return CheckboxListTile(
+                            value:
+                                checked,
+                            title:
+                                Text(
+                              username
+                                      .startsWith(
+                                        '@',
+                                      )
+                                  ? username
+                                  : '@$username',
+                            ),
+                            subtitle:
+                                Text(
+                              mobile,
+                            ),
+                            onChanged:
+                                (value) {
+                              setDialogState(
+                                () {
+                                  if (value ==
+                                      true) {
+                                    tempSelected[
+                                            uid] =
+                                        user;
+                                  } else {
+                                    tempSelected
+                                        .remove(
+                                      uid,
+                                    );
+                                  }
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(
+                      dialogContext,
+                    );
+                  },
+                  child:
+                      const Text(
+                    'CANCEL',
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(
+                      dialogContext,
+                      tempSelected,
+                    );
+                  },
+                  child:
+                      const Text(
+                    'DONE',
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+      searchController.dispose();
+
+    if (result == null ||
+        !mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectedUsers
+        ..clear()
+        ..addAll(result);
+    });
+  }
+
+  Future<void>
+      _sendNotification() async {
+    final title =
+        titleController.text
+            .trim();
+
+    final message =
+        messageController.text
+            .trim();
+
+    if (title.isEmpty ||
+        message.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter title and message',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    if (_targetType ==
+            'SELECTED' &&
+        _selectedUsers.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please select at least one user',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    final admin =
+        FirebaseAuth.instance
+            .currentUser;
+
+    if (admin == null) {
+      return;
+    }
+
+    setState(() {
+      _sending = true;
+    });
+
+    try {
+      final now =
+          DateTime.now();
+
+      await FirebaseFirestore
+          .instance
+          .collection(
+            'notifications',
+          )
+          .add(
+        {
+          'category':
+              _category,
+          'title': title,
+          'message': message,
+
+          'targetType':
+              _targetType,
+
+          'targetUserIds':
+              _targetType ==
+                      'SELECTED'
+                  ? _selectedUsers
+                      .keys
+                      .toList()
+                  : <String>[],
+
+          'createdBy':
+              admin.uid,
+
+          'createdAt':
+              FieldValue
+                  .serverTimestamp(),
+
+          'expiresAt':
+              Timestamp.fromDate(
+            now.add(
+              const Duration(
+                days: 5,
+              ),
+            ),
+          ),
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        SnackBar(
+          content: Text(
+            _targetType ==
+                    'ALL'
+                ? 'Notification sent to all users ✅'
+                : 'Notification sent to ${_selectedUsers.length} selected users ✅',
+          ),
+        ),
+      );
+
+      titleController.clear();
+      messageController.clear();
+
+      setState(() {
+        _selectedUsers
+            .clear();
+
+        _targetType =
+            'ALL';
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Notification send failed: $e',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+        });
+      }
+    }
+  }
+
+  Widget _categoryButton(
+    String category,
+    double width,
+  ) {
+    final selected =
+        _category ==
+            category;
+
+    final color =
+        notificationCategoryColor(
+      category,
+    );
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _category =
+              category;
+        });
+      },
+      borderRadius:
+          BorderRadius.circular(
+        14,
+      ),
+      child: Container(
+        width: width,
+        padding:
+            const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 12,
+        ),
+        decoration:
+            BoxDecoration(
+          color:
+              notificationCategoryBackground(
+            category,
+          ),
+          borderRadius:
+              BorderRadius.circular(
+            14,
+          ),
+          border: Border.all(
+            color: selected
+                ? color
+                : color.withOpacity(
+                    0.12,
+                  ),
+            width:
+                selected ? 1.7 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              notificationCategoryIcon(
+                category,
+              ),
+              size: 19,
+              color: color,
+            ),
+            const SizedBox(
+              width: 7,
+            ),
+            Expanded(
+              child: Text(
+                category,
+                style:
+                    TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight:
+                      FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -23622,7 +25304,598 @@ class _AdminNotificationsPageState
       ),
     );
   }
+
+  Widget _sentHistory() {
+    return StreamBuilder<
+        QuerySnapshot<
+            Map<String, dynamic>>>(
+      stream:
+          FirebaseFirestore.instance
+              .collection(
+                'notifications',
+              )
+              .snapshots(),
+      builder:
+          (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(
+            child:
+                CircularProgressIndicator(),
+          );
+        }
+
+        final docs =
+            snapshot.data!.docs
+                .where(
+                  (doc) =>
+                      notificationVisible(
+                    doc.data(),
+                  ),
+                )
+                .toList();
+
+        docs.sort(
+          (a, b) {
+            final aDate =
+                notificationDate(
+                      a.data()[
+                          'createdAt'],
+                    ) ??
+                    DateTime(
+                      1970,
+                    );
+
+            final bDate =
+                notificationDate(
+                      b.data()[
+                          'createdAt'],
+                    ) ??
+                    DateTime(
+                      1970,
+                    );
+
+            return bDate
+                .compareTo(
+              aDate,
+            );
+          },
+        );
+
+        if (docs.isEmpty) {
+          return const Padding(
+            padding:
+                EdgeInsets.all(
+              20,
+            ),
+            child: Center(
+              child: Text(
+                'No notifications sent in last 5 days',
+                style:
+                    TextStyle(
+                  color:
+                      Colors.grey,
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          children:
+              docs.map(
+            (doc) {
+              final data =
+                  doc.data();
+
+              final category =
+                  (data['category'] ??
+                          '')
+                      .toString();
+
+              final target =
+                  (data['targetType'] ??
+                          'ALL')
+                      .toString();
+
+              final selected =
+                  (data['targetUserIds']
+                              as List?) ??
+                      const [];
+
+              return Card(
+                margin:
+                    const EdgeInsets
+                        .only(
+                  bottom: 8,
+                ),
+                child:
+                    ListTile(
+                  leading:
+                      CircleAvatar(
+                    backgroundColor:
+                        notificationCategoryBackground(
+                      category,
+                    ),
+                    child: Icon(
+                      notificationCategoryIcon(
+                        category,
+                      ),
+                      color:
+                          notificationCategoryColor(
+                        category,
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    (data['title'] ??
+                            '')
+                        .toString(),
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Text(
+                    target == 'ALL'
+                        ? '$category • All Users'
+                        : '$category • ${selected.length} Selected Users',
+                  ),
+                ),
+              );
+            },
+          ).toList(),
+        );
+      },
+    );
+  }
+        @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Scaffold(
+      backgroundColor:
+          const Color(
+        0xFFFFF9F7,
+      ),
+      appBar: AppBar(
+        backgroundColor:
+            const Color(
+          0xFFFFF9F7,
+        ),
+        surfaceTintColor:
+            Colors.transparent,
+        title: const Text(
+          'Send Notifications',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.w900,
+          ),
+        ),
+      ),
+      body: ListView(
+        padding:
+            const EdgeInsets.all(
+          16,
+        ),
+        children: [
+          const Text(
+            'Select Notification Category',
+            style:
+                TextStyle(
+              fontSize: 15,
+              fontWeight:
+                  FontWeight.w800,
+            ),
+          ),
+
+          const SizedBox(
+            height: 10,
+          ),
+
+          LayoutBuilder(
+            builder:
+                (context,
+                    constraints) {
+              final width =
+                  (constraints
+                              .maxWidth -
+                          10) /
+                      2;
+
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children:
+                    notificationCategories
+                        .map(
+                          (category) =>
+                              _categoryButton(
+                            category,
+                            width,
+                          ),
+                        )
+                        .toList(),
+              );
+            },
+          ),
+
+          const SizedBox(
+            height: 20,
+          ),
+
+          TextField(
+            controller:
+                titleController,
+            decoration:
+                InputDecoration(
+              labelText:
+                  'Notification Title',
+              filled: true,
+              fillColor:
+                  Colors.white,
+              border:
+                  OutlineInputBorder(
+                borderRadius:
+                    BorderRadius.circular(
+                  14,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(
+            height: 14,
+          ),
+
+          TextField(
+            controller:
+                messageController,
+            maxLines: 4,
+            decoration:
+                InputDecoration(
+              labelText:
+                  'Notification Message',
+              alignLabelWithHint:
+                  true,
+              filled: true,
+              fillColor:
+                  Colors.white,
+              border:
+                  OutlineInputBorder(
+                borderRadius:
+                    BorderRadius.circular(
+                  14,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(
+            height: 18,
+          ),
+
+          const Text(
+            'Send To',
+            style:
+                TextStyle(
+              fontSize: 15,
+              fontWeight:
+                  FontWeight.w800,
+            ),
+          ),
+
+          Row(
+            children: [
+              Expanded(
+                child:
+                    RadioListTile<
+                        String>(
+                  contentPadding:
+                      EdgeInsets.zero,
+                  value: 'ALL',
+                  groupValue:
+                      _targetType,
+                  title:
+                      const Text(
+                    'All Users',
+                    style:
+                        TextStyle(
+                      fontSize: 14,
+                      fontWeight:
+                          FontWeight.w600,
+                    ),
+                  ),
+                  onChanged:
+                      (value) {
+                    setState(() {
+                      _targetType =
+                          value!;
+                    });
+                  },
+                ),
+              ),
+
+              Expanded(
+                child:
+                    RadioListTile<
+                        String>(
+                  contentPadding:
+                      EdgeInsets.zero,
+                  value:
+                      'SELECTED',
+                  groupValue:
+                      _targetType,
+                  title:
+                      const Text(
+                    'Selected Users',
+                    style:
+                        TextStyle(
+                      fontSize: 14,
+                      fontWeight:
+                          FontWeight.w600,
+                    ),
+                  ),
+                  onChanged:
+                      (value) {
+                    setState(() {
+                      _targetType =
+                          value!;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+
+          if (_targetType ==
+              'SELECTED') ...[
+            Container(
+              padding:
+                  const EdgeInsets.all(
+                12,
+              ),
+              decoration:
+                  BoxDecoration(
+                color:
+                    const Color(
+                  0xFFFFF1F2,
+                ),
+                borderRadius:
+                    BorderRadius.circular(
+                  14,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child:
+                            Text(
+                          'Selected Users (${_selectedUsers.length})',
+                          style:
+                              const TextStyle(
+                            fontWeight:
+                                FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed:
+                            _chooseUsers,
+                        icon:
+                            const Icon(
+                          Icons
+                              .person_add_alt_1,
+                          size: 18,
+                        ),
+                        label:
+                            const Text(
+                          'Add Users',
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (_selectedUsers
+                      .isNotEmpty)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children:
+                          _selectedUsers
+                              .entries
+                              .map(
+                        (entry) {
+                          final user =
+                              entry
+                                  .value;
+
+                          final username =
+                              (user['username'] ??
+                                      'User')
+                                  .toString();
+
+                          return Chip(
+                            label:
+                                Text(
+                              username.startsWith(
+                                      '@')
+                                  ? username
+                                  : '@$username',
+                            ),
+                            onDeleted:
+                                () {
+                              setState(
+                                () {
+                                  _selectedUsers
+                                      .remove(
+                                    entry.key,
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ).toList(),
+                    ),
+                ],
+              ),
+            ),    
+const SizedBox(
+              height: 14,
+            ),
+          ],
+
+          Container(
+            padding:
+                const EdgeInsets
+                    .symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(
+                0xFFEAF3FF,
+              ),
+              borderRadius:
+                  BorderRadius.circular(
+                12,
+              ),
+            ),
+            child:
+                const Row(
+              children: [
+                Icon(
+                  Icons
+                      .info_outline,
+                  color:
+                      Color(
+                    0xFF2764B7,
+                  ),
+                  size: 19,
+                ),
+                SizedBox(
+                  width: 8,
+                ),
+                Expanded(
+                  child: Text(
+                    'Notification user और admin दोनों तरफ 5 days तक दिखाई देगी.',
+                    style:
+                        TextStyle(
+                      color:
+                          Color(
+                        0xFF2764B7,
+                      ),
+                      fontSize: 12,
+                      fontWeight:
+                          FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(
+            height: 18,
+          ),
+
+          SizedBox(
+            height: 52,
+            child:
+                ElevatedButton.icon(
+              onPressed:
+                  _sending
+                      ? null
+                      : _sendNotification,
+              style:
+                  ElevatedButton
+                      .styleFrom(
+                backgroundColor:
+                    const Color(
+                  0xFFE72851,
+                ),
+                foregroundColor:
+                    Colors.white,
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(
+                    24,
+                  ),
+                ),
+              ),
+              icon: _sending
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child:
+                          CircularProgressIndicator(
+                        strokeWidth:
+                            2,
+                        color:
+                            Colors.white,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.send,
+                    ),
+              label:
+                  const Text(
+                'SEND NOTIFICATION',
+                style:
+                    TextStyle(
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(
+            height: 26,
+          ),
+
+          const Row(
+            children: [
+              Icon(
+                Icons
+                    .history,
+                size: 21,
+              ),
+              SizedBox(
+                width: 7,
+              ),
+              Text(
+                'Sent Notifications • Last 5 Days',
+                style:
+                    TextStyle(
+                  fontSize: 16,
+                  fontWeight:
+                      FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(
+            height: 10,
+          ),
+
+          _sentHistory(),
+        ],
+      ),
+    );
+  }
 }
+
+                  
 
 final ValueNotifier<
         List<Map<String, dynamic>>>
