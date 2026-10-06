@@ -7101,6 +7101,74 @@ bool _adminDisplayWithinFiveDays(
   );
 }
 
+Widget _adminDateHeading({
+  required String date,
+  required int count,
+  required Color color,
+}) {
+  return Container(
+    width: double.infinity,
+    margin:
+        const EdgeInsets.only(
+      top: 5,
+      bottom: 8,
+    ),
+    padding:
+        const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 10,
+    ),
+    decoration: BoxDecoration(
+      color:
+          color.withOpacity(
+        0.09,
+      ),
+      borderRadius:
+          BorderRadius.circular(
+        17,
+      ),
+    ),
+    child: Row(
+      children: [
+        Icon(
+          Icons.calendar_month_rounded,
+          color: color,
+          size: 23,
+        ),
+
+        const SizedBox(
+          width: 9,
+        ),
+
+        Expanded(
+          child: Text(
+            date.isEmpty
+                ? 'DATE'
+                : date,
+            style: TextStyle(
+              color: color,
+              fontSize: 17,
+              fontWeight:
+                  FontWeight.w900,
+            ),
+          ),
+        ),
+
+        Text(
+          '$count '
+          '${count == 1 ? 'Match' : 'Matches'}',
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight:
+                FontWeight.bold,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 // =====================================================
 // ADMIN HOME
 // =====================================================
@@ -8139,9 +8207,42 @@ const SizedBox(
           ),
         ),
 
-        ...matches.map(
-          _matchCard,
+        ...(() {
+  final widgets = <Widget>[];
+  String? lastDate;
+
+  for (final match in matches) {
+    final date =
+        (match['date'] ?? '')
+            .trim();
+
+    if (date != lastDate) {
+      final sameDateCount =
+          matches.where(
+        (item) =>
+            (item['date'] ?? '')
+                .trim() ==
+            date,
+      ).length;
+
+      widgets.add(
+        _adminDateHeading(
+          date: date,
+          count: sameDateCount,
+          color: color,
         ),
+      );
+
+      lastDate = date;
+    }
+
+    widgets.add(
+      _matchCard(match),
+    );
+  }
+
+  return widgets;
+})(),
       ],
     );
   }
@@ -22573,9 +22674,44 @@ const SizedBox(
           ),
         ),
 
-        ...matches.map(
-          _matchCard,
+        ...(() {
+  final widgets = <Widget>[];
+  String? lastDate;
+
+  for (final match in matches) {
+    final date =
+        (match['date'] ?? '')
+            .toString()
+            .trim();
+
+    if (date != lastDate) {
+      final sameDateCount =
+          matches.where(
+        (item) =>
+            (item['date'] ?? '')
+                .toString()
+                .trim() ==
+            date,
+      ).length;
+
+      widgets.add(
+        _adminDateHeading(
+          date: date,
+          count: sameDateCount,
+          color: color,
         ),
+      );
+
+      lastDate = date;
+    }
+
+    widgets.add(
+      _matchCard(match),
+    );
+  }
+
+  return widgets;
+})(),
 
         const SizedBox(
           height: 5,
@@ -38301,9 +38437,42 @@ const SizedBox(
               ],
             ),
           ),
-...matches.map(
-            matchCard,
-          ),
+...(() {
+  final widgets = <Widget>[];
+  String? lastDate;
+
+  for (final match in matches) {
+    final date =
+        (match['date'] ?? '')
+            .trim();
+
+    if (date != lastDate) {
+      final sameDateCount =
+          matches.where(
+        (item) =>
+            (item['date'] ?? '')
+                .trim() ==
+            date,
+      ).length;
+
+      widgets.add(
+        _adminDateHeading(
+          date: date,
+          count: sameDateCount,
+          color: color,
+        ),
+      );
+
+      lastDate = date;
+    }
+
+    widgets.add(
+      matchCard(match),
+    );
+  }
+
+  return widgets;
+})(),
 
           const SizedBox(
             height: 5,
