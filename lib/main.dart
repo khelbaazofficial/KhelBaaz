@@ -22934,68 +22934,7 @@ class AdminDashboardPage extends StatelessWidget {
         fontSize: 24,
         fontWeight: FontWeight.bold,
       ),
-    ),
-    Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFEF3157),
-            Color(0xFFC91F4A),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33C91F4A),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const AdminMatchesPage(),
-            ),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          shadowColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 11,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
-          ),
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-  Icons.sports_cricket,
-  size: 24,
-  color: Colors.white,
-),
-            SizedBox(width: 8),
-            Text(
-              'Manage\nMatches',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-                height: 1.05,
-              ),
-            ),
-            SizedBox(width: 10),
-            Icon(Icons.arrow_forward, size: 20),
-          ],
-        ),
-      ),
-    ),
+    ),     
   ],
 ),
     
@@ -23138,51 +23077,9 @@ Card(
 
 
     
-          Card(
-  child: ListTile(
-    leading: const CircleAvatar(
-  backgroundColor: Colors.amber,
-  child: Icon(
-    Icons.emoji_events,
-    color: Colors.white,
-  ),
-),
-    title: const Text('Manage Contests'),
-    subtitle: const Text('Create and manage contests'),
-    trailing: const Icon(Icons.chevron_right),
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const AdminContestsPage(),
-        ),
-      );
-    },
-  ),
-),
+          
 
-Card(
-  child: ListTile(
-    leading: const CircleAvatar(
-  backgroundColor: Colors.teal,
-  child: Icon(
-    Icons.query_stats,
-    color: Colors.white,
-  ),
-),
-    title: const Text('Manage Player Stats'),
-    subtitle: const Text('Update runs, wickets, catches & points'),
-    trailing: const Icon(Icons.chevron_right),
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const AdminPlayerStatsPage(),
-        ),
-      );
-    },
-  ),
-),
+
           
           Card(
   child: ListTile(
