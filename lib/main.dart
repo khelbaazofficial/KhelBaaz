@@ -7522,21 +7522,22 @@ child: Container(
                 width: 4,
               ),
 
-              Flexible(
-                child: Text(
-                  text,
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow
-                          .ellipsis,
-                  style:
-                      TextStyle(
-                    color: selected
-                        ? Colors.white
-                        : color,
-                    fontWeight:
-                        FontWeight.w800,
-                    fontSize: 11.5,
+                            Expanded(
+                child: FittedBox(
+                  fit:
+                      BoxFit.scaleDown,
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    style:
+                        TextStyle(
+                      color: selected
+                          ? Colors.white
+                          : color,
+                      fontWeight:
+                          FontWeight.w800,
+                      fontSize: 11.5,
+                    ),
                   ),
                 ),
               ),
@@ -8419,81 +8420,6 @@ const SizedBox(
               children: [
      
 
-// ===============================
-                // COUNTERS
-                // ===============================
-
-                Row(
-                  children: [
-                    _statCard(
-                      title:
-                          'Upcoming',
-                      count:
-                          upcomingMatches
-                              .length,
-                      icon: Icons
-                          .calendar_month_outlined,
-                      color:
-                          const Color(
-                        0xFFF28C00,
-                      ),
-                      softColor:
-                          const Color(
-                        0xFFFFF8EC,
-                      ),
-                      filterIndex: 2,
-                    ),
-
-                    const SizedBox(
-                      width: 8,
-                    ),
-
-                    _statCard(
-                      title: 'Live',
-                      count:
-                          liveMatches.length,
-                      icon:
-                          Icons.sensors,
-                      color:
-                          const Color(
-                        0xFFE52542,
-                      ),
-                      softColor:
-                          const Color(
-                        0xFFFFF0F3,
-                      ),
-                      filterIndex: 1,
-                    ),
-
-                    const SizedBox(
-                      width: 8,
-                    ),
-
-                    _statCard(
-                      title:
-                          'Completed',
-                      count:
-                          completedMatches
-                              .length,
-                      icon: Icons
-                          .check_circle,
-                      color:
-                          const Color(
-                        0xFF7048D8,
-                      ),
-                      softColor:
-                          const Color(
-                        0xFFF7F3FF,
-                      ),
-                      filterIndex: 3,
-                    ),
-                  ],
-                ),
-
-                                const SizedBox(
-                  height: 12,
-                ),
-
                 _managementTabs(
                   context,
                 ),
@@ -8533,7 +8459,7 @@ const SizedBox(
                   child: Row(
                     children: [
                       _filterButton(
-                        text: 'Upcoming',
+  text: 'Upcoming (${upcomingMatches.length})',
                         index: 2,
                         icon:
                             Icons.schedule,
@@ -8548,7 +8474,7 @@ const SizedBox(
                       ),
 
                       _filterButton(
-                        text: 'Live',
+  text: 'Live (${liveMatches.length})',
                         index: 1,
                         icon:
                             Icons.sensors,
@@ -8563,8 +8489,7 @@ const SizedBox(
                       ),
 
                       _filterButton(
-                        text:
-                            'Completed',
+  text: 'Completed (${completedMatches.length})',
                         index: 3,
                         icon:
                             Icons.check_circle,
