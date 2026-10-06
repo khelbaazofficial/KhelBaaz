@@ -22622,7 +22622,10 @@ class _NotificationsPageState
               });
             },
             child: Container(
-              minHeight: 58,
+              constraints:
+    const BoxConstraints(
+  minHeight: 58,
+),
               padding:
                   const EdgeInsets
                       .symmetric(
