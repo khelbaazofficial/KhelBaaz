@@ -25928,8 +25928,8 @@ class _AdminUsersPageState
       _searchController =
       TextEditingController();
 
-  bool _searching = false;
   String _searchQuery = '';
+  String _sortMode = 'ALL';
 
   @override
   void initState() {
@@ -25957,38 +25957,16 @@ class _AdminUsersPageState
                   .trim()
                   .toUpperCase();
 
-          // Admin account list में नहीं आएगा.
           if (role == 'ADMIN') {
             continue;
           }
 
           data['id'] = doc.id;
-
-          // Old user में active missing हो
-          // तो active मानेंगे.
           data['active'] =
               data['active'] != false;
 
           loaded.add(data);
         }
-
-        loaded.sort(
-          (a, b) {
-            final aUsername =
-                (a['username'] ?? '')
-                    .toString()
-                    .toLowerCase();
-
-            final bUsername =
-                (b['username'] ?? '')
-                    .toString()
-                    .toLowerCase();
-
-            return aUsername.compareTo(
-              bUsername,
-            );
-          },
-        );
 
         appUsers.value = loaded;
       },
@@ -26024,21 +26002,31 @@ class _AdminUsersPageState
         : '@$username';
   }
 
-  String _createdText(
+  DateTime? _createdDate(
     dynamic value,
   ) {
-    DateTime? date;
-
     if (value is Timestamp) {
-      date = value.toDate();
-    } else if (value is DateTime) {
-      date = value;
-    } else if (value != null) {
-      date =
-          DateTime.tryParse(
+      return value.toDate();
+    }
+
+    if (value is DateTime) {
+      return value;
+    }
+
+    if (value != null) {
+      return DateTime.tryParse(
         value.toString(),
       );
     }
+
+    return null;
+  }
+
+  String _createdText(
+    dynamic value,
+  ) {
+    final date =
+        _createdDate(value);
 
     if (date == null) {
       return '-';
@@ -26171,9 +26159,7 @@ class _AdminUsersPageState
                 ),
               ),
 
-              const SizedBox(
-                height: 12,
-              ),
+              const SizedBox(height: 12),
 
               const Text(
                 'Email',
@@ -26188,9 +26174,7 @@ class _AdminUsersPageState
                     : email,
               ),
 
-              const SizedBox(
-                height: 12,
-              ),
+              const SizedBox(height: 12),
 
               const Text(
                 'Account Created',
@@ -26201,9 +26185,7 @@ class _AdminUsersPageState
               ),
               Text(created),
 
-              const SizedBox(
-                height: 12,
-              ),
+              const SizedBox(height: 12),
 
               const Text(
                 'Status',
@@ -26225,9 +26207,7 @@ class _AdminUsersPageState
                 ),
               ),
 
-              const SizedBox(
-                height: 12,
-              ),
+              const SizedBox(height: 12),
 
               const Text(
                 'User UID',
@@ -26254,9 +26234,8 @@ class _AdminUsersPageState
                   dialogContext,
                 );
               },
-              child: const Text(
-                'CLOSE',
-              ),
+              child:
+                  const Text('CLOSE'),
             ),
 
             ElevatedButton.icon(
@@ -26282,8 +26261,7 @@ class _AdminUsersPageState
               icon: Icon(
                 active
                     ? Icons.block
-                    : Icons
-                        .check_circle,
+                    : Icons.check_circle,
               ),
               label: Text(
                 active
@@ -26297,76 +26275,107 @@ class _AdminUsersPageState
     );
   }
 
-  void _closeSearch() {
-    _searchController.clear();
+  Widget _sortChip(
+    String label,
+    String value,
+  ) {
+    final selected =
+        _sortMode == value;
 
-    setState(() {
-      _searching = false;
-      _searchQuery = '';
-    });
+    return Expanded(
+      child: InkWell(
+        borderRadius:
+            BorderRadius.circular(18),
+        onTap: () {
+          setState(() {
+            _sortMode = value;
+          });
+        },
+        child: AnimatedContainer(
+          duration:
+              const Duration(
+            milliseconds: 180,
+          ),
+          height: 38,
+          alignment:
+              Alignment.center,
+          decoration:
+              BoxDecoration(
+            color: selected
+                ? const Color(
+                    0xFFE92D55,
+                  )
+                : const Color(
+                    0xFFFFECEB,
+                  ),
+            borderRadius:
+                BorderRadius.circular(18),
+            border: Border.all(
+              color: selected
+                  ? const Color(
+                      0xFFE92D55,
+                    )
+                  : const Color(
+                      0xFFF2D8D8,
+                    ),
+            ),
+          ),
+          child: Text(
+            label,
+            style:
+                TextStyle(
+              color: selected
+                  ? Colors.white
+                  : const Color(
+                      0xFF5A4B4B,
+                    ),
+              fontSize: 13,
+              fontWeight:
+                  FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(
     BuildContext context,
   ) {
+    const cardColors = [
+      Color(0xFFFFE7E5),
+      Color(0xFFE7F1FF),
+      Color(0xFFE4F8EC),
+      Color(0xFFF1E9FF),
+    ];
+
+    const avatarColors = [
+      Color(0xFFF06C61),
+      Color(0xFF347BD1),
+      Color(0xFF26955E),
+      Color(0xFF7651C7),
+    ];
+
     return Scaffold(
+      backgroundColor:
+          const Color(0xFFFFF9F7),
+
       appBar: AppBar(
-        title: _searching
-            ? TextField(
-                controller:
-                    _searchController,
-                autofocus: true,
-                keyboardType:
-                    TextInputType.text,
-                decoration:
-                    const InputDecoration(
-                  hintText:
-                      'Username या Mobile search करें',
-                  border:
-                      InputBorder.none,
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery =
-                        value
-                            .trim()
-                            .toLowerCase()
-                            .replaceAll(
-                              '@',
-                              '',
-                            );
-                  });
-                },
-              )
-            : const Text(
-                'Manage Users',
-              ),
-        actions: [
-          if (!_searching)
-            IconButton(
-              tooltip:
-                  'Search User',
-              icon: const Icon(
-                Icons.search,
-              ),
-              onPressed: () {
-                setState(() {
-                  _searching = true;
-                });
-              },
-            )
-          else
-            IconButton(
-              tooltip:
-                  'Close Search',
-              icon: const Icon(
-                Icons.close,
-              ),
-              onPressed:
-                  _closeSearch,
-            ),
-        ],
+        backgroundColor:
+            const Color(0xFFFFF9F7),
+        foregroundColor:
+            const Color(0xFF2B2323),
+        surfaceTintColor:
+            Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'Manage Users',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.w900,
+          ),
+        ),
       ),
 
       body: ValueListenableBuilder<
@@ -26378,30 +26387,23 @@ class _AdminUsersPageState
           final filteredUsers =
               users.where(
             (user) {
-              if (_searchQuery
-                  .isEmpty) {
+              if (_searchQuery.isEmpty) {
                 return true;
               }
 
               final username =
-                  (user['username'] ??
-                          '')
+                  (user['username'] ?? '')
                       .toString()
                       .trim()
                       .toLowerCase()
-                      .replaceAll(
-                        '@',
-                        '',
-                      );
+                      .replaceAll('@', '');
 
               final mobile =
-                  (user['mobile'] ??
-                          '')
+                  (user['mobile'] ?? '')
                       .toString()
                       .trim();
 
-              return username
-                      .contains(
+              return username.contains(
                     _searchQuery,
                   ) ||
                   mobile.contains(
@@ -26410,110 +26412,356 @@ class _AdminUsersPageState
             },
           ).toList();
 
-          if (filteredUsers
-              .isEmpty) {
-            return Center(
-              child: Text(
-                _searchQuery.isEmpty
-                    ? 'No users found'
-                    : 'कोई matching user नहीं मिला',
-              ),
+          if (_sortMode == 'NEWEST') {
+            filteredUsers.sort(
+              (a, b) {
+                final aDate =
+                    _createdDate(
+                  a['createdAt'],
+                );
+
+                final bDate =
+                    _createdDate(
+                  b['createdAt'],
+                );
+
+                if (aDate == null &&
+                    bDate == null) {
+                  return 0;
+                }
+
+                if (aDate == null) {
+                  return 1;
+                }
+
+                if (bDate == null) {
+                  return -1;
+                }
+
+                return bDate.compareTo(
+                  aDate,
+                );
+              },
+            );
+          } else if (_sortMode ==
+              'OLDEST') {
+            filteredUsers.sort(
+              (a, b) {
+                final aDate =
+                    _createdDate(
+                  a['createdAt'],
+                );
+
+                final bDate =
+                    _createdDate(
+                  b['createdAt'],
+                );
+
+                if (aDate == null &&
+                    bDate == null) {
+                  return 0;
+                }
+
+                if (aDate == null) {
+                  return 1;
+                }
+
+                if (bDate == null) {
+                  return -1;
+                }
+
+                return aDate.compareTo(
+                  bDate,
+                );
+              },
+            );
+          } else {
+            filteredUsers.sort(
+              (a, b) {
+                final aUsername =
+                    (a['username'] ?? '')
+                        .toString()
+                        .toLowerCase();
+
+                final bUsername =
+                    (b['username'] ?? '')
+                        .toString()
+                        .toLowerCase();
+
+                return aUsername
+                    .compareTo(
+                  bUsername,
+                );
+              },
             );
           }
 
-          return ListView.separated(
-            padding:
-                const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 6,
-            ),
-            itemCount:
-                filteredUsers.length,
-
-            separatorBuilder:
-                (context, index) =>
-                    const Divider(
-              height: 1,
-              indent: 12,
-              endIndent: 12,
-            ),
-
-            itemBuilder:
-                (context, index) {
-              final user =
-                  filteredUsers[
-                      index];
-
-              final username =
-                  _usernameLabel(
-                user['username'],
-              );
-
-              final mobile =
-                  (user['mobile'] ??
-                          '')
-                      .toString()
-                      .trim();
-
-              return ListTile(
-                dense: true,
-                minVerticalPadding: 0,
-                visualDensity:
-                    const VisualDensity(
-                  vertical: -3,
-                ),
-                contentPadding:
+          return Column(
+            children: [
+              Padding(
+                padding:
                     const EdgeInsets
-                        .symmetric(
-                  horizontal: 12,
-                  vertical: 0,
+                        .fromLTRB(
+                  14,
+                  8,
+                  14,
+                  8,
                 ),
+                child: TextField(
+                  controller:
+                      _searchController,
+                  decoration:
+                      InputDecoration(
+                    hintText:
+                        'Search users by username or mobile...',
+                    prefixIcon:
+                        const Icon(
+                      Icons.search,
+                    ),
+                    suffixIcon:
+                        _searchQuery.isEmpty
+                            ? null
+                            : IconButton(
+                                icon:
+                                    const Icon(
+                                  Icons.close,
+                                ),
+                                onPressed:
+                                    () {
+                                  _searchController
+                                      .clear();
 
-                title: Text(
-                  username,
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow
-                          .ellipsis,
-                  style:
-                      const TextStyle(
-                    fontSize: 15,
-                    fontWeight:
-                        FontWeight.bold,
+                                  setState(() {
+                                    _searchQuery =
+                                        '';
+                                  });
+                                },
+                              ),
+                    filled: true,
+                    fillColor:
+                        const Color(
+                      0xFFFFF0EE,
+                    ),
+                    border:
+                        OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(
+                        16,
+                      ),
+                      borderSide:
+                          BorderSide.none,
+                    ),
                   ),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery =
+                          value
+                              .trim()
+                              .toLowerCase()
+                              .replaceAll(
+                                '@',
+                                '',
+                              );
+                    });
+                  },
                 ),
+              ),
 
-                subtitle: Text(
-                  mobile.isEmpty
-                      ? '-'
-                      : mobile,
-                  maxLines: 1,
-                  style:
-                      const TextStyle(
-                    fontSize: 12,
-                  ),
+              Padding(
+                padding:
+                    const EdgeInsets
+                        .fromLTRB(
+                  14,
+                  2,
+                  14,
+                  10,
                 ),
-
-                trailing:
-                    const Icon(
-                  Icons
-                      .chevron_right,
-                  size: 22,
+                child: Row(
+                  children: [
+                    _sortChip(
+                      'All',
+                      'ALL',
+                    ),
+                    const SizedBox(
+                      width: 8,
+                    ),
+                    _sortChip(
+                      'Newest',
+                      'NEWEST',
+                    ),
+                    const SizedBox(
+                      width: 8,
+                    ),
+                    _sortChip(
+                      'Oldest',
+                      'OLDEST',
+                    ),
+                  ],
                 ),
+              ),
 
-                onTap: () {
-                  _showUserDetails(
-                    user,
-                  );
-                },
-              );
-            },
+              Expanded(
+                child:
+                    filteredUsers.isEmpty
+                        ? Center(
+                            child: Text(
+                              _searchQuery.isEmpty
+                                  ? 'No users found'
+                                  : 'कोई matching user नहीं मिला',
+                            ),
+                          )
+                        : ListView.builder(
+                            padding:
+                                const EdgeInsets
+                                    .fromLTRB(
+                              14,
+                              2,
+                              14,
+                              18,
+                            ),
+                            itemCount:
+                                filteredUsers.length,
+                            itemBuilder:
+                                (context,
+                                    index) {
+                              final user =
+                                  filteredUsers[
+                                      index];
+
+                              final username =
+                                  _usernameLabel(
+                                user['username'],
+                              );
+
+                              final mobile =
+                                  (user['mobile'] ?? '')
+                                      .toString()
+                                      .trim();
+
+                              final active =
+                                  user['active'] !=
+                                      false;
+
+                              final colorIndex =
+                                  index %
+                                      cardColors
+                                          .length;
+
+                              return Container(
+                                margin:
+                                    const EdgeInsets
+                                        .only(
+                                  bottom: 10,
+                                ),
+                                decoration:
+                                    BoxDecoration(
+                                  color:
+                                      cardColors[
+                                          colorIndex],
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    18,
+                                  ),
+                                  border:
+                                      Border.all(
+                                    color:
+                                        avatarColors[
+                                                colorIndex]
+                                            .withOpacity(
+                                      0.18,
+                                    ),
+                                  ),
+                                ),
+                                child:
+                                    ListTile(
+                                  contentPadding:
+                                      const EdgeInsets
+                                          .symmetric(
+                                    horizontal:
+                                        14,
+                                    vertical: 6,
+                                  ),
+                                  leading:
+                                      CircleAvatar(
+                                    radius: 22,
+                                    background
+                                        avatarColors[
+                                            colorIndex],
+                                    child:
+                                        const Icon(
+                                      Icons.person,
+                                      color:
+                                          Colors.white,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    username,
+                                    maxLines: 1,
+                                    overflow:
+                                        TextOverflow
+                                            .ellipsis,
+                                    style:
+                                        const TextStyle(
+                                      fontSize: 15.5,
+                                      fontWeight:
+                                          FontWeight
+                                              .w900,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    mobile.isEmpty
+                                        ? '-'
+                                        : mobile,
+                                    maxLines: 1,
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize:
+                                        MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration:
+                                            BoxDecoration(
+                                          color: active
+                                              ? const Color(
+                                                  0xFF2EAD66,
+                                                )
+                                              : const Color(
+                                                  0xFFE53935,
+                                                ),
+                                          shape:
+                                              BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        width: 8,
+                                      ),
+                                      const Icon(
+                                        Icons.chevron_right,
+                                      ),
+                                    ],
+                                  ),
+                                  onTap: () {
+                                    _showUserDetails(
+                                      user,
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+              ),
+            ],
           );
         },
       ),
     );
   }
 }
+                  
+
+              
 // ======================================================
 // ADMIN CONTESTS FIREBASE REALTIME SYSTEM
 // Admin Create / Edit / Delete
