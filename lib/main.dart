@@ -6930,6 +6930,177 @@ class _AdminMainPageState
     );
   }
 }
+
+// =====================================================
+// ADMIN DISPLAY RETENTION
+// Match completion + 5 days
+// Admin Home / Manage Matches / Player Stats / Contests
+// =====================================================
+
+DateTime?
+    _adminRetentionDateValue(
+  dynamic value,
+) {
+  if (value is Timestamp) {
+    return value.toDate();
+  }
+
+  if (value is DateTime) {
+    return value;
+  }
+
+  final text =
+      (value ?? '')
+          .toString()
+          .trim();
+
+  if (text.isEmpty) {
+    return null;
+  }
+
+  return DateTime.tryParse(
+    text,
+  );
+}
+
+DateTime?
+    _adminRetentionStartTime(
+  Map<dynamic, dynamic> match,
+) {
+  try {
+    final date =
+        (match['date'] ?? '')
+            .toString()
+            .trim();
+
+    final time =
+        (match['time'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
+
+    final dateParts =
+        date.split('/');
+
+    if (dateParts.length != 3) {
+      return null;
+    }
+
+    final cleanTime =
+        time
+            .replaceAll(
+              'AM',
+              '',
+            )
+            .replaceAll(
+              'PM',
+              '',
+            )
+            .trim();
+
+    final timeParts =
+        cleanTime.split(':');
+
+    if (timeParts.length < 2) {
+      return null;
+    }
+
+    int hour =
+        int.tryParse(
+              timeParts[0],
+            ) ??
+            0;
+
+    final minute =
+        int.tryParse(
+              timeParts[1]
+                  .replaceAll(
+                RegExp(
+                  r'[^0-9]',
+                ),
+                '',
+              ),
+            ) ??
+            0;
+
+    if (time.contains('PM') &&
+        hour != 12) {
+      hour += 12;
+    }
+
+    if (time.contains('AM') &&
+        hour == 12) {
+      hour = 0;
+    }
+
+    return DateTime(
+      int.parse(
+        dateParts[2],
+      ),
+      int.parse(
+        dateParts[1],
+      ),
+      int.parse(
+        dateParts[0],
+      ),
+      hour,
+      minute,
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+bool _adminDisplayWithinFiveDays(
+  Map<dynamic, dynamic> match,
+) {
+  final savedCompletedAt =
+      _adminRetentionDateValue(
+    match['completedAt'],
+  );
+
+  final startTime =
+      _adminRetentionStartTime(
+    match,
+  );
+
+  final durationMinutes =
+      int.tryParse(
+            (match[
+                        'durationMinutes'] ??
+                    '180')
+                .toString(),
+          ) ??
+          180;
+
+  final completionTime =
+      savedCompletedAt ??
+          (startTime == null
+              ? null
+              : startTime.add(
+                  Duration(
+                    minutes:
+                        durationMinutes,
+                  ),
+                ));
+
+  if (completionTime == null) {
+    return true;
+  }
+
+  final deleteAt =
+      completionTime.add(
+    const Duration(
+      days: 5,
+    ),
+  );
+
+  return DateTime.now()
+      .isBefore(
+    deleteAt,
+  );
+}
+
 // =====================================================
 // ADMIN HOME
 // =====================================================
@@ -8168,8 +8339,19 @@ const SizedBox(
 
           builder:
               (context, matches, _) {
-            final liveMatches =
+            
+                        final visibleMatches =
                 matches
+                    .where(
+                      (match) =>
+                          _adminDisplayWithinFiveDays(
+                        match,
+                      ),
+                    )
+                    .toList();
+
+            final liveMatches =
+                visibleMatches
                     .where(
                       (m) =>
                           _matchStatus(
@@ -8187,7 +8369,7 @@ const SizedBox(
                   );
 
             final upcomingMatches =
-                matches
+                visibleMatches
                     .where(
                       (m) =>
                           _matchStatus(
@@ -8205,7 +8387,7 @@ const SizedBox(
                   );
 
             final completedMatches =
-                matches
+                visibleMatches
                     .where(
                       (m) =>
                           _matchStatus(
@@ -8221,6 +8403,8 @@ const SizedBox(
                       _sortTime(a),
                     ),
                   );
+
+            
 
             return ListView(
               padding:
@@ -22535,9 +22719,19 @@ const SizedBox(
         valueListenable:
             adminMatches,
         builder:
-            (context, matches, _) {
-          final liveMatches =
+                        (context, matches, _) {
+          final visibleMatches =
               matches
+                  .where(
+                    (match) =>
+                        _adminDisplayWithinFiveDays(
+                      match,
+                    ),
+                  )
+                  .toList();
+
+          final liveMatches =
+              visibleMatches
                   .where(
                     (m) =>
                         _realStatus(
@@ -22555,7 +22749,7 @@ const SizedBox(
                 );
 
           final upcomingMatches =
-              matches
+              visibleMatches
                   .where(
                     (m) =>
                         _realStatus(
@@ -22573,7 +22767,7 @@ const SizedBox(
                 );
 
           final completedMatches =
-              matches
+              visibleMatches
                   .where(
                     (m) =>
                         _realStatus(
@@ -22590,7 +22784,9 @@ const SizedBox(
                   ),
                 );
 
-          if (matches.isEmpty) {
+          if (visibleMatches.isEmpty) {
+
+          
             return const Center(
               child: Text(
                 'No Matches Available',
@@ -24341,34 +24537,222 @@ class AdminContestsPage extends StatefulWidget {
   State<AdminContestsPage> createState() => _AdminContestsPageState();
 }
 
-class _AdminContestsPageState extends State<AdminContestsPage> {
-    int _selectedContestFilter = 2;
+class _AdminContestsPageState
+    extends State<AdminContestsPage> {
+  int _selectedContestFilter = 2;
 
   String?
       _expandedContestMatchKey;
-void _refreshAdminContestPage() {
-  if (!mounted) return;
 
-  setState(() {});
-}
+  Timer?
+      _contestRetentionTimer;
 
-@override
-void initState() {
-  super.initState();
+  void _refreshAdminContestPage() {
+    if (!mounted) return;
 
-  createdContestsVersion.addListener(
-    _refreshAdminContestPage,
-  );
-}
+    setState(() {});
+  }
 
-@override
-void dispose() {
-  createdContestsVersion.removeListener(
-    _refreshAdminContestPage,
-  );
+  int _contestJoinedCount(
+    Map<String, dynamic> contest,
+  ) {
+    final contestId =
+        (contest['id'] ??
+                contest['contestId'] ??
+                '')
+            .toString()
+            .trim();
 
-  super.dispose();
-}
+    return _globalContestJoinedCount(
+      contestId,
+    );
+  }
+
+  int _contestTotalSpots(
+    Map<String, dynamic> contest,
+  ) {
+    return int.tryParse(
+          (contest['spots'] ??
+                  contest['totalSpots'] ??
+                  '0')
+              .toString(),
+        ) ??
+        0;
+  }
+
+  double _contestEntryFee(
+    Map<String, dynamic> contest,
+  ) {
+    return double.tryParse(
+          (contest['fee'] ?? '0')
+              .toString(),
+        ) ??
+        0;
+  }
+
+  double _contestCollection(
+    Map<String, dynamic> contest,
+  ) {
+    return _contestJoinedCount(
+          contest,
+        ) *
+        _contestEntryFee(
+          contest,
+        );
+  }
+
+  bool _contestIsFull(
+    Map<String, dynamic> contest,
+  ) {
+    final joined =
+        _contestJoinedCount(
+      contest,
+    );
+
+    final total =
+        _contestTotalSpots(
+      contest,
+    );
+
+    return total > 0 &&
+        joined >= total;
+  }
+
+  String _contestJoinedText(
+    Map<String, dynamic> contest,
+  ) {
+    final joined =
+        _contestJoinedCount(
+      contest,
+    );
+
+    final total =
+        _contestTotalSpots(
+      contest,
+    );
+
+    return '$joined/$total ✅'
+        '${_contestIsFull(contest) ? ' FULL' : ''}';
+  }
+
+  Widget _contestMetric(
+    String label,
+    String value, {
+    Color valueColor =
+        const Color(
+      0xFF302532,
+    ),
+  }) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 7,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color:
+            const Color(
+          0xFFFFFFFF,
+        ).withOpacity(
+          0.70,
+        ),
+        borderRadius:
+            BorderRadius.circular(
+          10,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          FittedBox(
+            fit:
+                BoxFit.scaleDown,
+            alignment:
+                Alignment.centerLeft,
+            child: Text(
+              label,
+              style:
+                  const TextStyle(
+                fontSize: 9,
+                color:
+                    Color(
+                  0xFF766C7A,
+                ),
+                fontWeight:
+                    FontWeight.w600,
+              ),
+            ),
+          ),
+
+          const SizedBox(
+            height: 2,
+          ),
+
+          FittedBox(
+            fit:
+                BoxFit.scaleDown,
+            alignment:
+                Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight:
+                    FontWeight.w800,
+                color:
+                    valueColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    createdContestsVersion
+        .addListener(
+      _refreshAdminContestPage,
+    );
+
+    contestJoinCounts.addListener(
+      _refreshAdminContestPage,
+    );
+
+    _contestRetentionTimer =
+        Timer.periodic(
+      const Duration(
+        seconds: 30,
+      ),
+      (_) {
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    createdContestsVersion
+        .removeListener(
+      _refreshAdminContestPage,
+    );
+
+    contestJoinCounts.removeListener(
+      _refreshAdminContestPage,
+    );
+
+    _contestRetentionTimer
+        ?.cancel();
+
+    super.dispose();
+  }
   String makeShortName(String name) {
   final words = name.trim().split(RegExp(r'\s+'));
 
@@ -24597,7 +24981,14 @@ final contestStatusByKey =
     <String, String>{};
 
 for (final contest
-    in sortedContests) {
+    in sortedContests.where(
+  (contest) =>
+      _adminDisplayWithinFiveDays(
+    contestMatchData(
+      contest,
+    ),
+  ),
+)) {
   final key =
       contestGroupKey(contest);
 
@@ -25528,8 +25919,15 @@ if (!contestSaved) {
       <String,
           List<Map<String, dynamic>>>{};
 
-  for (final contest
-      in sortedContests) {
+    for (final contest
+      in sortedContests.where(
+    (contest) =>
+        _adminDisplayWithinFiveDays(
+      contestMatchData(
+        contest,
+      ),
+    ),
+  )) {
     final key =
         contestGroupKey(contest);
 
@@ -25542,8 +25940,7 @@ if (!contestSaved) {
     groupedContests[key]!.add(
       contest,
     );
-  }
-
+    }
   String? lastVisibleDate;
 
   return groupedContests.entries
@@ -26146,121 +26543,97 @@ if (!contestSaved) {
                   ),
                 ),
               ),
-              subtitle: Padding(
+                            subtitle: Padding(
                 padding:
                     const EdgeInsets.only(
-                  top: 8,
+                  top: 7,
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
-                        children: [
-                          const Text(
-                            'Entry Fee',
-                            style:
-                                TextStyle(
-                              fontSize:
-                                  9.5,
-                              color:
-                                  Color(
-                                0xFF766C7A,
-                              ),
-                            ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child:
+                              _contestMetric(
+                            '🤑 Entry Fee',
+                            '₹${contest['fee'] ?? '0'}',
                           ),
-                          Text(
-                            '₹${contest['fee']}',
-                            style:
-                                const TextStyle(
-                              fontSize: 13,
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
-                              color:
-                                  Color(
-                                0xFF302532,
-                              ),
-                            ),
+                        ),
+
+                        const SizedBox(
+                          width: 5,
+                        ),
+
+                        Expanded(
+                          child:
+                              _contestMetric(
+                            '🏆 Prize Pool',
+                            '₹${contest['prize'] ?? contest['prizePool'] ?? '0'}',
                           ),
-                        ],
-                      ),
+                        ),
+
+                        const SizedBox(
+                          width: 5,
+                        ),
+
+                        Expanded(
+                          child:
+                              _contestMetric(
+                            '🎫 Total Spots',
+                            '${_contestTotalSpots(contest)}',
+                          ),
+                        ),
+                      ],
                     ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
-                        children: [
-                          const Text(
-                            'Prize Pool',
-                            style:
-                                TextStyle(
-                              fontSize:
-                                  9.5,
-                              color:
-                                  Color(
-                                0xFF766C7A,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            '₹${contest['prize']}',
-                            style:
-                                const TextStyle(
-                              fontSize: 13,
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
-                              color:
-                                  Color(
-                                0xFF302532,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+
+                    const SizedBox(
+                      height: 6,
                     ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
-                        children: [
-                          const Text(
-                            'Total Spots',
-                            style:
-                                TextStyle(
-                              fontSize:
-                                  9.5,
-                              color:
-                                  Color(
-                                0xFF766C7A,
-                              ),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child:
+                              _contestMetric(
+                            '👤 Joined',
+                            _contestJoinedText(
+                              contest,
+                            ),
+                            valueColor:
+                                _contestIsFull(
+                              contest,
+                            )
+                                    ? const Color(
+                                        0xFF15803D,
+                                      )
+                                    : const Color(
+                                        0xFF5C3B8C,
+                                      ),
+                          ),
+                        ),
+
+                        const SizedBox(
+                          width: 6,
+                        ),
+
+                        Expanded(
+                          child:
+                              _contestMetric(
+                            '💰 Total Collection',
+                            '₹${_contestCollection(contest).toStringAsFixed(0)}',
+                            valueColor:
+                                const Color(
+                              0xFFB76A00,
                             ),
                           ),
-                          Text(
-                            '${contest['spots']}',
-                            style:
-                                const TextStyle(
-                              fontSize: 13,
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
-                              color:
-                                  Color(
-                                0xFF302532,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+                    
+                    
               trailing: const Icon(
                 Icons.chevron_right,
                 color:
@@ -37018,16 +37391,28 @@ joinedMatches.value = syncedJoinedMatches;
       return 'COMPLETED';
     }
 
-    final allMatches =
-        List<Map<String, String>>.from(
-      adminMatches.value,
-    )
+        final allMatches =
+        adminMatches.value
+            .where(
+              (match) =>
+                  _adminDisplayWithinFiveDays(
+                match,
+              ),
+            )
+            .map(
+              (match) =>
+                  Map<String, String>.from(
+                match,
+              ),
+            )
+            .toList()
           ..sort(
             (a, b) => matchDate(b)
                 .compareTo(
               matchDate(a),
             ),
           );
+    
 
     final liveMatches = allMatches
         .where(
