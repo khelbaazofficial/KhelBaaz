@@ -949,6 +949,9 @@ final ValueNotifier<String?> depositPaymentImage =
 
 final ValueNotifier<String?> selectedPaymentScreenshot =
    ValueNotifier<String?>(null);
+final ValueNotifier<String>
+    depositSenderUpiId =
+    ValueNotifier<String>('');
 StreamSubscription<
         DocumentSnapshot<
             Map<String, dynamic>>>?
@@ -4197,6 +4200,14 @@ Future<bool> addWalletRequest({
   required String type,
   required double amount,
   String? screenshot,
+  String? depositUpiId,
+  String? payoutMethod,
+  String? payoutUpiId,
+  String? accountHolderName,
+  String? bankName,
+  String? bankAccountNumber,
+  String? bankIfsc,
+  String? bankMobile,
 }) async {
   if (_walletRequestSaveInProgress) {
     debugPrint(
@@ -4360,6 +4371,45 @@ Future<bool> addWalletRequest({
       'amount': amount,
       'status': 'PENDING',
       'createdAt': now,
+      if (depositUpiId != null &&
+    depositUpiId.trim().isNotEmpty)
+  'depositUpiId':
+      depositUpiId.trim(),
+
+if (payoutMethod != null &&
+    payoutMethod.trim().isNotEmpty)
+  'payoutMethod':
+      payoutMethod.trim().toUpperCase(),
+
+if (payoutUpiId != null &&
+    payoutUpiId.trim().isNotEmpty)
+  'payoutUpiId':
+      payoutUpiId.trim(),
+
+if (accountHolderName != null &&
+    accountHolderName.trim().isNotEmpty)
+  'accountHolderName':
+      accountHolderName.trim(),
+
+if (bankName != null &&
+    bankName.trim().isNotEmpty)
+  'bankName':
+      bankName.trim(),
+
+if (bankAccountNumber != null &&
+    bankAccountNumber.trim().isNotEmpty)
+  'bankAccountNumber':
+      bankAccountNumber.trim(),
+
+if (bankIfsc != null &&
+    bankIfsc.trim().isNotEmpty)
+  'bankIfsc':
+      bankIfsc.trim().toUpperCase(),
+
+if (bankMobile != null &&
+    bankMobile.trim().isNotEmpty)
+  'bankMobile':
+      bankMobile.trim(),
       if (screenshot != null &&
           screenshot
               .trim()
@@ -19706,201 +19756,663 @@ Navigator.push(
   );
 }
 
-void showWithdrawRequestDialog(BuildContext context) {
-  final TextEditingController amountController = TextEditingController();
+Future<void> showWithdrawRequestDialog(
+  BuildContext context,
+) async {
+  final amountController =
+      TextEditingController();
 
-  showDialog(
+  final upiController =
+      TextEditingController();
+
+  final holderController =
+      TextEditingController();
+
+  final bankNameController =
+      TextEditingController();
+
+  final accountController =
+      TextEditingController();
+
+  final confirmAccountController =
+      TextEditingController();
+
+  final ifscController =
+      TextEditingController();
+
+  final mobileController =
+      TextEditingController();
+
+  String payoutMethod = 'UPI';
+
+  await showDialog<void>(
     context: context,
-    builder: (context) {
-      return AlertDialog(
-  scrollable: true,
-  title: const Text('Withdraw Request'),
-        content: Column(
-  mainAxisSize: MainAxisSize.min,
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    TextField(
-      controller: amountController,
-      keyboardType: TextInputType.number,
-      decoration: const InputDecoration(
-        labelText: 'Amount',
-        prefixText: '₹ ',
-      
-        helperText:
-    'न्यूनतम ₹500 • केवल Deposit + Winning withdraw',
-        border: OutlineInputBorder(),
-      ),
-    ),
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder:
+            (dialogContext, setDialogState) {
+          final isUpi =
+              payoutMethod == 'UPI';
 
-    const SizedBox(height: 16),
-
-    const Text(
-      'Quick Select',
-      style: TextStyle(
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-
-    const SizedBox(height: 10),
-
-    Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-  backgroundColor: Colors.red,
-  foregroundColor: Colors.white,
-),
-          onPressed: () {
-            amountController.text = '500';
-          },
-          child: const Text('₹500'),
-        ),
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-  backgroundColor: Colors.red,
-  foregroundColor: Colors.white,
-),
-          onPressed: () {
-            amountController.text = '1000';
-          },
-          child: const Text('₹1000'),
-        ),
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-  backgroundColor: Colors.red,
-  foregroundColor: Colors.white,
-),
-          onPressed: () {
-            amountController.text = '2000';
-          },
-          child: const Text('₹2000'),
-        ),
-      ],
-    ),
-  ],
-),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-  backgroundColor: Colors.red,
-  foregroundColor: Colors.white,
-),
-                        onPressed: () async {
-              final double? amount =
-                  double.tryParse(amountController.text);
-
-               if (amount == null || amount < 500) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text(
-        'न्यूनतम Withdrawal ₹500 है',
-      ),
-    ),
-  );
-  return;
-}
-
-              final pendingWithdrawTotal = walletRequests.value
-    .where(
-      (request) =>
-          (request['type'] ?? '')
-                  .toString()
-                  .toUpperCase() ==
-              'WITHDRAW' &&
-          (request['status'] ?? '')
-                  .toString()
-                  .toUpperCase() ==
-              'PENDING',
-    )
-    .fold<double>(0.0, (sum, request) {
-  final value = request['amount'];
-
-  if (value is num) {
-    return sum + value.toDouble();
-  }
-
-  return sum +
-      (double.tryParse(value?.toString() ?? '0') ?? 0.0);
-});
-
-final double withdrawableBeforePending =
-    _calculateWithdrawableBalance(
-  currentWallet:
-      walletBalance.value,
-  history:
-      transactionHistory.value,
-);
-
-final double availableBalance =
-    (withdrawableBeforePending -
-            pendingWithdrawTotal)
-        .clamp(
-          0,
-          double.infinity,
-        )
-        .toDouble();
-
-if (amount > availableBalance) {
-  ScaffoldMessenger.of(context)
-      .showSnackBar(
-    SnackBar(
-      content: Text(
-        'Bonus direct withdraw नहीं होगा • Available ₹${availableBalance.toStringAsFixed(0)}',
-      ),
-    ),
-  );
-  return;
-}
-
-                            final saved =
-                  await addWalletRequest(
-                type: 'WITHDRAW',
-                amount: amount,
-              );
-
-              if (!context.mounted) {
-                return;
-              }
-
-              if (!saved) {
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Withdraw request save नहीं हुई • फिर कोशिश करें',
-                    ),
-                  ),
-                );
-                return;
-              }
-
-              Navigator.pop(context);
-
-              ScaffoldMessenger.of(context)
-                  .showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Withdraw request sent',
+          return AlertDialog(
+            scrollable: true,
+            title: const Text(
+              'Withdraw Request',
+            ),
+            content: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller:
+                      amountController,
+                  keyboardType:
+                      TextInputType.number,
+                  decoration:
+                      const InputDecoration(
+                    labelText:
+                        'Withdraw Amount',
+                    prefixText: '₹ ',
+                    helperText:
+                        'न्यूनतम ₹500 • केवल Deposit + Winning withdraw',
+                    border:
+                        OutlineInputBorder(),
                   ),
                 ),
-              );
-            },
-            child: const Text('SEND REQUEST'),
-          ),
-        ],
+
+                const SizedBox(height: 12),
+
+                const Text(
+                  'Quick Select',
+                  style: TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final value
+                        in [
+                      '500',
+                      '1000',
+                      '2000',
+                    ])
+                      OutlinedButton(
+                        onPressed: () {
+                          amountController
+                              .text = value;
+                        },
+                        child:
+                            Text('₹$value'),
+                      ),
+                  ],
+                ),
+
+                const SizedBox(height: 18),
+
+                const Text(
+                  'Select Payout Method',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child:
+                          ChoiceChip(
+                        avatar:
+                            const Icon(
+                          Icons.payment,
+                          size: 18,
+                        ),
+                        label:
+                            const Text(
+                          'UPI ID',
+                        ),
+                        selected:
+                            isUpi,
+                        onSelected: (_) {
+                          setDialogState(
+                            () {
+                              payoutMethod =
+                                  'UPI';
+                            },
+                          );
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(
+                      width: 8,
+                    ),
+
+                    Expanded(
+                      child:
+                          ChoiceChip(
+                        avatar:
+                            const Icon(
+                          Icons
+                              .account_balance,
+                          size: 18,
+                        ),
+                        label:
+                            const Text(
+                          'Bank',
+                        ),
+                        selected:
+                            !isUpi,
+                        onSelected: (_) {
+                          setDialogState(
+                            () {
+                              payoutMethod =
+                                  'BANK';
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                if (isUpi) ...[
+                  TextField(
+                    controller:
+                        upiController,
+                    keyboardType:
+                        TextInputType
+                            .emailAddress,
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'UPI ID',
+                      hintText:
+                          'example@upi',
+                      prefixIcon:
+                          Icon(
+                        Icons.payment,
+                      ),
+                      border:
+                          OutlineInputBorder(),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 12,
+                  ),
+
+                  TextField(
+                    controller:
+                        holderController,
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'Account Holder Name',
+                      prefixIcon:
+                          Icon(
+                        Icons.person,
+                      ),
+                      border:
+                          OutlineInputBorder(),
+                    ),
+                  ),
+                ] else ...[
+                  TextField(
+                    controller:
+                        holderController,
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'Account Holder Name',
+                      border:
+                          OutlineInputBorder(),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 12,
+                  ),
+
+                  TextField(
+                    controller:
+                        bankNameController,
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'Bank Name',
+                      border:
+                          OutlineInputBorder(),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 12,
+                  ),
+
+                  TextField(
+                    controller:
+                        accountController,
+                    keyboardType:
+                        TextInputType.number,
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'Account Number',
+                      border:
+                          OutlineInputBorder(),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 12,
+                  ),
+
+                  TextField(
+                    controller:
+                        confirmAccountController,
+                    keyboardType:
+                        TextInputType.number,
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'Confirm Account Number',
+                      border:
+                          OutlineInputBorder(),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 12,
+                  ),
+
+                  TextField(
+                    controller:
+                        ifscController,
+                    textCapitalization:
+                        TextCapitalization
+                            .characters,
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'IFSC Code',
+                      border:
+                          OutlineInputBorder(),
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 12,
+                  ),
+
+                  TextField(
+                    controller:
+                        mobileController,
+                    keyboardType:
+                        TextInputType.phone,
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'Mobile Number',
+                      border:
+                          OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 14),
+
+                Container(
+                  padding:
+                      const EdgeInsets.all(
+                    10,
+                  ),
+                  decoration: BoxDecoration(
+                    color:
+                        const Color(
+                      0xFFFFF2C8,
+                    ),
+                    borderRadius:
+                        BorderRadius.circular(
+                      10,
+                    ),
+                  ),
+                  child: const Text(
+                    '⚠️ अपनी सही UPI/Bank details ही भरें। गलत payout details देने पर Withdraw request Reject की जा सकती है।',
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.35,
+                      fontWeight:
+                          FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(
+                    dialogContext,
+                  );
+                },
+                child:
+                    const Text('CANCEL'),
+              ),
+
+              ElevatedButton(
+                style:
+                    ElevatedButton.styleFrom(
+                  backgroundColor:
+                      Colors.red,
+                  foregroundColor:
+                      Colors.white,
+                ),
+                onPressed: () async {
+                  final amount =
+                      double.tryParse(
+                    amountController.text
+                        .trim(),
+                  );
+
+                  if (amount == null ||
+                      amount < 500) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'न्यूनतम Withdrawal ₹500 है',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
+                  final holderName =
+                      holderController.text
+                          .trim();
+
+                  if (holderName.isEmpty) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Account Holder Name भरें',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (isUpi) {
+                    final upi =
+                        upiController.text
+                            .trim();
+
+                    if (upi.isEmpty ||
+                        !upi.contains('@')) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'सही UPI ID भरें',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                  } else {
+                    final bankName =
+                        bankNameController
+                            .text
+                            .trim();
+
+                    final accountNo =
+                        accountController
+                            .text
+                            .trim();
+
+                    final confirmNo =
+                        confirmAccountController
+                            .text
+                            .trim();
+
+                    final ifsc =
+                        ifscController.text
+                            .trim();
+
+                    final mobile =
+                        mobileController
+                            .text
+                            .trim();
+
+                    if (bankName.isEmpty ||
+                        accountNo.isEmpty ||
+                        ifsc.isEmpty ||
+                        mobile.isEmpty) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'सभी Bank details भरें',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (accountNo !=
+                        confirmNo) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Account Number match नहीं कर रहा',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (mobile.length < 10) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'सही Mobile Number भरें',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                  }
+
+                  final pendingWithdrawTotal =
+                      walletRequests.value
+                          .where(
+                            (request) =>
+                                (request['type'] ??
+                                            '')
+                                        .toString()
+                                        .toUpperCase() ==
+                                    'WITHDRAW' &&
+                                (request['status'] ??
+                                            '')
+                                        .toString()
+                                        .toUpperCase() ==
+                                    'PENDING',
+                          )
+                          .fold<double>(
+                            0.0,
+                            (
+                              sum,
+                              request,
+                            ) {
+                              final value =
+                                  request[
+                                      'amount'];
+
+                              if (value
+                                  is num) {
+                                return sum +
+                                    value
+                                        .toDouble();
+                              }
+
+                              return sum +
+                                  (double.tryParse(
+                                        value
+                                                ?.toString() ??
+                                            '0',
+                                      ) ??
+                                      0);
+                            },
+                          );
+
+                  final withdrawableBeforePending =
+                      _calculateWithdrawableBalance(
+                    currentWallet:
+                        walletBalance.value,
+                    history:
+                        transactionHistory
+                            .value,
+                  );
+
+                  final availableBalance =
+                      (withdrawableBeforePending -
+                              pendingWithdrawTotal)
+                          .clamp(
+                            0,
+                            double.infinity,
+                          )
+                          .toDouble();
+
+                  if (amount >
+                      availableBalance) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Bonus direct withdraw नहीं होगा • Available ₹${availableBalance.toStringAsFixed(0)}',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
+                  final saved =
+                      await addWalletRequest(
+                    type: 'WITHDRAW',
+                    amount: amount,
+                    payoutMethod:
+                        payoutMethod,
+                    payoutUpiId: isUpi
+                        ? upiController.text
+                            .trim()
+                        : null,
+                    accountHolderName:
+                        holderName,
+                    bankName: !isUpi
+                        ? bankNameController
+                            .text
+                            .trim()
+                        : null,
+                    bankAccountNumber:
+                        !isUpi
+                            ? accountController
+                                .text
+                                .trim()
+                            : null,
+                    bankIfsc: !isUpi
+                        ? ifscController.text
+                            .trim()
+                            .toUpperCase()
+                        : null,
+                    bankMobile: !isUpi
+                        ? mobileController
+                            .text
+                            .trim()
+                        : null,
+                  );
+
+                  if (!context.mounted) {
+                    return;
+                  }
+
+                  if (!saved) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Withdraw request save नहीं हुई • फिर कोशिश करें',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
+                  if (dialogContext.mounted) {
+                    Navigator.pop(
+                      dialogContext,
+                    );
+                  }
+
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Withdraw request sent',
+                      ),
+                    ),
+                  );
+                },
+                child: const Text(
+                  'SEND REQUEST',
+                ),
+              ),
+            ],
+          );
+        },
       );
     },
   );
+
+  amountController.dispose();
+  upiController.dispose();
+  holderController.dispose();
+  bankNameController.dispose();
+  accountController.dispose();
+  confirmAccountController.dispose();
+  ifscController.dispose();
+  mobileController.dispose();
 }
+        
+        
+
+
+              
 class DepositPaymentPage extends StatelessWidget {
   final double amount;
 
@@ -20054,6 +20566,27 @@ ValueListenableBuilder<String>(
     );
   },
 ),
+          const SizedBox(height: 14),
+
+TextField(
+  keyboardType:
+      TextInputType.emailAddress,
+  onChanged: (value) {
+    depositSenderUpiId.value =
+        value.trim();
+  },
+  decoration: const InputDecoration(
+    labelText:
+        'जिस UPI ID से Payment किया',
+    hintText:
+        'example@upi',
+    prefixIcon:
+        Icon(Icons.payment),
+    border: OutlineInputBorder(),
+    helperText:
+        'सिर्फ वही UPI ID लिखें जिससे payment किया है',
+  ),
+),
           const SizedBox(height: 12),
 
 OutlinedButton.icon(
@@ -20145,8 +20678,26 @@ Center(
   ),
 ),
   onPressed: () async {
-  if (selectedPaymentScreenshot.value == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
+  final paidFromUpiId =
+      depositSenderUpiId.value.trim();
+
+  if (paidFromUpiId.isEmpty ||
+      !paidFromUpiId.contains('@')) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'जिस UPI ID से payment किया है वह सही दर्ज करें',
+        ),
+      ),
+    );
+    return;
+  }
+
+  if (selectedPaymentScreenshot.value ==
+      null) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       const SnackBar(
         content: Text(
           'पहले payment screenshot upload करें',
@@ -20156,16 +20707,20 @@ Center(
     return;
   }
 
-  final saved = await addWalletRequest(
+  final saved =
+      await addWalletRequest(
     type: 'DEPOSIT',
     amount: amount,
-    screenshot: selectedPaymentScreenshot.value,
+    screenshot:
+        selectedPaymentScreenshot.value,
+    depositUpiId: paidFromUpiId,
   );
 
   if (!context.mounted) return;
 
   if (!saved) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       const SnackBar(
         content: Text(
           'Deposit request save नहीं हुई • फिर कोशिश करें',
@@ -20176,7 +20731,9 @@ Center(
   }
 
   selectedPaymentScreenshot.value = null;
+  depositSenderUpiId.value = '';
 
+  
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(
@@ -20821,37 +21378,38 @@ height: 1.2,
   }
 }
 
-class HelpSupportPage
-    extends StatelessWidget {
+class HelpSupportPage extends StatefulWidget {
   const HelpSupportPage({
     super.key,
   });
 
-  // अभी current code में पुराने handles यही मिले हैं.
-  // Display branding KhelBaaz रहेगी.
+  @override
+  State<HelpSupportPage> createState() =>
+      _HelpSupportPageState();
+}
+
+class _HelpSupportPageState
+    extends State<HelpSupportPage> {
+  int? _expandedIndex;
+
   static const String instagramUrl =
-      'https://www.instagram.com/cricnovaplay/';
+      'https://www.instagram.com/khelbaazofficial/';
 
   static const String telegramUrl =
-      'https://t.me/cricnovaplay';
+      'https://t.me/Khelbaaz';
 
   Future<void> _openUrl(
-    BuildContext context,
     String url,
   ) async {
     final uri = Uri.parse(url);
 
-    if (!await launchUrl(
+    final opened = await launchUrl(
       uri,
-      mode:
-          LaunchMode.externalApplication,
-    )) {
-      if (!context.mounted) {
-        return;
-      }
+      mode: LaunchMode.externalApplication,
+    );
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Link open नहीं हुआ',
@@ -20861,16 +21419,31 @@ class HelpSupportPage
     }
   }
 
-  Widget _helpCard({
+  Widget _detailText(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 14,
+        height: 1.55,
+        color: Color(0xFF544A4A),
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
+  Widget _section({
+    required int index,
     required IconData icon,
     required String title,
-    required String text,
     required Color background,
     required Color iconColor,
+    required Widget details,
   }) {
+    final opened =
+        _expandedIndex == index;
+
     return Container(
-      margin:
-          const EdgeInsets.only(
+      margin: const EdgeInsets.only(
         bottom: 10,
       ),
       decoration: BoxDecoration(
@@ -20878,195 +21451,296 @@ class HelpSupportPage
         borderRadius:
             BorderRadius.circular(18),
         border: Border.all(
-          color:
-              iconColor.withOpacity(
-            0.18,
+          color: iconColor.withOpacity(
+            0.22,
           ),
         ),
       ),
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(
-          horizontal: 15,
-          vertical: 7,
-        ),
-        leading: CircleAvatar(
-          backgroundColor:
-              Colors.white,
-          child: Icon(
-            icon,
-            color: iconColor,
-          ),
-        ),
-        title: Text(
-          title,
-          style:
-              const TextStyle(
-            fontWeight:
-                FontWeight.w900,
-          ),
-        ),
-        subtitle: Padding(
-          padding:
-              const EdgeInsets.only(
-            top: 4,
-          ),
-          child: Text(
-            text,
-            style:
-                const TextStyle(
-              height: 1.35,
-              fontWeight:
-                  FontWeight.w500,
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius:
+                BorderRadius.circular(18),
+            onTap: () {
+              setState(() {
+                _expandedIndex =
+                    opened ? null : index;
+              });
+            },
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 23,
+                    backgroundColor:
+                        Colors.white,
+                    child: Icon(
+                      icon,
+                      color: iconColor,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight:
+                            FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    opened
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                    color: iconColor,
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+          AnimatedCrossFade(
+            duration: const Duration(
+              milliseconds: 220,
+            ),
+            crossFadeState: opened
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild:
+                const SizedBox.shrink(),
+            secondChild: Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.fromLTRB(
+                16,
+                0,
+                16,
+                16,
+              ),
+              child: details,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor:
-          const Color(
-        0xFFFFF9F7,
-      ),
+          const Color(0xFFFFF9F7),
       appBar: AppBar(
         backgroundColor:
-            const Color(
-          0xFFFFF9F7,
-        ),
+            const Color(0xFFFFF9F7),
         surfaceTintColor:
             Colors.transparent,
         title: const Text(
           'Help & Support',
           style: TextStyle(
-            fontWeight:
-                FontWeight.w900,
+            fontWeight: FontWeight.w900,
           ),
         ),
       ),
       body: ListView(
-        padding:
-            const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         children: [
-          _helpCard(
-            icon:
-                Icons.groups_rounded,
-            title:
-                'Team कैसे बनाएँ?',
-            text:
-                '11 players चुनें, फिर Captain और Vice-Captain select करके team save करें।',
+          _section(
+            index: 0,
+            icon: Icons.groups_rounded,
+            title: 'Team कैसे बनाएँ?',
             background:
-                const Color(
-              0xFFEAF4FF,
-            ),
+                const Color(0xFFEAF4FF),
             iconColor:
-                const Color(
-              0xFF287BC1,
+                const Color(0xFF287BC1),
+            details: _detailText(
+              '11 players चुनें। उसके बाद Captain और Vice-Captain select करके अपनी team save करें। Match शुरू होने से पहले अपनी team और selected players एक बार जरूर check कर लें।',
             ),
           ),
 
-          _helpCard(
+          _section(
+            index: 1,
             icon:
-                Icons
-                    .emoji_events_outlined,
+                Icons.emoji_events_outlined,
             title:
                 'Contest कैसे join करें?',
-            text:
-                'पहले अपनी team save करें। फिर match के View Contests में जाकर contest चुनें और JOIN दबाएँ।',
             background:
-                const Color(
-              0xFFFFF2DD,
-            ),
+                const Color(0xFFFFF2DD),
             iconColor:
-                const Color(
-              0xFFE89A18,
+                const Color(0xFFE89A18),
+            details: _detailText(
+              'पहले match के लिए अपनी team बनाकर save करें। उसके बाद View Contests में जाएँ, अपनी पसंद का contest चुनें और JOIN दबाएँ। सफलतापूर्वक join किया गया contest My Contests में दिखाई देगा।',
             ),
           ),
 
-          _helpCard(
-            icon:
-                Icons
-                    .account_balance_wallet_outlined,
+          _section(
+            index: 2,
+            icon: Icons
+                .account_balance_wallet_outlined,
             title:
                 'Wallet, Deposit & Withdraw',
-            text:
-                'Wallet से Deposit या Withdraw request भेज सकते हैं। Request status और सभी entries Transaction History में दिखाई देंगी।',
             background:
-                const Color(
-              0xFFE8F7ED,
-            ),
+                const Color(0xFFE8F7ED),
             iconColor:
-                const Color(
-              0xFF27975B,
+                const Color(0xFF27975B),
+            details: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                _detailText(
+                  'Wallet से आप Deposit और Withdraw request भेज सकते हैं।',
+                ),
+                const SizedBox(height: 10),
+
+                const Text(
+                  'Deposit Process',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 5),
+
+                _detailText(
+                  'Deposit request भेजते समय उस UPI ID की जानकारी दें जिससे आपने payment किया है और original payment screenshot attach करें। Request Admin के पास जाएगी, जहाँ payment proof को actual received payment से verify किया जाएगा। सभी details match होने पर request approve होगी और amount आपके Wallet में जुड़ जाएगा।',
+                ),
+
+                const SizedBox(height: 12),
+
+                const Text(
+                  'Withdraw Process',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 5),
+
+                _detailText(
+                  'Withdraw request के समय UPI या Bank Account में से payout method चुनें और सही details भरें। Request verify होने के बाद approved amount आपकी दी हुई verified payment details पर भेजा जाएगा।',
+                ),
+
+                const SizedBox(height: 12),
+
+                _detailText(
+                  'अगर गलत जानकारी या गलत payment proof के कारण कोई amount गलती से Wallet में credit हो जाता है, तो verification के बाद Admin उस transaction को Reverse कर सकता है और वही amount Wallet से debit हो जाएगा। किसी भी विवाद से बचने के लिए हमेशा सही amount, सही payment details और original payment screenshot दें।',
+                ),
+
+                const SizedBox(height: 12),
+
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.all(
+                    12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(
+                      0xFFFFF2C8,
+                    ),
+                    borderRadius:
+                        BorderRadius.circular(
+                      12,
+                    ),
+                    border: Border.all(
+                      color: const Color(
+                        0xFFF0B323,
+                      ),
+                    ),
+                  ),
+                  child: const Text(
+                    '⚠️ महत्वपूर्ण: Withdrawal उसी verified UPI ID या Bank Account में दिया जाएगा जो आपकी सही payment details से संबंधित हो। गलत UPI ID, गलत Bank Account या गलत payment information देने पर request Reject की जा सकती है।',
+                    style: TextStyle(
+                      height: 1.45,
+                      fontWeight:
+                          FontWeight.w800,
+                      color:
+                          Color(0xFF845500),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                _detailText(
+                  'सभी Deposit, Withdraw, Approved, Rejected और Reversed entries Transaction History में देखी जा सकती हैं।',
+                ),
+              ],
             ),
           ),
 
-          _helpCard(
-            icon:
-                Icons
-                    .person_outline,
-            title:
-                'Account & Login',
-            text:
-                'अपने username/mobile और password से login करें। Account की wallet, teams और contests की जानकारी अलग और सुरक्षित रहती है।',
+          _section(
+            index: 3,
+            icon: Icons.person_outline,
+            title: 'Account & Login',
             background:
-                const Color(
-              0xFFF2E9FF,
-            ),
+                const Color(0xFFF2E9FF),
             iconColor:
-                const Color(
-              0xFF7450C6,
+                const Color(0xFF7450C6),
+            details: _detailText(
+              'Username/Mobile Number और Password से login करें। प्रत्येक user का Wallet, Teams, Contests, Transactions और Profile data उसके अपने account से अलग रहता है। Password या private login information किसी के साथ share न करें।',
             ),
           ),
 
-          _helpCard(
-            icon:
-                Icons.card_giftcard,
+          _section(
+            index: 4,
+            icon: Icons.card_giftcard,
             title:
                 'Referral & Rewards',
-            text:
-                'Refer & Earn page से referral code और KhelBaaz download link अपने दोस्तों को share करें। Eligibility app rules के अनुसार रहेगी।',
             background:
-                const Color(
-              0xFFFFE8EE,
-            ),
+                const Color(0xFFFFE8EE),
             iconColor:
-                const Color(
-              0xFFE92D55,
+                const Color(0xFFE92D55),
+            details: _detailText(
+              'Refer & Earn page से अपना referral code और KhelBaaz download link दोस्तों के साथ share करें। Referral eligibility के लिए referred user को आवश्यक conditions पूरी करनी होंगी। Reward eligibility और benefits KhelBaaz के नियमों के अनुसार लागू होंगे। T&C Apply.',
             ),
           ),
 
-          _helpCard(
+          _section(
+            index: 5,
             icon:
-                Icons
-                    .sports_cricket,
+                Icons.sports_cricket,
             title:
                 'Match, Points & Ranking',
-            text:
-                'Match और player statistics admin द्वारा update किए जाते हैं। उन्हीं stats से fantasy points और rankings calculate होती हैं।',
             background:
-                const Color(
-              0xFFE7F8F6,
-            ),
+                const Color(0xFFE7F8F6),
             iconColor:
-                const Color(
-              0xFF138F85,
+                const Color(0xFF138F85),
+            details: _detailText(
+              'Match के दौरान KhelBaaz में score और player statistics समय-समय पर update किए जाते रहेंगे, ताकि आप अपने fantasy points और rank की स्थिति देख सकें। Match पूरा होते ही final match score और final player statistics के आधार पर fantasy points calculate किए जाएंगे। इसके बाद आपकी Final Rank, Points, Winning/Prize और Contest Result final रूप से दिखाई देगा। Final result publish होने के बाद वही contest का official final result माना जाएगा।',
             ),
           ),
 
-          const SizedBox(height: 6),
+          _section(
+            index: 6,
+            icon:
+                Icons.shield_outlined,
+            title:
+                'Safety & Important Information',
+            background:
+                const Color(0xFFE8F5FF),
+            iconColor:
+                const Color(0xFF267AA8),
+            details: _detailText(
+              'Password, OTP, UPI PIN, ATM PIN, CVV या किसी account की private information किसी व्यक्ति के साथ share न करें। Deposit में केवल genuine payment screenshot दें। Withdrawal में अपनी सही UPI/Bank details ही भरें। Contest prize और rank final result publish होने के बाद final माने जाएंगे।',
+            ),
+          ),
+
+          const SizedBox(height: 8),
 
           const Text(
             'Connect with KhelBaaz',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight:
-                  FontWeight.w900,
+              fontSize: 19,
+              fontWeight: FontWeight.w900,
             ),
           ),
 
@@ -21075,26 +21749,19 @@ class HelpSupportPage
           Container(
             decoration: BoxDecoration(
               color:
-                  const Color(
-                0xFFFFE8F0,
-              ),
+                  const Color(0xFFFFE8F0),
               borderRadius:
-                  BorderRadius.circular(
-                18,
-              ),
+                  BorderRadius.circular(18),
             ),
             child: ListTile(
-              leading:
-                  const CircleAvatar(
+              leading: const CircleAvatar(
                 backgroundColor:
                     Colors.white,
                 child: Icon(
                   Icons
                       .photo_camera_rounded,
                   color:
-                      Color(
-                    0xFFD62976,
-                  ),
+                      Color(0xFFD62976),
                 ),
               ),
               title: const Text(
@@ -21104,20 +21771,14 @@ class HelpSupportPage
                       FontWeight.w900,
                 ),
               ),
-              subtitle:
-                  const Text(
-                '@KhelBaaz',
+              subtitle: const Text(
+                '@khelbaazofficial',
               ),
-              trailing:
-                  const Icon(
-                Icons
-                    .open_in_new_rounded,
+              trailing: const Icon(
+                Icons.open_in_new_rounded,
               ),
               onTap: () {
-                _openUrl(
-                  context,
-                  instagramUrl,
-                );
+                _openUrl(instagramUrl);
               },
             ),
           ),
@@ -21127,25 +21788,18 @@ class HelpSupportPage
           Container(
             decoration: BoxDecoration(
               color:
-                  const Color(
-                0xFFE5F5FF,
-              ),
+                  const Color(0xFFE5F5FF),
               borderRadius:
-                  BorderRadius.circular(
-                18,
-              ),
+                  BorderRadius.circular(18),
             ),
             child: ListTile(
-              leading:
-                  const CircleAvatar(
+              leading: const CircleAvatar(
                 backgroundColor:
                     Colors.white,
                 child: Icon(
                   Icons.telegram,
                   color:
-                      Color(
-                    0xFF229ED9,
-                  ),
+                      Color(0xFF229ED9),
                 ),
               ),
               title: const Text(
@@ -21155,49 +21809,25 @@ class HelpSupportPage
                       FontWeight.w900,
                 ),
               ),
-              subtitle:
-                  const Text(
+              subtitle: const Text(
                 '@KhelBaaz',
               ),
-              trailing:
-                  const Icon(
-                Icons
-                    .open_in_new_rounded,
+              trailing: const Icon(
+                Icons.open_in_new_rounded,
               ),
               onTap: () {
-                _openUrl(
-                  context,
-                  telegramUrl,
-                );
+                _openUrl(telegramUrl);
               },
             ),
           ),
 
-          const SizedBox(height: 12),
-
-          const Padding(
-            padding:
-                EdgeInsets.symmetric(
-              horizontal: 6,
-            ),
-            child: Text(
-              'जरूरी: Password, OTP या किसी account की private जानकारी किसी व्यक्ति के साथ share न करें।',
-              textAlign:
-                  TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                height: 1.35,
-                color:
-                    Colors.grey,
-              ),
-            ),
-          ),
+          const SizedBox(height: 22),
         ],
       ),
     );
   }
 }
-      
+                   
 
 class ReferEarnPage extends StatelessWidget {
   const ReferEarnPage({
@@ -21833,7 +22463,7 @@ class AboutPage
                   BorderRadius.circular(20),
             ),
             child: const Text(
-              'KhelBaaz में users fantasy cricket teams बना सकते हैं, contests join कर सकते हैं और rankings देख सकते हैं। Match और player statistics admin द्वारा manage किए जाते हैं। Wallet, transactions और contest records user account के अनुसार अलग रहते हैं।',
+              'KhelBaaz में users fantasy cricket teams बना सकते हैं, contests join कर सकते हैं और rankings देख सकते हैं। Match के दौरान score और player statistics समय-समय पर update किए जाते हैं। Match पूरा होने के बाद final score और final player statistics के आधार पर fantasy points, final rank, contest result और winning/prize final रूप से दिखाई जाती है। Wallet, transactions और contest records प्रत्येक user account के अनुसार अलग रहते हैं।',
               style: TextStyle(
                 fontSize: 14,
                 height: 1.5,
@@ -31954,7 +32584,38 @@ return ListView(
                                             'screenshot'] ??
                                         '')
                                     .toString();
+final depositUpiId =
+    (request['depositUpiId'] ?? '')
+        .toString();
 
+final payoutMethod =
+    (request['payoutMethod'] ?? 'UPI')
+        .toString()
+        .toUpperCase();
+
+final payoutUpiId =
+    (request['payoutUpiId'] ?? '')
+        .toString();
+
+final accountHolderName =
+    (request['accountHolderName'] ?? '')
+        .toString();
+
+final bankName =
+    (request['bankName'] ?? '')
+        .toString();
+
+final bankAccountNumber =
+    (request['bankAccountNumber'] ?? '')
+        .toString();
+
+final bankIfsc =
+    (request['bankIfsc'] ?? '')
+        .toString();
+
+final bankMobile =
+    (request['bankMobile'] ?? '')
+        .toString();
                             final isDeposit =
                                 type ==
                                     'DEPOSIT';
@@ -32109,7 +32770,106 @@ return ListView(
                                       ),
                                     ],
                                   ),
+if (isDeposit &&
+    depositUpiId.isNotEmpty) ...[
+  const SizedBox(height: 10),
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFEAF7EF),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: Colors.green.shade200,
+      ),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.account_balance_wallet_outlined,
+          color: Colors.green,
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Paid From UPI ID',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                depositUpiId,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  ),
+],
 
+if (!isDeposit) ...[
+  const SizedBox(height: 10),
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFECEF),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+        color: Colors.red.shade200,
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          payoutMethod == 'BANK'
+              ? '🏦 Bank Account Withdrawal'
+              : '💳 UPI Withdrawal',
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        if (payoutMethod == 'UPI') ...[
+          Text(
+            'UPI ID: $payoutUpiId',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Account Holder: $accountHolderName',
+          ),
+        ] else ...[
+          Text('Account Holder: $accountHolderName'),
+          const SizedBox(height: 4),
+          Text('Bank: $bankName'),
+          const SizedBox(height: 4),
+          Text('Account No: $bankAccountNumber'),
+          const SizedBox(height: 4),
+          Text('IFSC: $bankIfsc'),
+          const SizedBox(height: 4),
+          Text('Mobile: $bankMobile'),
+        ],
+      ],
+    ),
+  ),
+],
                                   if (isDeposit &&
                                       screenshot
                                           .isNotEmpty) ...[
