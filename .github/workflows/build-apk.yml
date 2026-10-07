@@ -29,10 +29,9 @@ jobs:
       - name: Generate App Icon
         run: dart run flutter_launcher_icons
         
-            - name: Restore Release Keystore
+      - name: Restore Release Keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/khelbaaz-release-key.jks
-
       - name: Build Release APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
