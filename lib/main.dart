@@ -21221,7 +21221,7 @@ class ReferEarnPage extends StatelessWidget {
         '$downloadUrl';
 
     await SharePlus.instance.share(
-      const ShareParams(
+      ShareParams(
         title: 'KhelBaaz',
         text: message,
       ),
