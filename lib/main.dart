@@ -17878,6 +17878,50 @@ Card(
     },
   ),
 ),
+
+Card(
+  child: ListTile(
+    leading: Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        color:
+            const Color(
+          0xFFE8F1FF,
+        ),
+        borderRadius:
+            BorderRadius.circular(12),
+      ),
+      child: const Icon(
+        Icons.info_outline,
+        color:
+            Color(
+          0xFF316FC3,
+        ),
+        size: 28,
+      ),
+    ),
+    title: const Text(
+      'About KhelBaaz',
+    ),
+    subtitle: const Text(
+      'Version & app information',
+    ),
+    trailing:
+        const Icon(
+      Icons.chevron_right,
+    ),
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              const AboutPage(),
+        ),
+      );
+    },
+  ),
+),
  
           Card(
   child: ListTile(
@@ -20777,276 +20821,1060 @@ height: 1.2,
   }
 }
 
-class HelpSupportPage extends StatelessWidget {
-  const HelpSupportPage({super.key});
+class HelpSupportPage
+    extends StatelessWidget {
+  const HelpSupportPage({
+    super.key,
+  });
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Help & Support')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: ListTile(
-              leading: Icon(Icons.help_outline),
-              title: Text('How to create a team?'),
-              subtitle: Text(
-                '11 players select करें, फिर Captain और Vice-Captain चुनें.',
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: Icon(Icons.emoji_events_outlined),
-              title: Text('How to join a contest?'),
-              subtitle: Text(
-                'पहले team save करें, फिर View Contests में जाकर JOIN दबाएँ.',
-              ),
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: Icon(Icons.account_balance_wallet_outlined),
-              title: Text('Wallet'),
-              subtitle: Text(
-  'Wallet में Deposit और Withdraw request भेज सकते हैं। Admin approval के बाद balance और Transaction History update होगी।',
-),
-              ),
-            ),
-          
-          Card(
-            child: ListTile(
-              leading: Icon(Icons.info_outline),
-              title: Text('About'),
-subtitle: Text(
-  'Fantasy Cricket में अपनी टीम बनाएं, contests join करें और leaderboard पर अपना rank देखें.',
-         ),
-    ),
-  ),
+  // अभी current code में पुराने handles यही मिले हैं.
+  // Display branding KhelBaaz रहेगी.
+  static const String instagramUrl =
+      'https://www.instagram.com/cricnovaplay/';
 
-  Card(
-  child: Column(
-    children: [
-      ListTile(
-        leading: const Icon(
-          Icons.photo_camera_rounded,
-          size: 30,
-        ),
-        title: const Text(
-          'Instagram',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
+  static const String telegramUrl =
+      'https://t.me/cricnovaplay';
+
+  Future<void> _openUrl(
+    BuildContext context,
+    String url,
+  ) async {
+    final uri = Uri.parse(url);
+
+    if (!await launchUrl(
+      uri,
+      mode:
+          LaunchMode.externalApplication,
+    )) {
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Link open नहीं हुआ',
           ),
         ),
-        subtitle: const Text(
-          '@CricNovaPlay',
-        ),
-        trailing: const Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-        ),
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Instagram: @CricNovaPlay',
-              ),
-            ),
-          );
-        },
-      ),
-
-      const Divider(
-        height: 1,
-      ),
-
-      ListTile(
-        leading: const Icon(
-          Icons.telegram,
-          size: 30,
-        ),
-        title: const Text(
-          'Telegram',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        subtitle: const Text(
-          '@CricNovaPlay',
-        ),
-        trailing: const Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-        ),
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Telegram: @CricNovaPlay',
-              ),
-            ),
-          );
-        },
-      ),
-    ],
-  ),
-),     
-        
-      ],
-    ),
-  );
-}
+      );
+    }
   }
-class ReferEarnPage extends StatelessWidget {
-  const ReferEarnPage({super.key});
+
+  Widget _helpCard({
+    required IconData icon,
+    required String title,
+    required String text,
+    required Color background,
+    required Color iconColor,
+  }) {
+    return Container(
+      margin:
+          const EdgeInsets.only(
+        bottom: 10,
+      ),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius:
+            BorderRadius.circular(18),
+        border: Border.all(
+          color:
+              iconColor.withOpacity(
+            0.18,
+          ),
+        ),
+      ),
+      child: ListTile(
+        contentPadding:
+            const EdgeInsets.symmetric(
+          horizontal: 15,
+          vertical: 7,
+        ),
+        leading: CircleAvatar(
+          backgroundColor:
+              Colors.white,
+          child: Icon(
+            icon,
+            color: iconColor,
+          ),
+        ),
+        title: Text(
+          title,
+          style:
+              const TextStyle(
+            fontWeight:
+                FontWeight.w900,
+          ),
+        ),
+        subtitle: Padding(
+          padding:
+              const EdgeInsets.only(
+            top: 4,
+          ),
+          child: Text(
+            text,
+            style:
+                const TextStyle(
+              height: 1.35,
+              fontWeight:
+                  FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
-  Widget build(BuildContext context) {
-    const referralCode = 'CRICNOVA100';
-
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
+      backgroundColor:
+          const Color(
+        0xFFFFF9F7,
+      ),
       appBar: AppBar(
-        title: const Text('Refer & Earn'),
+        backgroundColor:
+            const Color(
+          0xFFFFF9F7,
+        ),
+        surfaceTintColor:
+            Colors.transparent,
+        title: const Text(
+          'Help & Support',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.w900,
+          ),
+        ),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         children: [
-          const Icon(
-            Icons.card_giftcard,
-            size: 80,
-          ),
-          const SizedBox(height: 16),
-          const Center(
-            child: Text(
-              'Invite Friends & Earn',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+          _helpCard(
+            icon:
+                Icons.groups_rounded,
+            title:
+                'Team कैसे बनाएँ?',
+            text:
+                '11 players चुनें, फिर Captain और Vice-Captain select करके team save करें।',
+            background:
+                const Color(
+              0xFFEAF4FF,
+            ),
+            iconColor:
+                const Color(
+              0xFF287BC1,
             ),
           ),
+
+          _helpCard(
+            icon:
+                Icons
+                    .emoji_events_outlined,
+            title:
+                'Contest कैसे join करें?',
+            text:
+                'पहले अपनी team save करें। फिर match के View Contests में जाकर contest चुनें और JOIN दबाएँ।',
+            background:
+                const Color(
+              0xFFFFF2DD,
+            ),
+            iconColor:
+                const Color(
+              0xFFE89A18,
+            ),
+          ),
+
+          _helpCard(
+            icon:
+                Icons
+                    .account_balance_wallet_outlined,
+            title:
+                'Wallet, Deposit & Withdraw',
+            text:
+                'Wallet से Deposit या Withdraw request भेज सकते हैं। Request status और सभी entries Transaction History में दिखाई देंगी।',
+            background:
+                const Color(
+              0xFFE8F7ED,
+            ),
+            iconColor:
+                const Color(
+              0xFF27975B,
+            ),
+          ),
+
+          _helpCard(
+            icon:
+                Icons
+                    .person_outline,
+            title:
+                'Account & Login',
+            text:
+                'अपने username/mobile और password से login करें। Account की wallet, teams और contests की जानकारी अलग और सुरक्षित रहती है।',
+            background:
+                const Color(
+              0xFFF2E9FF,
+            ),
+            iconColor:
+                const Color(
+              0xFF7450C6,
+            ),
+          ),
+
+          _helpCard(
+            icon:
+                Icons.card_giftcard,
+            title:
+                'Referral & Rewards',
+            text:
+                'Refer & Earn page से referral code और KhelBaaz download link अपने दोस्तों को share करें। Eligibility app rules के अनुसार रहेगी।',
+            background:
+                const Color(
+              0xFFFFE8EE,
+            ),
+            iconColor:
+                const Color(
+              0xFFE92D55,
+            ),
+          ),
+
+          _helpCard(
+            icon:
+                Icons
+                    .sports_cricket,
+            title:
+                'Match, Points & Ranking',
+            text:
+                'Match और player statistics admin द्वारा update किए जाते हैं। उन्हीं stats से fantasy points और rankings calculate होती हैं।',
+            background:
+                const Color(
+              0xFFE7F8F6,
+            ),
+            iconColor:
+                const Color(
+              0xFF138F85,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          const Text(
+            'Connect with KhelBaaz',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight:
+                  FontWeight.w900,
+            ),
+          ),
+
           const SizedBox(height: 10),
-          const Center(
-            child: Text(
-              'Share your referral code with friends',
+
+          Container(
+            decoration: BoxDecoration(
+              color:
+                  const Color(
+                0xFFFFE8F0,
+              ),
+              borderRadius:
+                  BorderRadius.circular(
+                18,
+              ),
+            ),
+            child: ListTile(
+              leading:
+                  const CircleAvatar(
+                backgroundColor:
+                    Colors.white,
+                child: Icon(
+                  Icons
+                      .photo_camera_rounded,
+                  color:
+                      Color(
+                    0xFFD62976,
+                  ),
+                ),
+              ),
+              title: const Text(
+                'Instagram',
+                style: TextStyle(
+                  fontWeight:
+                      FontWeight.w900,
+                ),
+              ),
+              subtitle:
+                  const Text(
+                '@KhelBaaz',
+              ),
+              trailing:
+                  const Icon(
+                Icons
+                    .open_in_new_rounded,
+              ),
+              onTap: () {
+                _openUrl(
+                  context,
+                  instagramUrl,
+                );
+              },
             ),
           ),
-          const SizedBox(height: 24),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  const Text('Your Referral Code'),
-                  const SizedBox(height: 8),
-                  const Text(
-                    referralCode,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: () {
-  Clipboard.setData(
-    const ClipboardData(text: 'CRICNOVA100'),
-  );
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Referral code copied: CRICNOVA100'),
-    ),
-  );
-},
-                    icon: const Icon(Icons.copy),
-                    label: const Text('COPY CODE'),
+          const SizedBox(height: 10),
+
+          Container(
+            decoration: BoxDecoration(
+              color:
+                  const Color(
+                0xFFE5F5FF,
+              ),
+              borderRadius:
+                  BorderRadius.circular(
+                18,
+              ),
+            ),
+            child: ListTile(
+              leading:
+                  const CircleAvatar(
+                backgroundColor:
+                    Colors.white,
+                child: Icon(
+                  Icons.telegram,
+                  color:
+                      Color(
+                    0xFF229ED9,
                   ),
-                ],
+                ),
+              ),
+              title: const Text(
+                'Telegram',
+                style: TextStyle(
+                  fontWeight:
+                      FontWeight.w900,
+                ),
+              ),
+              subtitle:
+                  const Text(
+                '@KhelBaaz',
+              ),
+              trailing:
+                  const Icon(
+                Icons
+                    .open_in_new_rounded,
+              ),
+              onTap: () {
+                _openUrl(
+                  context,
+                  telegramUrl,
+                );
+              },
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          const Padding(
+            padding:
+                EdgeInsets.symmetric(
+              horizontal: 6,
+            ),
+            child: Text(
+              'जरूरी: Password, OTP या किसी account की private जानकारी किसी व्यक्ति के साथ share न करें।',
+              textAlign:
+                  TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.35,
+                color:
+                    Colors.grey,
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-  Clipboard.setData(
-    const ClipboardData(
-      text:
-          'Join CricNovaPlay using my referral code CRICNOVA100',
-    ),
-  );
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text(
-        'Invite message copied — share it with your friends',
-      ),
-    ),
-  );
-},
-            icon: const Icon(Icons.share),
-            label: const Text('INVITE FRIENDS'),
-          ),
-          const SizedBox(height: 20),
-
-const Card(
-  child: Padding(
-    padding: EdgeInsets.all(16),
-    child: Column(
-      children: [
-        Text(
-          'Referral Rewards',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 16),
-
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            Column(
-              children: [
-                Icon(Icons.people, size: 32),
-                SizedBox(height: 6),
-                Text(
-                  '0',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text('Friends Joined'),
-              ],
-            ),
-
-            Column(
-              children: [
-                Icon(Icons.currency_rupee, size: 32),
-                SizedBox(height: 6),
-                Text(
-                  '₹0',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text('Total Earnings'),
-              ],
-            ),
-          ],
-        ),
-      ],
-    ),
-  ),
-),
         ],
       ),
     );
   }
 }
+      
+
+class ReferEarnPage extends StatelessWidget {
+  const ReferEarnPage({
+    super.key,
+  });
+
+  static const String referralCode =
+      'KHELBAAZ100';
+
+  static const String downloadUrl =
+      'https://github.com/khelbaazofficial/KhelBaaz/releases/download/latest/KhelBaaz.apk';
+
+  Future<void> _shareApp() async {
+    const message =
+        '🏏 KhelBaaz - Play • Compete • Win\n\n'
+        'KhelBaaz join करें और मेरा referral code use करें:\n'
+        '🎁 Referral Code: KHELBAAZ100\n\n'
+        'Referral reward eligibility के लिए account बनाएं और कम से कम 1 contest join करें। '
+        'Reward app rules के अनुसार लागू होगा।\n\n'
+        '📲 KhelBaaz APK Download:\n'
+        '$downloadUrl';
+
+    await SharePlus.instance.share(
+      const ShareParams(
+        title: 'KhelBaaz',
+        text: message,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor:
+          const Color(0xFFFFF9F7),
+      appBar: AppBar(
+        backgroundColor:
+            const Color(0xFFFFF9F7),
+        surfaceTintColor:
+            Colors.transparent,
+        title: const Text(
+          'Refer & Earn',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+      body: ListView(
+        padding:
+            const EdgeInsets.fromLTRB(
+          16,
+          8,
+          16,
+          30,
+        ),
+        children: [
+          Container(
+            padding:
+                const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient:
+                  const LinearGradient(
+                colors: [
+                  Color(0xFFFFE8EF),
+                  Color(0xFFFFF3DD),
+                ],
+              ),
+              borderRadius:
+                  BorderRadius.circular(22),
+              border: Border.all(
+                color:
+                    const Color(0xFFF4CFD8),
+              ),
+            ),
+            child: const Column(
+              children: [
+                CircleAvatar(
+                  radius: 38,
+                  backgroundColor:
+                      Color(0xFFFFDCE7),
+                  child: Icon(
+                    Icons.card_giftcard,
+                    size: 43,
+                    color:
+                        Color(0xFFE52858),
+                  ),
+                ),
+                SizedBox(height: 14),
+                Text(
+                  'Invite Friends & Earn',
+                  textAlign:
+                      TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight:
+                        FontWeight.w900,
+                    color:
+                        Color(0xFF2E2424),
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'अपने दोस्तों को KhelBaaz शेयर करें और referral rewards के लिए eligible बनें।',
+                  textAlign:
+                      TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.35,
+                    color:
+                        Color(0xFF655959),
+                    fontWeight:
+                        FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          Container(
+            padding:
+                const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color:
+                  const Color(0xFFFFF0EE),
+              borderRadius:
+                  BorderRadius.circular(20),
+              border: Border.all(
+                color:
+                    const Color(0xFFF0D5D0),
+              ),
+            ),
+            child: Column(
+              children: [
+                const Text(
+                  'Your Referral Code',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight:
+                        FontWeight.bold,
+                    color:
+                        Color(0xFF625555),
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                const Text(
+                  referralCode,
+                  style: TextStyle(
+                    fontSize: 26,
+                    letterSpacing: 1.1,
+                    fontWeight:
+                        FontWeight.w900,
+                    color:
+                        Color(0xFF2D2323),
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(
+                      const ClipboardData(
+                        text: referralCode,
+                      ),
+                    );
+
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Referral code copied: KHELBAAZ100',
+                        ),
+                      ),
+                    );
+                  },
+                  icon:
+                      const Icon(Icons.copy),
+                  label: const Text(
+                    'COPY CODE',
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                const Text(
+                  'Reward eligibility के लिए आपके referred friend को account बनाकर कम से कम 1 contest join करना होगा।',
+                  textAlign:
+                      TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color:
+                        Color(0xFF776969),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          SizedBox(
+            height: 52,
+            child:
+                ElevatedButton.icon(
+              onPressed: _shareApp,
+              style:
+                  ElevatedButton.styleFrom(
+                backgroundColor:
+                    const Color(
+                  0xFFE92D55,
+                ),
+                foregroundColor:
+                    Colors.white,
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(
+                    22,
+                  ),
+                ),
+              ),
+              icon:
+                  const Icon(Icons.share),
+              label: const Text(
+                'SHARE KHELBAAZ',
+                style: TextStyle(
+                  fontWeight:
+                      FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          Container(
+            padding:
+                const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color:
+                  const Color(0xFFF4EEFF),
+              borderRadius:
+                  BorderRadius.circular(20),
+            ),
+            child: const Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'How it works',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
+                SizedBox(height: 15),
+                ListTile(
+                  contentPadding:
+                      EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor:
+                        Color(0xFFE3D5FF),
+                    child: Text(
+                      '1',
+                      style: TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    'KhelBaaz अपने दोस्त को शेयर करें',
+                  ),
+                ),
+                ListTile(
+                  contentPadding:
+                      EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor:
+                        Color(0xFFE3D5FF),
+                    child: Text(
+                      '2',
+                      style: TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    'दोस्त account बनाए और KHELBAAZ100 code use करे',
+                  ),
+                ),
+                ListTile(
+                  contentPadding:
+                      EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor:
+                        Color(0xFFE3D5FF),
+                    child: Text(
+                      '3',
+                      style: TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    'कम से कम 1 contest join होने के बाद referral eligibility बनेगी',
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          Container(
+            padding:
+                const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color:
+                  const Color(0xFFEAF7EF),
+              borderRadius:
+                  BorderRadius.circular(20),
+            ),
+            child: const Column(
+              children: [
+                Text(
+                  'Referral Rewards',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
+
+                SizedBox(height: 18),
+
+                Row(
+                  mainAxisAlignment:
+                      MainAxisAlignment
+                          .spaceAround,
+                  children: [
+                    Column(
+                      children: [
+                        Icon(
+                          Icons.people,
+                          size: 32,
+                          color:
+                              Color(
+                            0xFF238C58,
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          '0',
+                          style:
+                              TextStyle(
+                            fontSize: 23,
+                            fontWeight:
+                                FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          'Friends Joined',
+                        ),
+                      ],
+                    ),
+
+                    Column(
+                      children: [
+                        Icon(
+                          Icons
+                              .currency_rupee,
+                          size: 32,
+                          color:
+                              Color(
+                            0xFF238C58,
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          '₹0',
+                          style:
+                              TextStyle(
+                            fontSize: 23,
+                            fontWeight:
+                                FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          'Total Earnings',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class AboutPage
+    extends StatelessWidget {
+  const AboutPage({
+    super.key,
+  });
+
+  static const String downloadUrl =
+      'https://github.com/khelbaazofficial/KhelBaaz/releases/download/latest/KhelBaaz.apk';
+
+  Future<void> _downloadApp(
+    BuildContext context,
+  ) async {
+    final uri =
+        Uri.parse(downloadUrl);
+
+    if (!await launchUrl(
+      uri,
+      mode:
+          LaunchMode.externalApplication,
+    )) {
+      if (!context.mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Download link open नहीं हुआ',
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _infoRow(
+    IconData icon,
+    String title,
+    String value,
+  ) {
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(
+        vertical: 9,
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            color:
+                const Color(
+              0xFFE92D55,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style:
+                      const TextStyle(
+                    fontSize: 12,
+                    color:
+                        Colors.grey,
+                    fontWeight:
+                        FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(
+                  height: 2,
+                ),
+                Text(
+                  value,
+                  style:
+                      const TextStyle(
+                    fontSize: 15,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Scaffold(
+      backgroundColor:
+          const Color(
+        0xFFFFF9F7,
+      ),
+      appBar: AppBar(
+        backgroundColor:
+            const Color(
+          0xFFFFF9F7,
+        ),
+        surfaceTintColor:
+            Colors.transparent,
+        title: const Text(
+          'About KhelBaaz',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.w900,
+          ),
+        ),
+      ),
+      body: ListView(
+        padding:
+            const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding:
+                const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color:
+                  const Color(0xFFFFECEF),
+              borderRadius:
+                  BorderRadius.circular(22),
+            ),
+            child: const Column(
+              children: [
+                CircleAvatar(
+                  radius: 38,
+                  backgroundColor:
+                      Color(0xFFFFD9E1),
+                  child: Text(
+                    '🏏',
+                    style: TextStyle(
+                      fontSize: 40,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'KhelBaaz',
+                  style: TextStyle(
+                    fontSize: 27,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Play • Compete • Win',
+                  style: TextStyle(
+                    color:
+                        Color(0xFFB65B55),
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          Container(
+            padding:
+                const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius:
+                  BorderRadius.circular(20),
+              border: Border.all(
+                color:
+                    const Color(
+                  0xFFEADDDD,
+                ),
+              ),
+            ),
+            child: Column(
+              children: [
+                _infoRow(
+                  Icons.apps,
+                  'App Name',
+                  'KhelBaaz',
+                ),
+                _infoRow(
+                  Icons.info_outline,
+                  'Version',
+                  '1.0.0',
+                ),
+                _infoRow(
+                  Icons.build_outlined,
+                  'Build',
+                  '1',
+                ),
+                _infoRow(
+                  Icons
+                      .sports_cricket,
+                  'Game',
+                  'Fantasy Cricket',
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          Container(
+            padding:
+                const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color:
+                  const Color(0xFFEAF4FF),
+              borderRadius:
+                  BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'KhelBaaz में users fantasy cricket teams बना सकते हैं, contests join कर सकते हैं और rankings देख सकते हैं। Match और player statistics admin द्वारा manage किए जाते हैं। Wallet, transactions और contest records user account के अनुसार अलग रहते हैं।',
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color:
+                    Color(0xFF455466),
+                fontWeight:
+                    FontWeight.w600,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          SizedBox(
+            height: 50,
+            child:
+                ElevatedButton.icon(
+              onPressed: () {
+                _downloadApp(
+                  context,
+                );
+              },
+              icon:
+                  const Icon(
+                Icons.download,
+              ),
+              label: const Text(
+                'DOWNLOAD LATEST APK',
+                style: TextStyle(
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+        
 
 // ======================================================
 // NOTIFICATION SYSTEM
