@@ -21154,10 +21154,15 @@ Future<void> showWithdrawRequestDialog(
 
             actions: [
               TextButton(
-                
-                child:
-                    const Text('CANCEL'),
-              ),
+  onPressed: () {
+    Navigator.pop(
+      dialogContext,
+      false,
+    );
+  },
+  child:
+      const Text('CANCEL'),
+),
 
               ElevatedButton(
                 style:
@@ -21420,15 +21425,25 @@ Future<void> showWithdrawRequestDialog(
 
                                   
 
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Withdraw request sent',
-                      ),
-                    ),
-                  );
+                  if (!saved) {
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Withdraw request save नहीं हुई • फिर कोशिश करें',
+      ),
+    ),
+  );
+  return;
+}
+
+if (dialogContext.mounted) {
+  Navigator.pop(
+    dialogContext,
+    true,
+  );
+}
                 },
                 child: const Text(
                   'SEND REQUEST',
