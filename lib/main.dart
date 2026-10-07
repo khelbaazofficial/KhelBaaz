@@ -18967,7 +18967,35 @@ class WalletPage extends StatelessWidget {
   },
 ),
 
-            const SizedBox(height: 25),
+            const SizedBox(height: 18),
+
+Container(
+  width: double.infinity,
+  decoration: BoxDecoration(
+    borderRadius: BorderRadius.circular(18),
+    boxShadow: const [
+      BoxShadow(
+        color: Color(0x22000000),
+        blurRadius: 8,
+        offset: Offset(0, 4),
+      ),
+    ],
+  ),
+  child: ClipRRect(
+    borderRadius: BorderRadius.circular(18),
+    child: AspectRatio(
+      aspectRatio: 1870 / 841,
+      child: Image.asset(
+        'assets/wallet_withdraw_banner.png.png',
+        width: double.infinity,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.high,
+      ),
+    ),
+  ),
+),
+
+const SizedBox(height: 18),
 ElevatedButton.icon(
   style: ElevatedButton.styleFrom(
     backgroundColor: Colors.amber,
