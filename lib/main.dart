@@ -19794,27 +19794,106 @@ class WalletRequestsPage
       return;
     }
 
-    final cancelled =
-        await cancelWalletRequestByUser(
-      request,
-    );
+    final oldRequests =
+    walletRequests.value
+        .map(
+          (item) =>
+              Map<String, dynamic>.from(
+            item,
+          ),
+        )
+        .toList();
 
-    if (!context.mounted) return;
+final requestId =
+    (request['requestId'] ?? '')
+        .toString()
+        .trim();
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        backgroundColor:
-            cancelled
-                ? Colors.green
-                : Colors.red,
-        content: Text(
-          cancelled
-              ? 'Request cancelled successfully'
-              : 'Request cancel नहीं हुई • शायद Admin पहले ही process कर चुका है',
-        ),
-      ),
+final now = DateTime.now();
+
+final optimisticRequests =
+    oldRequests.map((item) {
+  final itemRequestId =
+      (item['requestId'] ?? '')
+          .toString()
+          .trim();
+
+  final sameRequest =
+      requestId.isNotEmpty &&
+          itemRequestId == requestId;
+
+  if (!sameRequest) {
+    return Map<String, dynamic>.from(
+      item,
     );
+  }
+
+  return <String, dynamic>{
+    ...item,
+    'status': 'CANCELLED',
+    'cancelledBy': 'USER',
+    'cancelledAt': now,
+    'resolvedAt': now,
+  };
+}).toList();
+
+// User को तुरंत CANCELLED दिखेगा
+walletRequests.value =
+    optimisticRequests;
+
+// Firebase में safe cancellation
+final cancelled =
+    await cancelWalletRequestByUser(
+  request,
+);
+
+if (!cancelled) {
+  // Firebase में cancel fail हुआ
+  // तो latest real data वापस load करो.
+  final user =
+      FirebaseAuth.instance.currentUser;
+
+  if (user != null) {
+    try {
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+      final data =
+          userDoc.data();
+
+      if (data != null) {
+        walletRequests.value =
+            _storedMapList(
+          data['walletRequests'],
+        );
+      }
+    } catch (e) {
+      debugPrint(
+        'Cancel refresh error: $e',
+      );
+    }
+  }
+}
+
+if (!context.mounted) return;
+
+ScaffoldMessenger.of(context)
+    .showSnackBar(
+  SnackBar(
+    backgroundColor:
+        cancelled
+            ? Colors.green
+            : Colors.red,
+    content: Text(
+      cancelled
+          ? 'Request cancelled successfully'
+          : 'Request cancel नहीं हुई • शायद Admin पहले ही process कर चुका है',
+    ),
+  ),
+);
   }
 
   @override
