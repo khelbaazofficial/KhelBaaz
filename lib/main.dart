@@ -15733,7 +15733,7 @@ Column(
     Expanded(
       child: matchList(
         archivedMatches,
-        'आपका अभी कोई Archived मैच नहीं है',,
+        'आपका अभी कोई Archived मैच नहीं है',
       ),
     ),
   ],
