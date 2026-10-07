@@ -42597,137 +42597,252 @@ joinedMatches.value = syncedJoinedMatches;
       );
     }
 
-void deleteMatch(
-      Map<String, String> match,
-    ) {
-      final deletedTeam1 =
-          match['team1'] ?? '';
+Future<void> deleteMatch(
+  Map<String, String> match,
+) async {
+  final deletedTeam1 =
+      (match['team1'] ?? '').trim();
 
-      final deletedTeam2 =
-          match['team2'] ?? '';
+  final deletedTeam2 =
+      (match['team2'] ?? '').trim();
 
-      final relatedContests =
-          createdContests.where(
-        (contest) {
-          return (contest['team1'] ??
-                      '') ==
-                  deletedTeam1 &&
-              (contest['team2'] ??
-                      '') ==
-                  deletedTeam2;
-        },
-      ).toList();
+  final deletedDate =
+      (match['date'] ?? '').trim();
 
-      final hasJoinedContest =
-          relatedContests.any(
-        (contest) {
-          final contestId =
-              (contest['id'] ?? '')
-                  .toString();
+  final deletedTime =
+      (match['time'] ?? '').trim();
 
-          return _globalContestJoinedCount(
-                contestId,
-              ) >
-              0;
-        },
-      );
+  final deletedMatchKey =
+      '${deletedTeam1}_${deletedTeam2}_${deletedDate}_$deletedTime';
 
-      if (hasJoinedContest) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Joined contest वाले match को delete नहीं कर सकते',
+  String matchKeyFromMap(
+    Map<String, String> item,
+  ) {
+    return '${(item['team1'] ?? '').trim()}_'
+        '${(item['team2'] ?? '').trim()}_'
+        '${(item['date'] ?? '').trim()}_'
+        '${(item['time'] ?? '').trim()}';
+  }
+
+  bool contestBelongsToMatch(
+    Map<String, dynamic> contest,
+  ) {
+    final contestKey =
+        (contest['matchKey'] ?? '')
+            .toString()
+            .trim();
+
+    if (contestKey.isNotEmpty) {
+      return contestKey ==
+          deletedMatchKey;
+    }
+
+    final nestedMatch =
+        contest['match'];
+
+    if (nestedMatch is Map) {
+      return (nestedMatch['team1'] ?? '')
+                  .toString()
+                  .trim() ==
+              deletedTeam1 &&
+          (nestedMatch['team2'] ?? '')
+                  .toString()
+                  .trim() ==
+              deletedTeam2 &&
+          (nestedMatch['date'] ?? '')
+                  .toString()
+                  .trim() ==
+              deletedDate &&
+          (nestedMatch['time'] ?? '')
+                  .toString()
+                  .trim() ==
+              deletedTime;
+    }
+
+    return false;
+  }
+
+  final relatedContests =
+      createdContests
+          .where(
+            contestBelongsToMatch,
+          )
+          .toList();
+
+  final hasJoinedContest =
+      relatedContests.any(
+    (contest) {
+      final contestId =
+          (contest['id'] ?? '')
+              .toString()
+              .trim();
+
+      return _globalContestJoinedCount(
+            contestId,
+          ) >
+          0;
+    },
+  );
+
+  // Joined contest है तो delete नहीं होगा.
+  if (hasJoinedContest) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Joined contest वाले match को delete नहीं कर सकते',
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  // बिना joined contest वाले match पर confirmation.
+  final confirmed =
+      await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        title: const Text(
+          'Delete Match?',
+        ),
+        content: const Text(
+          'Are you sure you want to delete this match?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(
+                dialogContext,
+                false,
+              );
+            },
+            child: const Text(
+              'NO',
             ),
           ),
-        );
-        return;
+          ElevatedButton(
+            style:
+                ElevatedButton.styleFrom(
+              backgroundColor:
+                  Colors.red,
+              foregroundColor:
+                  Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(
+                dialogContext,
+                true,
+              );
+            },
+            child: const Text(
+              'YES, DELETE',
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (confirmed != true) {
+    return;
+  }
+
+  final updated =
+      List<Map<String, String>>.from(
+    adminMatches.value,
+  );
+
+  // Exact match ही delete होगा.
+  updated.removeWhere(
+    (item) =>
+        matchKeyFromMap(item) ==
+        deletedMatchKey,
+  );
+
+  // उसी match के player stats हटेंगे.
+  savedPlayerStats.remove(
+    deletedMatchKey,
+  );
+
+  // उसी match के contests हटेंगे.
+  createdContests.removeWhere(
+    contestBelongsToMatch,
+  );
+
+  createdContestsVersion.value++;
+
+  _saveAdminContestsToFirebase();
+
+  // Draft team cleanup.
+  final drafts =
+      Map<String,
+          Map<String, dynamic>>.from(
+    draftTeams.value,
+  );
+
+  drafts.remove(
+    deletedMatchKey,
+  );
+
+  draftTeams.value =
+      drafts;
+
+  // Exact saved teams cleanup.
+  for (int i =
+          savedTeamMatchKeys.length - 1;
+      i >= 0;
+      i--) {
+    if (savedTeamMatchKeys[i] ==
+        deletedMatchKey) {
+      savedTeamMatchKeys.removeAt(i);
+
+      if (i <
+          savedCaptainNames.length) {
+        savedCaptainNames.removeAt(i);
       }
 
-      final updated =
-          List<Map<String, String>>.from(
-        adminMatches.value,
-      );
+      if (i <
+          savedViceCaptainNames.length) {
+        savedViceCaptainNames.removeAt(i);
+      }
 
-      updated.remove(match);
+      if (i <
+          savedTeams.value.length) {
+        final updatedTeams =
+            List<List<Player>>.from(
+          savedTeams.value,
+        );
 
-      adminMatches.value = updated;
+        updatedTeams.removeAt(i);
 
-      createdContests.removeWhere(
-        (contest) {
-          return (contest['team1'] ??
-                      '') ==
-                  deletedTeam1 &&
-              (contest['team2'] ??
-                      '') ==
-                  deletedTeam2;
-        },
-      );
-
-      createdContestsVersion.value++;
-
-      _saveAdminContestsToFirebase();
-
-      final deletedMatchName =
-          '$deletedTeam1 vs $deletedTeam2'
-              .trim()
-              .toLowerCase();
-
-      joinedMatches.value =
-          joinedMatches.value.where(
-        (m) {
-          return !(m.team1 ==
-                  deletedTeam1 &&
-              m.team2 ==
-                  deletedTeam2);
-        },
-      ).toList();
-
-      joinedContests.value =
-          joinedContests.value.where(
-        (c) {
-          final contestMatch =
-              (c['match'] ?? '')
-                  .toString()
-                  .trim()
-                  .toLowerCase();
-
-          return contestMatch !=
-              deletedMatchName;
-        },
-      ).toList();
-
-      final keyPrefix =
-          '${deletedTeam1}_${deletedTeam2}_'
-              .toLowerCase();
-
-      for (int i =
-              savedTeamMatchKeys.length -
-                  1;
-          i >= 0;
-          i--) {
-        if (savedTeamMatchKeys[i]
-            .toLowerCase()
-            .startsWith(
-              keyPrefix,
-            )) {
-          savedTeamMatchKeys.removeAt(i);
-
-          if (i <
-              savedTeams.value.length) {
-            final updatedTeams =
-                List<List<Player>>.from(
-              savedTeams.value,
-            );
-
-            updatedTeams.removeAt(i);
-
-            savedTeams.value =
-                updatedTeams;
-          }
-        }
+        savedTeams.value =
+            updatedTeams;
       }
     }
+  }
+
+  // Notifier update सबसे आखिर में.
+  // इससे Firebase में भी match delete save होगा.
+  adminMatches.value =
+      updated;
+
+  if (!context.mounted) {
+    return;
+  }
+
+  ScaffoldMessenger.of(context)
+      .showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Match deleted successfully',
+      ),
+    ),
+  );
+}
+
+      
 
     void showMatchActions(
       Map<String, String> match,
