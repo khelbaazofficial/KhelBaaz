@@ -975,10 +975,11 @@ List<Map<String, dynamic>>
         rawItem,
       );
 
-      for (final key in [
+            for (final key in [
         'createdAt',
         'resolvedAt',
         'reversedAt',
+        'cancelledAt',
       ]) {
         final value = item[key];
 
@@ -4449,7 +4450,196 @@ if (bankMobile != null &&
   }
 }
     
-    
+    Future<bool>
+    cancelWalletRequestByUser(
+  Map<String, dynamic> request,
+) async {
+  final user =
+      FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    return false;
+  }
+
+  try {
+    List<Map<String, dynamic>>?
+        latestRequests;
+
+    await FirebaseFirestore.instance
+        .runTransaction(
+      (transaction) async {
+        final userRef =
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid);
+
+        final userDoc =
+            await transaction.get(
+          userRef,
+        );
+
+        final data =
+            userDoc.data();
+
+        if (data == null) {
+          throw StateError(
+            'USER_NOT_FOUND',
+          );
+        }
+
+        final role =
+            (data['role'] ??
+                    'USER')
+                .toString()
+                .trim()
+                .toUpperCase();
+
+        if (role == 'ADMIN') {
+          throw StateError(
+            'ADMIN_NOT_ALLOWED',
+          );
+        }
+
+        final rawRequests =
+            data['walletRequests'];
+
+        final savedRequests =
+            rawRequests is List
+                ? rawRequests
+                    .whereType<Map>()
+                    .map(
+                      (item) =>
+                          Map<String,
+                              dynamic>.from(
+                        item,
+                      ),
+                    )
+                    .toList()
+                : <Map<String,
+                    dynamic>>[];
+
+        final requestId =
+            (request['requestId'] ??
+                    '')
+                .toString()
+                .trim();
+
+        int requestIndex =
+            savedRequests.indexWhere(
+          (item) =>
+              requestId.isNotEmpty &&
+              (item['requestId'] ??
+                          '')
+                      .toString() ==
+                  requestId,
+        );
+
+        // पुराने request में ID न हो
+        // तो pending type + amount
+        // से fallback.
+        if (requestIndex == -1) {
+          final type =
+              (request['type'] ?? '')
+                  .toString()
+                  .trim()
+                  .toUpperCase();
+
+          final amount =
+              (request['amount'] ?? 0)
+                  .toString();
+
+          requestIndex =
+              savedRequests.indexWhere(
+            (item) =>
+                (item['type'] ?? '')
+                        .toString()
+                        .trim()
+                        .toUpperCase() ==
+                    type &&
+                (item['amount'] ?? 0)
+                        .toString() ==
+                    amount &&
+                (item['status'] ??
+                            'PENDING')
+                        .toString()
+                        .trim()
+                        .toUpperCase() ==
+                    'PENDING',
+          );
+        }
+
+        if (requestIndex == -1) {
+          throw StateError(
+            'REQUEST_NOT_FOUND',
+          );
+        }
+
+        final currentStatus =
+            (savedRequests[
+                            requestIndex]
+                        ['status'] ??
+                    'PENDING')
+                .toString()
+                .trim()
+                .toUpperCase();
+
+        // सिर्फ PENDING cancel होगा.
+        if (currentStatus !=
+            'PENDING') {
+          throw StateError(
+            'REQUEST_ALREADY_PROCESSED',
+          );
+        }
+
+        final now =
+            DateTime.now();
+
+        savedRequests[
+            requestIndex] = {
+          ...savedRequests[
+              requestIndex],
+          'status':
+              'CANCELLED',
+          'cancelledBy':
+              'USER',
+          'cancelledAt':
+              now,
+          'resolvedAt':
+              now,
+        };
+
+        latestRequests =
+            savedRequests;
+
+        transaction.set(
+          userRef,
+          {
+            'walletRequests':
+                savedRequests,
+          },
+          SetOptions(
+            merge: true,
+          ),
+        );
+      },
+    );
+
+    if (latestRequests != null) {
+      walletRequests.value =
+          _storedMapList(
+        latestRequests,
+      );
+    }
+
+    return true;
+  } catch (e) {
+    debugPrint(
+      'Wallet Request cancel error: $e',
+    );
+
+    return false;
+  }
+    }
 
 
 Future<void> giveWelcomeBonusIfNeeded() async {
@@ -19404,217 +19594,1074 @@ final date = d == null
 );
 }
 }
-class WalletRequestsPage extends StatelessWidget {
-  const WalletRequestsPage({super.key});
+
+class WalletRequestsPage
+    extends StatelessWidget {
+  const WalletRequestsPage({
+    super.key,
+  });
+
+  DateTime? _toDate(
+    dynamic value,
+  ) {
+    if (value is DateTime) {
+      return value;
+    }
+
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    if (value != null) {
+      return DateTime.tryParse(
+        value.toString(),
+      );
+    }
+
+    return null;
+  }
+
+  String _formatDate(
+    dynamic value,
+  ) {
+    final date =
+        _toDate(value);
+
+    if (date == null) {
+      return '--';
+    }
+
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}  '
+        '${date.hour.toString().padLeft(2, '0')}:'
+        '${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  DateTime _sortTime(
+    Map<String, dynamic> request,
+  ) {
+    return _toDate(
+          request['resolvedAt'] ??
+              request[
+                  'cancelledAt'] ??
+              request[
+                  'reversedAt'] ??
+              request[
+                  'createdAt'],
+        ) ??
+        DateTime(2000);
+  }
+
+  Color _statusColor(
+    String status,
+  ) {
+    switch (status) {
+      case 'APPROVED':
+        return Colors.green;
+
+      case 'REJECTED':
+      case 'REVERSED':
+        return Colors.red;
+
+      case 'CANCELLED':
+        return Colors.grey;
+
+      default:
+        return Colors.orange;
+    }
+  }
+
+  Color _statusBackground(
+    String status,
+  ) {
+    switch (status) {
+      case 'APPROVED':
+        return Colors.green.shade100;
+
+      case 'REJECTED':
+      case 'REVERSED':
+        return Colors.red.shade100;
+
+      case 'CANCELLED':
+        return Colors.grey.shade300;
+
+      default:
+        return const Color(
+          0xFFFFD27A,
+        );
+    }
+  }
+
+  Future<void>
+      _confirmCancelRequest(
+    BuildContext context,
+    Map<String, dynamic> request,
+  ) async {
+    final confirmed =
+        await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape:
+              RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(
+              22,
+            ),
+          ),
+          title: Column(
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration:
+                    const BoxDecoration(
+                  color:
+                      Color(0xFFFFD89B),
+                  shape:
+                      BoxShape.circle,
+                ),
+                child:
+                    const Icon(
+                  Icons
+                      .priority_high_rounded,
+                  size: 42,
+                  color: Colors.red,
+                ),
+              ),
+              const SizedBox(
+                height: 12,
+              ),
+              const Text(
+                'Cancel Request?',
+                textAlign:
+                    TextAlign.center,
+                style: TextStyle(
+                  fontWeight:
+                      FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          content:
+              const Text(
+            'क्या आप यह request cancel करना चाहते हैं?',
+            textAlign:
+                TextAlign.center,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight:
+                  FontWeight.w600,
+            ),
+          ),
+          actions: [
+            OutlinedButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child:
+                  const Text('NO'),
+            ),
+            ElevatedButton(
+              style:
+                  ElevatedButton.styleFrom(
+                backgroundColor:
+                    Colors.red,
+                foregroundColor:
+                    Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child:
+                  const Text(
+                'YES, CANCEL',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    final cancelled =
+        await cancelWalletRequestByUser(
+      request,
+    );
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        backgroundColor:
+            cancelled
+                ? Colors.green
+                : Colors.red,
+        content: Text(
+          cancelled
+              ? 'Request cancelled successfully'
+              : 'Request cancel नहीं हुई • शायद Admin पहले ही process कर चुका है',
+        ),
+      ),
+    );
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Requests'),
+      backgroundColor:
+          const Color(
+        0xFFFFFAF7,
       ),
-      body: ValueListenableBuilder<List<Map<String, dynamic>>>(
-        valueListenable: walletRequests,
-        builder: (context, requests, _) {
+      appBar: AppBar(
+        backgroundColor:
+            const Color(
+          0xFFFFFAF7,
+        ),
+        surfaceTintColor:
+            Colors.transparent,
+        elevation: 0,
+        title:
+            const Text(
+          'My Requests',
+          style: TextStyle(
+            fontWeight:
+                FontWeight.w900,
+          ),
+        ),
+      ),
+      body: ValueListenableBuilder<
+          List<Map<String, dynamic>>>(
+        valueListenable:
+            walletRequests,
+        builder:
+            (context, requests, _) {
           if (requests.isEmpty) {
             return const Center(
-              child: Text('No requests yet'),
+              child: Text(
+                'No requests yet',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight:
+                      FontWeight.w700,
+                ),
+              ),
             );
           }
 
-          final now = DateTime.now();
+          final now =
+              DateTime.now();
 
-final list = requests.where((r) {
-  final status = (r['status'] ?? 'PENDING').toString();
+          final filtered =
+              requests.where(
+            (request) {
+              final status =
+                  (request[
+                              'status'] ??
+                          'PENDING')
+                      .toString()
+                      .trim()
+                      .toUpperCase();
 
-  if (status == 'PENDING') return true;
+              if (status ==
+                  'PENDING') {
+                return true;
+              }
 
-  final raw = r['resolvedAt'];
+              final resolvedAt =
+                  _toDate(
+                request[
+                        'resolvedAt'] ??
+                    request[
+                        'cancelledAt'] ??
+                    request[
+                        'reversedAt'],
+              );
 
-  DateTime? resolvedAt;
+              if (resolvedAt ==
+                  null) {
+                return true;
+              }
 
-  if (raw is DateTime) {
-    resolvedAt = raw;
-  } else if (raw != null) {
-    resolvedAt = DateTime.tryParse(raw.toString());
-  }
+              final after24Hours =
+                  resolvedAt.add(
+                const Duration(
+                  hours: 24,
+                ),
+              );
 
-  if (resolvedAt == null) return true;
+              final nextMidnight =
+                  DateTime(
+                resolvedAt.year,
+                resolvedAt.month,
+                resolvedAt.day + 1,
+              );
 
-  final after24Hours =
-      resolvedAt.add(const Duration(hours: 24));
+              final deleteAt =
+                  after24Hours.isAfter(
+                nextMidnight,
+              )
+                      ? after24Hours
+                      : nextMidnight;
 
-  final nextMidnight = DateTime(
-    resolvedAt.year,
-    resolvedAt.month,
-    resolvedAt.day + 1,
-  );
+              return now.isBefore(
+                deleteAt,
+              );
+            },
+          ).toList();
 
-  final deleteAt = after24Hours.isAfter(nextMidnight)
-      ? after24Hours
-      : nextMidnight;
+          filtered.sort(
+            (a, b) =>
+                _sortTime(b)
+                    .compareTo(
+              _sortTime(a),
+            ),
+          );
 
-  return now.isBefore(deleteAt);
-}).toList();
-list.sort((a, b) {
-  DateTime getTime(Map<String, dynamic> r) {
-  final status =
-      (r['status'] ?? '').toString().toUpperCase();
+          final list =
+              filtered.take(5).toList();
 
-  final raw = status == 'REVERSED'
-      ? (r['reversedAt'] ??
-          r['resolvedAt'] ??
-          r['createdAt'] ??
-          r['dateTime'] ??
-          r['date'])
-      : (r['resolvedAt'] ??
-          r['createdAt'] ??
-          r['dateTime'] ??
-          r['date']);
+          if (list.isEmpty) {
+            return const Center(
+              child: Text(
+                'No requests yet',
+              ),
+            );
+          }
 
-  if (raw is DateTime) return raw;
-
-  if (raw != null) {
-    final parsed = DateTime.tryParse(raw.toString());
-    if (parsed != null) return parsed;
-  }
-
-  return DateTime(2000);
-}
-
-  return getTime(b).compareTo(getTime(a));
-  });
-        if (list.length > 5) {
-  list.removeRange(5, list.length);
-}
           return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: list.length,
-            itemBuilder: (context, index) {
-              final r = list[index];
+            padding:
+                const EdgeInsets.fromLTRB(
+              14,
+              12,
+              14,
+              24,
+            ),
+            itemCount:
+                list.length,
+            itemBuilder:
+                (context, index) {
+              final request =
+                  list[index];
 
               final type =
-                  (r['type'] ?? '').toString();
+                  (request[
+                              'type'] ??
+                          '')
+                      .toString()
+                      .trim()
+                      .toUpperCase();
 
               final status =
-                  (r['status'] ?? 'PENDING').toString();
+                  (request[
+                              'status'] ??
+                          'PENDING')
+                      .toString()
+                      .trim()
+                      .toUpperCase();
 
               final amount =
                   double.tryParse(
-                    (r['amount'] ?? 0).toString(),
-                  ) ??
-                  0;
-              final adminNote =
-    (r['adminNote'] ?? 'Verified payment').toString();
-              final rawRequested =
-    r['requestedAt'] ?? r['createdAt'];
+                        (request[
+                                    'amount'] ??
+                                0)
+                            .toString(),
+                      ) ??
+                      0;
 
-DateTime? requestedAt;
+              final isDeposit =
+                  type ==
+                      'DEPOSIT';
 
-if (rawRequested is DateTime) {
-  requestedAt = rawRequested;
-} else if (rawRequested != null) {
-  requestedAt =
-      DateTime.tryParse(rawRequested.toString());
-}
+              final isWithdraw =
+                  type ==
+                          'WITHDRAW' ||
+                      type ==
+                          'WITHDRAWAL';
 
-final requestedText = requestedAt == null
-    ? ''
-    : '${requestedAt.day.toString().padLeft(2, '0')}/'
-      '${requestedAt.month.toString().padLeft(2, '0')}/'
-      '${requestedAt.year}  '
-      '${requestedAt.hour.toString().padLeft(2, '0')}:'
-      '${requestedAt.minute.toString().padLeft(2, '0')}';
-              
-final rawResolved =
-    status.toUpperCase() == 'REVERSED'
-        ? (r['reversedAt'] ??
-            r['resolvedAt'])
-        : r['resolvedAt'];
+              final isPending =
+                  status ==
+                      'PENDING';
 
-DateTime? resolvedAt;
-if (rawResolved is DateTime) {
-  resolvedAt = rawResolved;
-} else if (rawResolved != null) {
-  resolvedAt = DateTime.tryParse(rawResolved.toString());
-}
+              final isCancelled =
+                  status ==
+                      'CANCELLED';
 
-final resolvedText = resolvedAt == null
-    ? ''
-    : '${resolvedAt.day.toString().padLeft(2, '0')}/'
-      '${resolvedAt.month.toString().padLeft(2, '0')}/'
-      '${resolvedAt.year} '
-      '${resolvedAt.hour.toString().padLeft(2, '0')}:'
-      '${resolvedAt.minute.toString().padLeft(2, '0')}';
-              final isWithdraw = type == 'WITHDRAW';
-final isReversed = status == 'REVERSED';
+              final depositUpiId =
+                  (request[
+                              'depositUpiId'] ??
+                          '')
+                      .toString()
+                      .trim();
 
-final normalizedStatus =
-    status.toUpperCase();
+              final payoutMethod =
+                  (request[
+                              'payoutMethod'] ??
+                          'UPI')
+                      .toString()
+                      .trim()
+                      .toUpperCase();
 
-final color = normalizedStatus == 'PENDING'
-    ? Colors.orange
-    : isReversed ||
-            normalizedStatus == 'REJECTED'
-        ? Colors.red
-        : isWithdraw
-            ? Colors.blue
-            : Colors.green.shade700;
+              final payoutUpiId =
+                  (request[
+                              'payoutUpiId'] ??
+                          '')
+                      .toString()
+                      .trim();
 
-final bgColor = normalizedStatus == 'PENDING'
-    ? Colors.orange.shade50
-    : isReversed ||
-            normalizedStatus == 'REJECTED'
-        ? Colors.red.shade50
-        : isWithdraw
-            ? Colors.blue.shade50
-            : Colors.green.shade50;
+              final holderName =
+                  (request[
+                              'accountHolderName'] ??
+                          '')
+                      .toString()
+                      .trim();
 
-return Card(
-  color: bgColor,
-  child: ListTile(
-    leading: Transform(
-  alignment: Alignment.center,
-  transform: Matrix4.rotationY(
-    isReversed || isWithdraw ? 0 : 3.14159,
-  ),
-  child: Icon(
-    isReversed
-        ? Icons.undo
-        : Icons.keyboard_return,
-    color: color,
-    size: 32,
-  ),
-),
-    title: Text(
-      '$type • ₹${amount.toStringAsFixed(0)}',
-      style: const TextStyle(
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-    subtitle: Text(
-      resolvedText.isEmpty
-          ? '$status\n⏰ Request: $requestedText'
-          : status == 'APPROVED'
-              ? '$status • Admin: $adminNote\n'
-                  '⏰ Request: $requestedText\n'
-                  '✅ Approved: $resolvedText'
-              : isReversed
-                  ? 'REVERSED\n'
-                      '⏰ Request: $requestedText\n'
-                      '↩️ Reversed: $resolvedText'
-                  : '$status\n'
-                      '⏰ Request: $requestedText\n'
-                      '❌ Rejected: $resolvedText',
-    ),
-    isThreeLine: true,
-    trailing: Icon(
-      Icons.circle,
-      size: 12,
-      color: color,
-    ),
-  ),
-);
+              final bankName =
+                  (request[
+                              'bankName'] ??
+                          '')
+                      .toString()
+                      .trim();
+
+              final bankAccount =
+                  (request[
+                              'bankAccountNumber'] ??
+                          '')
+                      .toString()
+                      .trim();
+
+              final bankIfsc =
+                  (request[
+                              'bankIfsc'] ??
+                          '')
+                      .toString()
+                      .trim();
+
+              final bankMobile =
+                  (request[
+                              'bankMobile'] ??
+                          '')
+                      .toString()
+                      .trim();
+
+              final createdText =
+                  _formatDate(
+                request[
+                    'createdAt'],
+              );
+
+              final resolvedText =
+                  _formatDate(
+                request[
+                        'resolvedAt'] ??
+                    request[
+                        'cancelledAt'] ??
+                    request[
+                        'reversedAt'],
+              );
+
+              final mainColor =
+                  isDeposit
+                      ? const Color(
+                          0xFF43A047,
+                        )
+                      : const Color(
+                          0xFFE74E4E,
+                        );
+
+              return Container(
+                margin:
+                    const EdgeInsets.only(
+                  bottom: 14,
+                ),
+                padding:
+                    const EdgeInsets.all(
+                  15,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      isCancelled
+                          ? const Color(
+                              0xFFF4F4F4,
+                            )
+                          : const Color(
+                              0xFFFFF2DC,
+                            ),
+                  borderRadius:
+                      BorderRadius.circular(
+                    18,
+                  ),
+                  border:
+                      Border.all(
+                    color:
+                        isCancelled
+                            ? Colors
+                                .grey
+                                .shade300
+                            : const Color(
+                                0xFFF3DFB8,
+                              ),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          Colors.black
+                              .withOpacity(
+                        0.05,
+                      ),
+                      blurRadius: 5,
+                      offset:
+                          const Offset(
+                        0,
+                        2,
+                      ),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment
+                          .start,
+                  children: [
+                    Row(
+                      crossAxisAlignment:
+                          CrossAxisAlignment
+                              .start,
+                      children: [
+                        CircleAvatar(
+                          radius: 23,
+                          backgroundColor:
+                              mainColor
+                                  .withOpacity(
+                            0.12,
+                          ),
+                          child:
+                              Icon(
+                            isDeposit
+                                ? Icons
+                                    .arrow_downward
+                                : Icons
+                                    .arrow_upward,
+                            color:
+                                mainColor,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(
+                          width: 11,
+                        ),
+                        Expanded(
+                          child:
+                              Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment
+                                    .start,
+                            children: [
+                              Text(
+                                '${isDeposit ? 'DEPOSIT' : 'WITHDRAW'} • ₹${amount.toStringAsFixed(0)}',
+                                style:
+                                    const TextStyle(
+                                  fontSize:
+                                      19,
+                                  fontWeight:
+                                      FontWeight
+                                          .w900,
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 5,
+                              ),
+                              Container(
+                                padding:
+                                    const EdgeInsets
+                                        .symmetric(
+                                  horizontal:
+                                      9,
+                                  vertical:
+                                      4,
+                                ),
+                                decoration:
+                                    BoxDecoration(
+                                  color:
+                                      _statusBackground(
+                                    status,
+                                  ),
+                                  borderRadius:
+                                      BorderRadius
+                                          .circular(
+                                    7,
+                                  ),
+                                ),
+                                child:
+                                    Text(
+                                  status,
+                                  style:
+                                      TextStyle(
+                                    fontSize:
+                                        12,
+                                    color:
+                                        _statusColor(
+                                      status,
+                                    ),
+                                    fontWeight:
+                                        FontWeight
+                                            .w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration:
+                              BoxDecoration(
+                            color:
+                                _statusColor(
+                              status,
+                            ),
+                            shape:
+                                BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(
+                      height: 10,
+                    ),
+
+                    Row(
+                      children: [
+                        const SizedBox(
+                          width: 57,
+                        ),
+                        const Icon(
+                          Icons
+                              .access_time,
+                          size: 18,
+                        ),
+                        const SizedBox(
+                          width: 5,
+                        ),
+                        Expanded(
+                          child:
+                              Text(
+                            'Request: $createdText',
+                            style:
+                                const TextStyle(
+                              fontSize:
+                                  13,
+                              fontWeight:
+                                  FontWeight
+                                      .w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    if (isDeposit &&
+                        depositUpiId
+                            .isNotEmpty) ...[
+                      const SizedBox(
+                        height: 13,
+                      ),
+                      Container(
+                        width:
+                            double.infinity,
+                        padding:
+                            const EdgeInsets
+                                .all(
+                          13,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              Colors.white
+                                  .withOpacity(
+                            0.52,
+                          ),
+                          borderRadius:
+                              BorderRadius
+                                  .circular(
+                            13,
+                          ),
+                          border:
+                              Border.all(
+                            color:
+                                Colors
+                                    .green
+                                    .shade200,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons
+                                  .account_balance_wallet_outlined,
+                              color:
+                                  Colors.green,
+                            ),
+                            const SizedBox(
+                              width: 9,
+                            ),
+                            Expanded(
+                              child:
+                                  Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment
+                                        .start,
+                                children: [
+                                  Text(
+                                    'Paid From UPI ID',
+                                    style:
+                                        TextStyle(
+                                      color:
+                                          Colors
+                                              .grey
+                                              .shade600,
+                                      fontSize:
+                                          12,
+                                      fontWeight:
+                                          FontWeight
+                                              .w700,
+                                    ),
+                                  ),
+                                  const SizedBox(
+                                    height:
+                                        3,
+                                  ),
+                                  Text(
+                                    depositUpiId,
+                                    style:
+                                        const TextStyle(
+                                      fontSize:
+                                          17,
+                                      fontWeight:
+                                          FontWeight
+                                              .w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    if (isWithdraw &&
+                        payoutMethod ==
+                            'UPI' &&
+                        payoutUpiId
+                            .isNotEmpty) ...[
+                      const SizedBox(
+                        height: 13,
+                      ),
+                      Container(
+                        width:
+                            double.infinity,
+                        padding:
+                            const EdgeInsets
+                                .all(
+                          13,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              Colors.white
+                                  .withOpacity(
+                            0.52,
+                          ),
+                          borderRadius:
+                              BorderRadius
+                                  .circular(
+                            13,
+                          ),
+                          border:
+                              Border.all(
+                            color:
+                                Colors.red
+                                    .shade200,
+                          ),
+                        ),
+                        child:
+                            Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+                          children: [
+                            const Text(
+                              '💳 UPI Withdrawal',
+                              style:
+                                  TextStyle(
+                                fontSize:
+                                    15,
+                                fontWeight:
+                                    FontWeight
+                                        .w900,
+                              ),
+                            ),
+                            const SizedBox(
+                              height: 7,
+                            ),
+                            Text(
+                              'UPI ID: $payoutUpiId',
+                              style:
+                                  const TextStyle(
+                                fontSize:
+                                    16,
+                                fontWeight:
+                                    FontWeight
+                                        .w900,
+                              ),
+                            ),
+                            if (holderName
+                                .isNotEmpty) ...[
+                              const SizedBox(
+                                height:
+                                    4,
+                              ),
+                              Text(
+                                'Account Holder: $holderName',
+                                style:
+                                    const TextStyle(
+                                  fontWeight:
+                                      FontWeight
+                                          .w700,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (isWithdraw &&
+                        payoutMethod ==
+                            'BANK') ...[
+                      const SizedBox(
+                        height: 13,
+                      ),
+                      Container(
+                        width:
+                            double.infinity,
+                        padding:
+                            const EdgeInsets
+                                .all(
+                          13,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              Colors.white
+                                  .withOpacity(
+                            0.52,
+                          ),
+                          borderRadius:
+                              BorderRadius
+                                  .circular(
+                            13,
+                          ),
+                        ),
+                        child:
+                            Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+                          children: [
+                            const Text(
+                              '🏦 Bank Withdrawal',
+                              style:
+                                  TextStyle(
+                                fontSize:
+                                    15,
+                                fontWeight:
+                                    FontWeight
+                                        .w900,
+                              ),
+                            ),
+                            const SizedBox(
+                              height: 7,
+                            ),
+                            if (holderName
+                                .isNotEmpty)
+                              Text(
+                                'Account Holder: $holderName',
+                              ),
+                            if (bankName
+                                .isNotEmpty)
+                              Text(
+                                'Bank: $bankName',
+                              ),
+                            if (bankAccount
+                                .isNotEmpty)
+                              Text(
+                                'Account No: $bankAccount',
+                              ),
+                            if (bankIfsc
+                                .isNotEmpty)
+                              Text(
+                                'IFSC: $bankIfsc',
+                              ),
+                            if (bankMobile
+                                .isNotEmpty)
+                              Text(
+                                'Mobile: $bankMobile',
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    if (!isPending &&
+                        resolvedText !=
+                            '--') ...[
+                      const SizedBox(
+                        height: 9,
+                      ),
+                      Text(
+                        status ==
+                                'APPROVED'
+                            ? '✅ Approved: $resolvedText'
+                            : status ==
+                                    'CANCELLED'
+                                ? '🚫 Cancelled: $resolvedText'
+                                : status ==
+                                        'REVERSED'
+                                    ? '↩️ Reversed: $resolvedText'
+                                    : '❌ Rejected: $resolvedText',
+                        style:
+                            const TextStyle(
+                          fontSize:
+                              12.5,
+                          fontWeight:
+                              FontWeight
+                                  .w700,
+                        ),
+                      ),
+                    ],
+
+                    if (isPending) ...[
+                      const SizedBox(
+                        height: 14,
+                      ),
+                      SizedBox(
+                        width:
+                            double.infinity,
+                        height: 48,
+                        child:
+                            OutlinedButton
+                                .icon(
+                          style:
+                              OutlinedButton
+                                  .styleFrom(
+                            foregroundColor:
+                                Colors
+                                    .red
+                                    .shade700,
+                            side:
+                                BorderSide(
+                              color:
+                                  Colors
+                                      .red
+                                      .shade600,
+                              width:
+                                  1.4,
+                            ),
+                            shape:
+                                RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius
+                                      .circular(
+                                24,
+                              ),
+                            ),
+                          ),
+                          onPressed: () {
+                            _confirmCancelRequest(
+                              context,
+                              request,
+                            );
+                          },
+                          icon:
+                              const Icon(
+                            Icons
+                                .block_rounded,
+                          ),
+                          label:
+                              const Text(
+                            'CANCEL REQUEST',
+                            style:
+                                TextStyle(
+                              fontWeight:
+                                  FontWeight
+                                      .w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    if (isCancelled) ...[
+                      const SizedBox(
+                        height: 10,
+                      ),
+                      Container(
+                        width:
+                            double.infinity,
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          vertical: 9,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              Colors.grey
+                                  .shade200,
+                          borderRadius:
+                              BorderRadius
+                                  .circular(
+                            10,
+                          ),
+                        ),
+                        child:
+                            const Text(
+                          'Cancelled by You',
+                          textAlign:
+                              TextAlign
+                                  .center,
+                          style:
+                              TextStyle(
+                            color:
+                                Colors
+                                    .black54,
+                            fontWeight:
+                                FontWeight
+                                    .w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
             },
           );
         },
@@ -19622,6 +20669,8 @@ return Card(
     );
   }
 }
+                             
+
 void showDepositRequestDialog(BuildContext context) {
   final TextEditingController amountController = TextEditingController();
 
@@ -19785,7 +20834,8 @@ Future<void> showWithdrawRequestDialog(
 
   String payoutMethod = 'UPI';
 
-  await showDialog<void>(
+    final requestSent =
+      await showDialog<bool>(
     context: context,
     builder: (dialogContext) {
       return StatefulBuilder(
@@ -20104,11 +21154,7 @@ Future<void> showWithdrawRequestDialog(
 
             actions: [
               TextButton(
-                onPressed: () {
-                  Navigator.pop(
-                    dialogContext,
-                  );
-                },
+                
                 child:
                     const Text('CANCEL'),
               ),
@@ -20372,11 +21418,7 @@ Future<void> showWithdrawRequestDialog(
                     return;
                   }
 
-                  if (dialogContext.mounted) {
-                    Navigator.pop(
-                      dialogContext,
-                    );
-                  }
+                                  
 
                   ScaffoldMessenger.of(
                     context,
@@ -20399,6 +21441,12 @@ Future<void> showWithdrawRequestDialog(
     },
   );
 
+    await Future<void>.delayed(
+    const Duration(
+      milliseconds: 250,
+    ),
+  );
+
   amountController.dispose();
   upiController.dispose();
   holderController.dispose();
@@ -20407,11 +21455,22 @@ Future<void> showWithdrawRequestDialog(
   confirmAccountController.dispose();
   ifscController.dispose();
   mobileController.dispose();
+
+  if (requestSent == true &&
+      context.mounted) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Withdraw request sent',
+        ),
+        backgroundColor:
+            Colors.green,
+      ),
+    );
+  }
 }
         
-        
-
-
               
 class DepositPaymentPage extends StatelessWidget {
   final double amount;
@@ -31723,20 +32782,12 @@ class _AdminWalletRequestsPageState
   int index,
   Map<String, dynamic> request,
 ) async {
-  final updated =
-      List<Map<String, dynamic>>.from(
-    walletRequests.value,
-  );
-
-  if (index < 0 ||
-      index >= updated.length) {
-    return;
-  }
+  if (index < 0) return;
 
   final currentStatus =
-      (updated[index]['status'] ??
-              'PENDING')
+      (request['status'] ?? 'PENDING')
           .toString()
+          .trim()
           .toUpperCase();
 
   if (currentStatus != 'PENDING') {
@@ -31744,87 +32795,61 @@ class _AdminWalletRequestsPageState
   }
 
   String adminNoteText =
-    'Verified payment';
+      'Verified payment';
 
-final adminNote =
-    await showDialog<String>(
-  context: context,
-  builder: (dialogContext) {
-    return AlertDialog(
-      title:
-          const Text('Admin Note'),
-      content: TextFormField(
-        initialValue:
-            'Verified payment',
-        onChanged: (value) {
-          adminNoteText = value;
-        },
-        decoration:
-            const InputDecoration(
-          labelText: 'Note',
-          hintText:
+  final adminNote =
+      await showDialog<String>(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        title:
+            const Text('Admin Note'),
+        content: TextFormField(
+          initialValue:
               'Verified payment',
-          border:
-              OutlineInputBorder(),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () async {
-            FocusScope.of(dialogContext)
-                .unfocus();
-
-            await Future.delayed(
-              const Duration(
-                milliseconds: 120,
-              ),
-            );
-
-            if (!dialogContext.mounted) {
-              return;
-            }
-
-            Navigator.pop(
-              dialogContext,
-            );
+          onChanged: (value) {
+            adminNoteText = value;
           },
-          child:
-              const Text('CANCEL'),
+          decoration:
+              const InputDecoration(
+            labelText: 'Note',
+            hintText:
+                'Verified payment',
+            border:
+                OutlineInputBorder(),
+          ),
         ),
-        ElevatedButton(
-          onPressed: () async {
-            final note =
-                adminNoteText.trim();
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(
+                dialogContext,
+              );
+            },
+            child:
+                const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final note =
+                  adminNoteText.trim();
 
-            FocusScope.of(dialogContext)
-                .unfocus();
+              Navigator.pop(
+                dialogContext,
+                note.isEmpty
+                    ? 'Verified payment'
+                    : note,
+              );
+            },
+            child:
+                const Text('APPROVE'),
+          ),
+        ],
+      );
+    },
+  );
 
-            await Future.delayed(
-              const Duration(
-                milliseconds: 120,
-              ),
-            );
-
-            if (!dialogContext.mounted) {
-              return;
-            }
-
-            Navigator.pop(
-              dialogContext,
-              note.isEmpty
-                  ? 'Verified payment'
-                  : note,
-            );
-          },
-          child:
-              const Text('APPROVE'),
-        ),
-      ],
-    );
-  },
-);
-
-if (adminNote == null) return;
+  if (adminNote == null) return;
 
   final type =
       (request['type'] ?? '')
@@ -31856,6 +32881,7 @@ if (adminNote == null) return;
         ),
       ),
     );
+
     return;
   }
 
@@ -31864,213 +32890,253 @@ if (adminNote == null) return;
     return;
   }
 
+  final txnNumber =
+      type == 'DEPOSIT'
+          ? generateTxnNumber(
+              'DEPOSIT',
+            )
+          : generateTxnNumber(
+              'WITHDRAW',
+            );
+
   try {
-    final userRef =
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId);
+    await FirebaseFirestore.instance
+        .runTransaction(
+      (transaction) async {
+        final userRef =
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(userId);
 
-    final userDoc =
-        await userRef.get();
+        final userDoc =
+            await transaction.get(
+          userRef,
+        );
 
-    final userData =
-        userDoc.data();
+        final userData =
+            userDoc.data();
 
-    if (userData == null) return;
+        if (userData == null) {
+          throw StateError(
+            'USER_NOT_FOUND',
+          );
+        }
 
-    final savedBalance =
-        (userData['walletBalance']
-                    as num?)
-                ?.toDouble() ??
-            0;
+        final rawRequests =
+            userData[
+                'walletRequests'];
 
-    if (type == 'WITHDRAW' &&
-        amount > savedBalance) {
-      if (!context.mounted) return;
+        final savedRequests =
+            rawRequests is List
+                ? rawRequests
+                    .whereType<Map>()
+                    .map(
+                      (e) => Map<String,
+                              dynamic>.from(
+                            e,
+                          ),
+                    )
+                    .toList()
+                : <Map<String,
+                    dynamic>>[];
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Insufficient wallet balance',
+        final requestId =
+            (request['requestId'] ??
+                    '')
+                .toString();
+
+        int requestIndex =
+            savedRequests.indexWhere(
+          (item) =>
+              requestId.isNotEmpty &&
+              (item['requestId'] ??
+                          '')
+                      .toString() ==
+                  requestId,
+        );
+
+        if (requestIndex == -1) {
+          requestIndex =
+              savedRequests
+                  .indexWhere(
+            (item) =>
+                (item['type'] ?? '')
+                        .toString()
+                        .trim()
+                        .toUpperCase() ==
+                    type &&
+                (item['amount'] ?? 0)
+                        .toString() ==
+                    amount.toString() &&
+                (item['status'] ??
+                            'PENDING')
+                        .toString()
+                        .trim()
+                        .toUpperCase() ==
+                    'PENDING',
+          );
+        }
+
+        if (requestIndex == -1) {
+          throw StateError(
+            'REQUEST_NOT_FOUND',
+          );
+        }
+
+        final latestStatus =
+            (savedRequests[
+                            requestIndex]
+                        ['status'] ??
+                    'PENDING')
+                .toString()
+                .trim()
+                .toUpperCase();
+
+        // User ने Cancel कर दिया हो
+        // तो Admin approve नहीं कर सकता.
+        if (latestStatus !=
+            'PENDING') {
+          throw StateError(
+            'REQUEST_NOT_PENDING',
+          );
+        }
+
+        final savedBalance =
+            (userData[
+                            'walletBalance']
+                        as num?)
+                    ?.toDouble() ??
+                0;
+
+        final rawHistory =
+            userData[
+                'transactionHistory'];
+
+        final savedHistory =
+            rawHistory is List
+                ? rawHistory
+                    .whereType<Map>()
+                    .map(
+                      (e) => Map<String,
+                              dynamic>.from(
+                            e,
+                          ),
+                    )
+                    .toList()
+                : <Map<String,
+                    dynamic>>[];
+
+        if (type == 'WITHDRAW' &&
+            amount > savedBalance) {
+          throw StateError(
+            'INSUFFICIENT_BALANCE',
+          );
+        }
+
+        final withdrawableBalance =
+            _calculateWithdrawableBalance(
+          currentWallet:
+              savedBalance,
+          history: savedHistory,
+        );
+
+        if (type == 'WITHDRAW' &&
+            amount >
+                withdrawableBalance) {
+          throw StateError(
+            'BONUS_WITHDRAW_NOT_ALLOWED',
+          );
+        }
+
+        final now =
+            DateTime.now();
+
+        final username =
+            (userData['username'] ??
+                    request[
+                        'username'] ??
+                    '')
+                .toString();
+
+        final newBalance =
+            type == 'DEPOSIT'
+                ? savedBalance +
+                    amount
+                : savedBalance -
+                    amount;
+
+        savedHistory.add({
+          'title':
+              type == 'DEPOSIT'
+                  ? 'Deposit Approved'
+                  : 'Withdraw Approved',
+          'subtitle':
+              type == 'DEPOSIT'
+                  ? 'Admin approved deposit request'
+                  : 'Admin approved withdraw request',
+          'description':
+              'Admin approved wallet request',
+          'type':
+              type == 'DEPOSIT'
+                  ? 'DEPOSIT'
+                  : 'WITHDRAWAL',
+          'amount':
+              type == 'DEPOSIT'
+                  ? amount
+                  : -amount,
+          'txnNumber':
+              txnNumber,
+          'userId': userId,
+          'username':
+              username,
+          'createdAt': now,
+          'dateTime':
+              '${now.day.toString().padLeft(2, '0')}/'
+              '${now.month.toString().padLeft(2, '0')}/'
+              '${now.year} '
+              '${now.hour.toString().padLeft(2, '0')}:'
+              '${now.minute.toString().padLeft(2, '0')}',
+        });
+
+        final approvedRequest =
+            <String, dynamic>{
+          ...savedRequests[
+              requestIndex],
+          'status':
+              'APPROVED',
+          'resolvedAt': now,
+          'adminNote':
+              adminNote,
+          'txnNumber':
+              txnNumber,
+          'userId':
+              userId,
+          'username':
+              username,
+        };
+
+        savedRequests[
+                requestIndex] =
+            approvedRequest;
+
+        transaction.set(
+          userRef,
+          {
+            'walletBalance':
+                newBalance,
+            'transactionHistory':
+                savedHistory,
+            'walletRequests':
+                savedRequests,
+          },
+          SetOptions(
+            merge: true,
           ),
-        ),
-      );
-      return;
-    }
-
-    final rawHistory =
-        userData['transactionHistory'];
-
-    final savedHistory =
-        rawHistory is List
-            ? rawHistory
-                .whereType<Map>()
-                .map(
-                  (e) =>
-                      Map<String,
-                          dynamic>.from(
-                    e,
-                  ),
-                )
-                .toList()
-            : <Map<String,
-                dynamic>>[];
-final double withdrawableBalance =
-    _calculateWithdrawableBalance(
-  currentWallet: savedBalance,
-  history: savedHistory,
-);
-
-if (type == 'WITHDRAW' &&
-    amount > withdrawableBalance) {
-  if (!context.mounted) return;
-
-  ScaffoldMessenger.of(context)
-      .showSnackBar(
-    SnackBar(
-      content: Text(
-        'Bonus direct withdraw नहीं होगा • Available ₹${withdrawableBalance.toStringAsFixed(0)}',
-      ),
-    ),
-  );
-  return;
-}
-    final rawRequests =
-        userData['walletRequests'];
-
-    final savedRequests =
-        rawRequests is List
-            ? rawRequests
-                .whereType<Map>()
-                .map(
-                  (e) =>
-                      Map<String,
-                          dynamic>.from(
-                    e,
-                  ),
-                )
-                .toList()
-            : <Map<String,
-                dynamic>>[];
-
-    final requestId =
-        (request['requestId'] ?? '')
-            .toString();
-
-    int savedRequestIndex =
-        savedRequests.indexWhere(
-      (item) =>
-          requestId.isNotEmpty &&
-          (item['requestId'] ?? '')
-                  .toString() ==
-              requestId,
-    );
-
-    if (savedRequestIndex == -1) {
-      savedRequestIndex =
-          savedRequests.indexWhere(
-        (item) =>
-            (item['type'] ?? '')
-                    .toString()
-                    .toUpperCase() ==
-                type &&
-            (item['amount'] ?? 0)
-                    .toString() ==
-                amount.toString() &&
-            (item['status'] ?? 'PENDING')
-                    .toString()
-                    .toUpperCase() ==
-                'PENDING',
-      );
-    }
-
-    final now = DateTime.now();
-
-    final txnNumber =
-        type == 'DEPOSIT'
-            ? generateTxnNumber(
-                'DEPOSIT',
-              )
-            : generateTxnNumber(
-                'WITHDRAW',
-              );
-
-    final username =
-        (userData['username'] ??
-                request['username'] ??
-                '')
-            .toString();
-
-    final newBalance =
-        type == 'DEPOSIT'
-            ? savedBalance + amount
-            : savedBalance - amount;
-
-    savedHistory.add({
-      'title': type == 'DEPOSIT'
-          ? 'Deposit Approved'
-          : 'Withdraw Approved',
-      'subtitle': type == 'DEPOSIT'
-          ? 'Admin approved deposit request'
-          : 'Admin approved withdraw request',
-      'description':
-          'Admin approved wallet request',
-      'type': type == 'DEPOSIT'
-          ? 'DEPOSIT'
-          : 'WITHDRAWAL',
-      'amount': type == 'DEPOSIT'
-          ? amount
-          : -amount,
-      'txnNumber': txnNumber,
-      'userId': userId,
-      'username': username,
-      'createdAt': now,
-      'dateTime':
-          '${now.day.toString().padLeft(2, '0')}/'
-          '${now.month.toString().padLeft(2, '0')}/'
-          '${now.year} '
-          '${now.hour.toString().padLeft(2, '0')}:'
-          '${now.minute.toString().padLeft(2, '0')}',
-    });
-
-    final approvedRequest =
-        <String, dynamic>{
-      ...request,
-      'status': 'APPROVED',
-      'resolvedAt': now,
-      'adminNote': adminNote,
-      'txnNumber': txnNumber,
-      'userId': userId,
-      'username': username,
-    };
-
-    if (savedRequestIndex != -1) {
-      savedRequests[
-              savedRequestIndex] =
-          approvedRequest;
-    } else {
-      savedRequests.add(
-        approvedRequest,
-      );
-    }
-
-    await userRef.set(
-      {
-        'walletBalance':
-            newBalance,
-        'transactionHistory':
-            savedHistory,
-        'walletRequests':
-            savedRequests,
+        );
       },
-      SetOptions(merge: true),
     );
 
-    updated[index] =
-        approvedRequest;
-
-    walletRequests.value = updated;
+    await _loadWalletRequests();
 
     if (!context.mounted) return;
 
@@ -32089,140 +33155,240 @@ if (type == 'WITHDRAW' &&
       'Wallet Approve error: $e',
     );
 
+    await _loadWalletRequests();
+
     if (!context.mounted) return;
+
+    final errorText =
+        e.toString();
+
+    String message =
+        'Request approve नहीं हो पाई';
+
+    if (errorText.contains(
+      'REQUEST_NOT_PENDING',
+    )) {
+      message =
+          'यह Request user ने cancel कर दी है या पहले ही process हो चुकी है';
+    } else if (errorText.contains(
+      'INSUFFICIENT_BALANCE',
+    )) {
+      message =
+          'Insufficient wallet balance';
+    } else if (errorText.contains(
+      'BONUS_WITHDRAW_NOT_ALLOWED',
+    )) {
+      message =
+          'Bonus direct withdraw नहीं हो सकता';
+    }
 
     ScaffoldMessenger.of(context)
         .showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Request approve नहीं हो पाई',
-        ),
+      SnackBar(
+        content: Text(message),
       ),
     );
   }
-  }
+}
 
-  Future<void> rejectRequest(
+Future<void> rejectRequest(
   int index,
 ) async {
-  final updated =
+  final currentRequests =
       List<Map<String, dynamic>>.from(
     walletRequests.value,
   );
 
   if (index < 0 ||
-      index >= updated.length) {
+      index >=
+          currentRequests.length) {
     return;
   }
 
-  final request = updated[index];
+  final request =
+      currentRequests[index];
+
+  final currentStatus =
+      (request['status'] ??
+              'PENDING')
+          .toString()
+          .trim()
+          .toUpperCase();
+
+  if (currentStatus !=
+      'PENDING') {
+    await _loadWalletRequests();
+    return;
+  }
 
   final userId =
       (request['userId'] ?? '')
           .toString()
           .trim();
 
-  if (userId.isEmpty) return;
+  if (userId.isEmpty) {
+    return;
+  }
 
   try {
-    final userRef =
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId);
+    await FirebaseFirestore.instance
+        .runTransaction(
+      (transaction) async {
+        final userRef =
+            FirebaseFirestore.instance
+                .collection('users')
+                .doc(userId);
 
-    final userDoc =
-        await userRef.get();
+        final userDoc =
+            await transaction.get(
+          userRef,
+        );
 
-    final userData =
-        userDoc.data();
+        final userData =
+            userDoc.data();
 
-    if (userData == null) return;
+        if (userData == null) {
+          throw StateError(
+            'USER_NOT_FOUND',
+          );
+        }
 
-    final rawRequests =
-        userData['walletRequests'];
+        final rawRequests =
+            userData[
+                'walletRequests'];
 
-    final savedRequests =
-        rawRequests is List
-            ? rawRequests
-                .whereType<Map>()
-                .map(
-                  (e) =>
-                      Map<String,
-                          dynamic>.from(
-                    e,
-                  ),
-                )
-                .toList()
-            : <Map<String,
-                dynamic>>[];
+        final savedRequests =
+            rawRequests is List
+                ? rawRequests
+                    .whereType<Map>()
+                    .map(
+                      (e) => Map<String,
+                              dynamic>.from(
+                            e,
+                          ),
+                    )
+                    .toList()
+                : <Map<String,
+                    dynamic>>[];
 
-    final requestId =
-        (request['requestId'] ?? '')
-            .toString();
+        final requestId =
+            (request['requestId'] ??
+                    '')
+                .toString();
 
-    int savedIndex =
-        savedRequests.indexWhere(
-      (item) =>
-          requestId.isNotEmpty &&
-          (item['requestId'] ?? '')
-                  .toString() ==
-              requestId,
-    );
+        int savedIndex =
+            savedRequests.indexWhere(
+          (item) =>
+              requestId.isNotEmpty &&
+              (item['requestId'] ??
+                          '')
+                      .toString() ==
+                  requestId,
+        );
 
-    if (savedIndex == -1) {
-      savedIndex =
-          savedRequests.indexWhere(
-        (item) =>
-            (item['type'] ?? '')
-                    .toString() ==
-                (request['type'] ?? '')
-                    .toString() &&
-            (item['amount'] ?? 0)
-                    .toString() ==
-                (request['amount'] ?? 0)
-                    .toString() &&
-            (item['status'] ?? 'PENDING')
-                    .toString()
-                    .toUpperCase() ==
-                'PENDING',
-      );
-    }
+        if (savedIndex == -1) {
+          savedIndex =
+              savedRequests
+                  .indexWhere(
+            (item) =>
+                (item['type'] ?? '')
+                        .toString()
+                        .toUpperCase() ==
+                    (request['type'] ??
+                            '')
+                        .toString()
+                        .toUpperCase() &&
+                (item['amount'] ?? 0)
+                        .toString() ==
+                    (request['amount'] ??
+                            0)
+                        .toString() &&
+                (item['status'] ??
+                            'PENDING')
+                        .toString()
+                        .toUpperCase() ==
+                    'PENDING',
+          );
+        }
 
-    if (savedIndex == -1) return;
+        if (savedIndex == -1) {
+          throw StateError(
+            'REQUEST_NOT_FOUND',
+          );
+        }
 
-    final now = DateTime.now();
+        final latestStatus =
+            (savedRequests[
+                            savedIndex]
+                        ['status'] ??
+                    'PENDING')
+                .toString()
+                .trim()
+                .toUpperCase();
 
-    final rejectedRequest =
-        <String, dynamic>{
-      ...savedRequests[savedIndex],
-      'status': 'REJECTED',
-      'resolvedAt': now,
-    };
+        if (latestStatus !=
+            'PENDING') {
+          throw StateError(
+            'REQUEST_NOT_PENDING',
+          );
+        }
 
-        savedRequests[savedIndex] =
-        rejectedRequest;
+        final now =
+            DateTime.now();
 
-    await userRef.set(
-      {
-        'walletRequests':
-            savedRequests,
+        savedRequests[
+            savedIndex] = {
+          ...savedRequests[
+              savedIndex],
+          'status':
+              'REJECTED',
+          'resolvedAt':
+              now,
+        };
+
+        transaction.set(
+          userRef,
+          {
+            'walletRequests':
+                savedRequests,
+          },
+          SetOptions(
+            merge: true,
+          ),
+        );
       },
-      SetOptions(merge: true),
     );
 
-    updated[index] = {
-      ...request,
-      'status': 'REJECTED',
-      'resolvedAt': now,
-    };
-
-    walletRequests.value = updated;
+    await _loadWalletRequests();
   } catch (e) {
     debugPrint(
       'Wallet Reject error: $e',
     );
+
+    await _loadWalletRequests();
+
+    if (!mounted) return;
+
+    if (e.toString().contains(
+      'REQUEST_NOT_PENDING',
+    )) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'यह Request user ने cancel कर दी है या पहले ही process हो चुकी है',
+          ),
+        ),
+      );
+    }
   }
-  }
+}
+  
+
+    
+
+    
 
   String selectedRequestType = 'DEPOSIT';
 
