@@ -174,439 +174,6 @@ this.team2Players = '',
   });
 }
 
-// ================= PLAYERS =================
-
-final List<Player> players = [
-  Player(
-    name: 'KL Rahul',
-    role: 'WK',
-    team: 'IND',
-    credit: 8.5,
-    runs: 45,
-    fours: 5,
-    sixes: 1,
-    catches: 2,
-  ),
-  Player(
-    name: 'Alex Carey',
-    role: 'WK',
-    team: 'AUS',
-    credit: 8.0,
-    runs: 32,
-    fours: 4,
-    sixes: 1,
-    catches: 3,
-  ),
-  Player(
-    name: 'Rohit Sharma',
-    role: 'BAT',
-    team: 'IND',
-    credit: 9.0,
-    runs: 72,
-    fours: 8,
-    sixes: 3,
-  ),
-  Player(
-    name: 'Virat Kohli',
-    role: 'BAT',
-    team: 'IND',
-    credit: 9.5,
-    runs: 64,
-    fours: 6,
-    sixes: 2,
-  ),
-  Player(
-    name: 'Steve Smith',
-    role: 'BAT',
-    team: 'AUS',
-    credit: 9.0,
-    runs: 58,
-    fours: 5,
-    sixes: 1,
-  ),
-  Player(
-    name: 'Travis Head',
-    role: 'BAT',
-    team: 'AUS',
-    credit: 9.0,
-    runs: 81,
-    fours: 9,
-    sixes: 3,
-  ),
-  Player(
-    name: 'Hardik Pandya',
-    role: 'AR',
-    team: 'IND',
-    credit: 9.0,
-    runs: 38,
-    fours: 3,
-    sixes: 2,
-    wickets: 2,
-  ),
-  Player(
-    name: 'Ravindra Jadeja',
-    role: 'AR',
-    team: 'IND',
-    credit: 8.5,
-    runs: 41,
-    fours: 4,
-    sixes: 1,
-    wickets: 3,
-    catches: 1,
-  ),
-  Player(
-    name: 'Glenn Maxwell',
-    role: 'AR',
-    team: 'AUS',
-    credit: 8.5,
-    runs: 36,
-    fours: 3,
-    sixes: 2,
-    wickets: 1,
-    catches: 2,
-  ),
-  Player(
-    name: 'Jasprit Bumrah',
-    role: 'BOWL',
-    team: 'IND',
-    credit: 9.0,
-    wickets: 4,
-    catches: 1,
-  ),
-  Player(
-    name: 'Mohammed Siraj',
-    role: 'BOWL',
-    team: 'IND',
-    credit: 8.0,
-    wickets: 2,
-  ),
-  Player(
-    name: 'Pat Cummins',
-    role: 'BOWL',
-    team: 'AUS',
-    credit: 8.5,
-    wickets: 3,
-    catches: 1,
-  ),
-  Player(
-    name: 'Mitchell Starc',
-    role: 'BOWL',
-    team: 'AUS',
-    credit: 8.5,
-    wickets: 2,
-  ),
-  Player(
-    name: 'Adam Zampa',
-    role: 'BOWL',
-    team: 'AUS',
-    credit: 8.0,
-    wickets: 3,
-  ),
-];
-final List<Player> engSaPlayers = [
-  Player(
-    name: 'Jos Buttler',
-    role: 'WK',
-    team: 'ENG',
-    credit: 9.0,
-    runs: 48,
-    fours: 5,
-    sixes: 2,
-    catches: 2,
-  ),
-  Player(
-    name: 'Quinton de Kock',
-    role: 'WK',
-    team: 'SA',
-    credit: 9.0,
-    runs: 54,
-    fours: 6,
-    sixes: 2,
-    catches: 1,
-  ),
-  Player(
-    name: 'Joe Root',
-    role: 'BAT',
-    team: 'ENG',
-    credit: 9.0,
-    runs: 67,
-    fours: 7,
-    sixes: 1,
-  ),
-  Player(
-    name: 'Harry Brook',
-    role: 'BAT',
-    team: 'ENG',
-    credit: 8.5,
-    runs: 59,
-    fours: 5,
-    sixes: 2,
-  ),
-  Player(
-    name: 'Temba Bavuma',
-    role: 'BAT',
-    team: 'SA',
-    credit: 8.5,
-    runs: 52,
-    fours: 6,
-    sixes: 1,
-  ),
-  Player(
-    name: 'Aiden Markram',
-    role: 'BAT',
-    team: 'SA',
-    credit: 9.0,
-    runs: 63,
-    fours: 5,
-    sixes: 3,
-  ),
-  Player(
-    name: 'Ben Stokes',
-    role: 'AR',
-    team: 'ENG',
-    credit: 9.0,
-    runs: 42,
-    fours: 4,
-    sixes: 2,
-    wickets: 2,
-  ),
-  Player(
-    name: 'Moeen Ali',
-    role: 'AR',
-    team: 'ENG',
-    credit: 8.0,
-    runs: 31,
-    fours: 3,
-    wickets: 2,
-  ),
-  Player(
-    name: 'Marco Jansen',
-    role: 'AR',
-    team: 'SA',
-    credit: 8.5,
-    runs: 29,
-    fours: 2,
-    sixes: 1,
-    wickets: 3,
-  ),
-  Player(
-    name: 'Kagiso Rabada',
-    role: 'BOWL',
-    team: 'SA',
-    credit: 9.0,
-    wickets: 4,
-    catches: 1,
-  ),
-  Player(
-    name: 'Anrich Nortje',
-    role: 'BOWL',
-    team: 'SA',
-    credit: 8.5,
-    wickets: 3,
-  ),
-  Player(
-    name: 'Adil Rashid',
-    role: 'BOWL',
-    team: 'ENG',
-    credit: 8.5,
-    wickets: 3,
-  ),
-  Player(name: 'Mark Wood', role: 'BOWL', team: 'ENG', credit: 8.0, wickets: 2),
-  Player(
-    name: 'Lungi Ngidi',
-    role: 'BOWL',
-    team: 'SA',
-    credit: 8.0,
-    wickets: 2,
-  ),
-];
-final List<Player> wiNzPlayers = [
-  Player(
-    name: 'Shai Hope',
-    role: 'WK',
-    team: 'WI',
-    credit: 8.5,
-    runs: 46,
-    fours: 5,
-    sixes: 1,
-    catches: 2,
-  ),
-  Player(
-    name: 'Devon Conway',
-    role: 'WK',
-    team: 'NZ',
-    credit: 9.0,
-    runs: 58,
-    fours: 6,
-    sixes: 2,
-    catches: 1,
-  ),
-  Player(
-    name: 'Brandon King',
-    role: 'BAT',
-    team: 'WI',
-    credit: 8.5,
-    runs: 61,
-    fours: 7,
-    sixes: 2,
-  ),
-  Player(
-    name: 'Nicholas Pooran',
-    role: 'BAT',
-    team: 'WI',
-    credit: 9.0,
-    runs: 52,
-    fours: 4,
-    sixes: 3,
-  ),
-  Player(
-    name: 'Kane Williamson',
-    role: 'BAT',
-    team: 'NZ',
-    credit: 9.0,
-    runs: 64,
-    fours: 6,
-    sixes: 1,
-  ),
-  Player(
-    name: 'Daryl Mitchell',
-    role: 'BAT',
-    team: 'NZ',
-    credit: 8.5,
-    runs: 55,
-    fours: 5,
-    sixes: 2,
-  ),
-  Player(
-    name: 'Jason Holder',
-    role: 'AR',
-    team: 'WI',
-    credit: 8.5,
-    runs: 34,
-    wickets: 2,
-  ),
-  Player(
-    name: 'Roston Chase',
-    role: 'AR',
-    team: 'WI',
-    credit: 8.0,
-    runs: 29,
-    wickets: 2,
-  ),
-  Player(
-    name: 'Mitchell Santner',
-    role: 'AR',
-    team: 'NZ',
-    credit: 8.5,
-    runs: 31,
-    wickets: 3,
-  ),
-  Player(
-    name: 'Trent Boult',
-    role: 'BOWL',
-    team: 'NZ',
-    credit: 9.0,
-    wickets: 3,
-  ),
-  Player(
-    name: 'Alzarri Joseph',
-    role: 'BOWL',
-    team: 'WI',
-    credit: 8.5,
-    wickets: 3,
-  ),
-  Player(
-    name: 'Lockie Ferguson',
-    role: 'BOWL',
-    team: 'NZ',
-    credit: 8.5,
-    wickets: 2,
-  ),
-  Player(
-    name: 'Gudakesh Motie',
-    role: 'BOWL',
-    team: 'WI',
-    credit: 8.0,
-    wickets: 2,
-  ),
-  Player(name: 'Ish Sodhi', role: 'BOWL', team: 'NZ', credit: 8.0, wickets: 2),
-];
-
-// ================= MATCHES =================
-
-final List<MatchModel> upcomingMatches = [
-  MatchModel(
-    team1: 'IND',
-    team2: 'AUS',
-    team1Flag: '🇮🇳',
-    team2Flag: '🇦🇺',
-    title: 'India vs Australia',
-    time: 'Today, 7:30 PM',
-    status: 'UPCOMING',
-    startTime: DateTime.now().add(
-  const Duration(minutes: 1),
-),
-liveDuration: const Duration(minutes: 30),
-
-userRank: 2,
-    userPoints: 684,
-    winner: 'IND',
-team1Score: 185,
-team2Score: 172,
-  ),
-  MatchModel(
-    team1: 'ENG',
-    team2: 'SA',
-    team1Flag: '🏴',
-    team2Flag: '🇿🇦',
-    title: 'England vs South Africa',
-    time: 'Tomorrow, 6:00 PM',
-    status: 'UPCOMING',
-    startTime: DateTime.now().add(
-  const Duration(minutes: 60),
-      
-),
-    liveDuration: const Duration(minutes: 60),
-    userRank: 2,
-    userPoints: 620,
-  ),
-];
-
-final List<MatchModel> liveMatches = [
-  MatchModel(
-    team1: 'WI',
-    team2: 'NZ',
-    team1Flag: '🏝️',
-    team2Flag: '🇳🇿',
-    title: 'West Indies vs New Zealand',
-    time: 'LIVE NOW',
-    status: 'LIVE',
-    startTime: DateTime.now(),
-    liveDuration: const Duration(minutes: 60),
-    userRank: 3,
-    userPoints: 620,
-    team1Score: 120,
-team2Score: 110,
-  ),
-];
-
-final List<MatchModel> completedMatches = [
-  MatchModel(
-    team1: 'PAK',
-    team2: 'SL',
-    team1Flag: '🇵🇰',
-    team2Flag: '🇱🇰',
-    title: 'Pakistan vs Sri Lanka',
-    time: 'Completed',
-    status: 'COMPLETED',
-    userRank: 1,
-    userPoints: 620,
-    liveDuration: Duration.zero,
-    
-
-
-  ),
-];
 
 // JOINED MATCHES
 final ValueNotifier<List<MatchModel>> joinedMatches =
@@ -9843,7 +9410,6 @@ void dispose() {
   super.dispose();
 }
   List<MatchModel> get currentMatches {
-  final now = DateTime.now();
 
   // UPCOMING:
   // जो सबसे जल्दी LIVE होगा वह सबसे ऊपर
@@ -9933,47 +9499,42 @@ b.startTime?.add(b.liveDuration);
   }
 
   if (selectedTab == 0) {
-    final matches = <MatchModel>[
-      ...upcomingMatches.where(
-        (m) => m.currentStatus == 'UPCOMING',
-      ),
-      ...widget.adminMatchModels.where(
-        (m) => m.currentStatus == 'UPCOMING',
-      ),
-    ];
+  final matches =
+      widget.adminMatchModels
+          .where(
+            (m) =>
+                m.currentStatus ==
+                'UPCOMING',
+          )
+          .toList();
 
-    matches.sort(compareUpcoming);
-    return matches;
-  }
-
-  if (selectedTab == 1) {
-    final matches = <MatchModel>[
-      ...liveMatches.where(
-        (m) => m.currentStatus == 'LIVE',
-      ),
-      ...upcomingMatches.where(
-        (m) => m.currentStatus == 'LIVE',
-      ),
-      ...widget.adminMatchModels.where(
-        (m) => m.currentStatus == 'LIVE',
-      ),
-    ];
-
-    matches.sort(compareLive);
-    return matches;
-  }
-
-  final matches = <MatchModel>[
-    ...completedMatches.where(keepHomeCompleted),
-    ...upcomingMatches.where(keepHomeCompleted),
-    ...liveMatches.where(keepHomeCompleted),
-    ...widget.adminMatchModels.where(
-      keepHomeCompleted,
-    ),
-  ];
-
-  matches.sort(compareCompleted);
+  matches.sort(compareUpcoming);
   return matches;
+}
+
+if (selectedTab == 1) {
+  final matches =
+      widget.adminMatchModels
+          .where(
+            (m) =>
+                m.currentStatus ==
+                'LIVE',
+          )
+          .toList();
+
+  matches.sort(compareLive);
+  return matches;
+}
+
+final matches =
+    widget.adminMatchModels
+        .where(
+          keepHomeCompleted,
+        )
+        .toList();
+
+matches.sort(compareCompleted);
+return matches;
 }
   String get heading {
     if (selectedTab == 0) {
@@ -11447,8 +11008,7 @@ class _TeamHeaderBorderPainter extends CustomPainter {
 }
   
 // ================= MATCH DETAILS =================
-final DateTime demoMatchStartTime =
-    DateTime.now().add(const Duration(minutes: 30));
+
 class MatchDetailPage extends StatefulWidget {
   final MatchModel match;
 
@@ -11926,22 +11486,8 @@ final adminPlayers = <Player>[
   ),
 ];
 
-  if (adminPlayers.isNotEmpty) {
-    return adminPlayers;
+  return adminPlayers;
   }
-
-  if (widget.match.team1 == 'ENG' &&
-      widget.match.team2 == 'SA') {
-    return engSaPlayers;
-  }
-
-  if (widget.match.team1 == 'WI' &&
-      widget.match.team2 == 'NZ') {
-    return wiNzPlayers;
-  }
-
-  return players;
-}
 
   Player? captain;
   Player? viceCaptain;
@@ -14093,7 +13639,7 @@ return Column(
           
           const SizedBox(height: 10),
           const Text(
-            'Demo only • No real money transaction',
+            'Join consent : win real money 💰',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey),
           ),
