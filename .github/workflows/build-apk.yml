@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -26,8 +29,24 @@ jobs:
       - name: Build Debug APK
         run: flutter build apk --debug
 
-      - name: Upload APK
+      - name: Prepare KhelBaaz APK
+        run: cp build/app/outputs/flutter-apk/app-debug.apk KhelBaaz.apk
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: KhelBaaz-APK
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          path: KhelBaaz.apk
+
+      - name: Publish Latest APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: KhelBaaz Latest APK
+          body: Latest KhelBaaz Android APK.
+          prerelease: false
+          make_latest: true
+          overwrite_files: true
+          files: KhelBaaz.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
