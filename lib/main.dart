@@ -8480,15 +8480,34 @@ const SizedBox(
     (selectedFilter == 3 &&
         completedMatches.isEmpty))
   Center(
-    child: Image.asset(
-      selectedFilter == 1
-          ? 'assets/admin_live.png'
-          : selectedFilter == 2
-              ? 'assets/admin_upcoming.png'
-              : 'assets/admin_completed.png',
-      width: 320,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          selectedFilter == 1
+              ? 'assets/admin_live.png'
+              : selectedFilter == 2
+                  ? 'assets/admin_upcoming.png'
+                  : 'assets/admin_completed.png',
+          width: 320,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          selectedFilter == 1
+              ? 'अभी कोई Live मैच नहीं है'
+              : selectedFilter == 2
+                  ? 'अभी कोई Upcoming मैच नहीं है'
+                  : 'अभी कोई Completed मैच नहीं है',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF555555),
+          ),
+        ),
+      ],
     ),
   ),
               ],
@@ -9682,74 +9701,95 @@ const SizedBox(height: 12),
                 ),
                 const SizedBox(height: 10),
                 
-                  Container(
-  width: double.infinity,
-  padding: const EdgeInsets.symmetric(
-    horizontal: 18,
-    vertical: 10,
-  ),
-  decoration: BoxDecoration(
-    color: const Color(0xFFFFF5F5),
-    borderRadius: BorderRadius.circular(20),
-    border: Border.all(
-      color: const Color(0xFFFF8A8A),
-      width: 1.4,
+                  if (selectedTab == 0)
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(
+      horizontal: 18,
+      vertical: 10,
     ),
-    boxShadow: const [
-      BoxShadow(
-        color: Color(0x22000000),
-        blurRadius: 5,
-        offset: Offset(0, 3),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF5F5),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(
+        color: const Color(0xFFFF8A8A),
+        width: 1.4,
       ),
-    ],
-  ),
-  child: Row(
-    children: [
-      const Text(
-        '🏏',
-        style: TextStyle(fontSize: 32),
-      ),
-      const SizedBox(width: 14),
-      Expanded(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Choose Your Match',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${currentMatches.length} matches available',
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF555555),
-              ),
-            ),
-          ],
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x22000000),
+          blurRadius: 5,
+          offset: Offset(0, 3),
         ),
-      ),
-    ],
+      ],
+    ),
+    child: Row(
+      children: [
+        const Text(
+          '🏏',
+          style: TextStyle(fontSize: 32),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Choose Your Match',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${currentMatches.length} matches available',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF555555),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
   ),
-),
-              
-              const SizedBox(height: 12),
 
+if (selectedTab == 0)
+  const SizedBox(height: 12),
+      
 if (currentMatches.isEmpty)
   Center(
-    child: Image.asset(
-      selectedTab == 0
-          ? 'assets/user_upcoming.png'
-          : selectedTab == 1
-              ? 'assets/user_live.png'
-              : 'assets/user_completed.png',
-      width: 320,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          selectedTab == 0
+              ? 'assets/user_upcoming.png'
+              : selectedTab == 1
+                  ? 'assets/user_live.png'
+                  : 'assets/user_completed.png',
+          width: 320,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          selectedTab == 0
+              ? 'अभी कोई Upcoming मैच नहीं है'
+              : selectedTab == 1
+                  ? 'अभी कोई Live मैच नहीं है'
+                  : 'अभी कोई Completed मैच नहीं है',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF555555),
+          ),
+        ),
+      ],
     ),
   ),
 
@@ -15238,11 +15278,26 @@ final deleteAt =
     Widget matchList(List<MatchModel> list, String emptyText) {
       if (list.isEmpty) {
   return Center(
-    child: Image.asset(
-      'assets/user_my_matches.png',
-      width: 320,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          'assets/user_my_matches.png',
+          width: 320,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          emptyText,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF555555),
+          ),
+        ),
+      ],
     ),
   );
       }
@@ -15646,22 +15701,22 @@ title: Row(
     return TabBarView(
       children: [
         // UPCOMING
-        matchList(
-          upcomingMatches,
-          'कोई Upcoming match नहीं है',
-        ),
+matchList(
+  upcomingMatches,
+  'आपने अभी कोई Upcoming मैच join नहीं किया है',
+),
 
-        // LIVE
-        matchList(
-          liveMatches,
-          'अभी कोई Live match नहीं है',
-        ),
+// LIVE
+matchList(
+  liveMatches,
+  'आपका कोई joined मैच अभी Live नहीं है',
+),
 
-        // COMPLETED
-        matchList(
-          completedMatches,
-          'कोई Completed match नहीं है',
-        ),
+// COMPLETED
+matchList(
+  completedMatches,
+  'आपका अभी कोई Completed मैच नहीं है',
+),
         // ARCHIVED
 Column(
   children: [
@@ -15678,7 +15733,7 @@ Column(
     Expanded(
       child: matchList(
         archivedMatches,
-        'कोई Archived match नहीं है',
+        'आपका अभी कोई Archived मैच नहीं है',,
       ),
     ),
   ],
@@ -17803,11 +17858,26 @@ class MyTeamsPage extends StatelessWidget {
         builder: (context, teams, _) {
           if (teams.isEmpty) {
   return Center(
-    child: Image.asset(
-      'assets/user_my_teams.png',
-      width: 320,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          'assets/user_my_teams.png',
+          width: 320,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'आपने अभी कोई टीम नहीं बनाई है',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF555555),
+          ),
+        ),
+      ],
     ),
   );
           }
@@ -25768,11 +25838,26 @@ const SizedBox(
 
           if (visibleMatches.isEmpty) {
   return Center(
-    child: Image.asset(
-      'assets/admin_manage_player_stats.png',
-      width: 320,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          'assets/admin_manage_player_stats.png',
+          width: 320,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Stats update करने के लिए अभी कोई मैच उपलब्ध नहीं है',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF555555),
+          ),
+        ),
+      ],
     ),
   );
           }
@@ -25951,11 +26036,30 @@ const SizedBox(
     (_selectedStatus == 2 &&
         completedMatches.isEmpty))
   Center(
-    child: Image.asset(
-      'assets/admin_manage_player_stats.png',
-      width: 320,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          'assets/admin_manage_player_stats.png',
+          width: 320,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _selectedStatus == 0
+              ? 'Stats update करने के लिए अभी कोई Live मैच नहीं है'
+              : _selectedStatus == 1
+                  ? 'Stats update करने के लिए अभी कोई Upcoming मैच नहीं है'
+                  : 'Stats update करने के लिए अभी कोई Completed मैच नहीं है',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF555555),
+          ),
+        ),
+      ],
     ),
   ),
             ],
@@ -30715,11 +30819,30 @@ if ((_selectedContestFilter == 1 &&
     (_selectedContestFilter == 3 &&
         completedContestMatchCount == 0))
   Center(
-    child: Image.asset(
-      'assets/admin_manage_contests.png',
-      width: 320,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          'assets/admin_manage_contests.png',
+          width: 320,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _selectedContestFilter == 1
+              ? 'अभी कोई Live contest नहीं है'
+              : _selectedContestFilter == 2
+                  ? 'अभी कोई Upcoming contest नहीं है'
+                  : 'अभी कोई Completed contest नहीं है',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF555555),
+          ),
+        ),
+      ],
     ),
   ),
 
@@ -43868,11 +43991,32 @@ const Icon(
 
           if (allMatches.isEmpty)
   Center(
-    child: Image.asset(
-      'assets/admin_manage_matches.png',
-      width: 320,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          'assets/admin_manage_matches.png',
+          width: 320,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _selectedMatchFilter == 1
+              ? 'अभी कोई Live मैच नहीं है'
+              : _selectedMatchFilter == 2
+                  ? 'अभी कोई Upcoming मैच नहीं है'
+                  : _selectedMatchFilter == 3
+                      ? 'अभी कोई Completed मैच नहीं है'
+                      : 'Admin ने अभी कोई मैच create नहीं किया है',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF555555),
+          ),
+        ),
+      ],
     ),
   ),
 
@@ -43941,18 +44085,34 @@ const Icon(
               
 
           if (allMatches.isNotEmpty &&
-    ((_selectedMatchFilter == 1 &&
-            liveMatches.isEmpty) ||
-        (_selectedMatchFilter == 2 &&
-            upcomingMatches.isEmpty) ||
-        (_selectedMatchFilter == 3 &&
-            completedMatches.isEmpty)))
+    ((_selectedMatchFilter == 1 && liveMatches.isEmpty) ||
+        (_selectedMatchFilter == 2 && upcomingMatches.isEmpty) ||
+        (_selectedMatchFilter == 3 && completedMatches.isEmpty)))
   Center(
-    child: Image.asset(
-      'assets/admin_manage_matches.png',
-      width: 320,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(
+          'assets/admin_manage_matches.png',
+          width: 320,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _selectedMatchFilter == 1
+              ? 'अभी कोई Live मैच नहीं है'
+              : _selectedMatchFilter == 2
+                  ? 'अभी कोई Upcoming मैच नहीं है'
+                  : 'अभी कोई Completed मैच नहीं है',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF555555),
+          ),
+        ),
+      ],
     ),
   ),
         ],
