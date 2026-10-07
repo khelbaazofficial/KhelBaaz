@@ -8473,49 +8473,24 @@ const SizedBox(
                     filterIndex: 3,
                   ),
                 
-                if ((selectedFilter ==
-                            1 &&
-                        liveMatches
-                            .isEmpty) ||
-                    (selectedFilter ==
-                            2 &&
-                        upcomingMatches
-                            .isEmpty) ||
-                    (selectedFilter ==
-                            3 &&
-                        completedMatches
-                            .isEmpty))
-                  Container(
-                    padding:
-                        const EdgeInsets
-                            .all(24),
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          Colors.white,
-                      borderRadius:
-                          BorderRadius
-                              .circular(
-                        18,
-                      ),
-                    ),
-                    child:
-                        const Center(
-                      child: Text(
-                        'No matches available',
-                        style:
-                            TextStyle(
-                          fontWeight:
-                              FontWeight
-                                  .w700,
-                          color:
-                              Color(
-                            0xFF756B70,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                if ((selectedFilter == 1 &&
+        liveMatches.isEmpty) ||
+    (selectedFilter == 2 &&
+        upcomingMatches.isEmpty) ||
+    (selectedFilter == 3 &&
+        completedMatches.isEmpty))
+  Center(
+    child: Image.asset(
+      selectedFilter == 1
+          ? 'assets/admin_live.png'
+          : selectedFilter == 2
+              ? 'assets/admin_upcoming.png'
+              : 'assets/admin_completed.png',
+      width: 320,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+    ),
+  ),
               ],
             );
           },
@@ -9761,7 +9736,23 @@ const SizedBox(height: 12),
     ],
   ),
 ),
-                const SizedBox(height: 12),
+              
+              const SizedBox(height: 12),
+
+if (currentMatches.isEmpty)
+  Center(
+    child: Image.asset(
+      selectedTab == 0
+          ? 'assets/user_upcoming.png'
+          : selectedTab == 1
+              ? 'assets/user_live.png'
+              : 'assets/user_completed.png',
+      width: 320,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+    ),
+  ),
+
                 ...List.generate(currentMatches.length, (index) {
   final match = currentMatches[index];
 
@@ -15246,12 +15237,14 @@ final deleteAt =
 }).toList();
     Widget matchList(List<MatchModel> list, String emptyText) {
       if (list.isEmpty) {
-        return Center(
-          child: Text(
-            emptyText,
-            style: const TextStyle(fontSize: 18),
-          ),
-        );
+  return Center(
+    child: Image.asset(
+      'assets/user_my_matches.png',
+      width: 320,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+    ),
+  );
       }
 list.sort((a, b) {
   final aTime = a.startTime ?? DateTime(2000);
@@ -17809,12 +17802,14 @@ class MyTeamsPage extends StatelessWidget {
         valueListenable: savedTeams,
         builder: (context, teams, _) {
           if (teams.isEmpty) {
-            return const Center(
-              child: Text(
-                'अभी कोई saved team नहीं है',
-                style: TextStyle(fontSize: 18),
-              ),
-            );
+  return Center(
+    child: Image.asset(
+      'assets/user_my_teams.png',
+      width: 320,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+    ),
+  );
           }
 
           final matchGroups = <String, List<int>>{};
@@ -25772,18 +25767,14 @@ const SizedBox(
                 );
 
           if (visibleMatches.isEmpty) {
-
-          
-            return const Center(
-              child: Text(
-                'No Matches Available',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight:
-                      FontWeight.w700,
-                ),
-              ),
-            );
+  return Center(
+    child: Image.asset(
+      'assets/admin_manage_player_stats.png',
+      width: 320,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+    ),
+  );
           }
 
           return ListView(
@@ -25953,7 +25944,20 @@ const SizedBox(
                       Icons.check_circle,
                   filterIndex: 2,
                 ),
-              
+              if ((_selectedStatus == 0 &&
+        liveMatches.isEmpty) ||
+    (_selectedStatus == 1 &&
+        upcomingMatches.isEmpty) ||
+    (_selectedStatus == 2 &&
+        completedMatches.isEmpty))
+  Center(
+    child: Image.asset(
+      'assets/admin_manage_player_stats.png',
+      width: 320,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+    ),
+  ),
             ],
           );
         },
@@ -30704,7 +30708,23 @@ if (!contestSaved) {
           const SizedBox(
             height: 15,
           ),
-...(() {
+if ((_selectedContestFilter == 1 &&
+        liveContestMatchCount == 0) ||
+    (_selectedContestFilter == 2 &&
+        upcomingContestMatchCount == 0) ||
+    (_selectedContestFilter == 3 &&
+        completedContestMatchCount == 0))
+  Center(
+    child: Image.asset(
+      'assets/admin_manage_contests.png',
+      width: 320,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+    ),
+  ),
+
+const SizedBox(height: 6),
+          ...(() {
   final groupedContests =
       <String,
           List<Map<String, dynamic>>>{};
@@ -43847,30 +43867,14 @@ const Icon(
           ),
 
           if (allMatches.isEmpty)
-            Container(
-              padding:
-                  const EdgeInsets.all(
-                28,
-              ),
-              decoration:
-                  BoxDecoration(
-                color: Colors.white,
-                borderRadius:
-                    BorderRadius.circular(
-                  18,
-                ),
-              ),
-              child: const Center(
-                child: Text(
-                  'No matches created yet',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight:
-                        FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
+  Center(
+    child: Image.asset(
+      'assets/admin_manage_matches.png',
+      width: 320,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+    ),
+  ),
 
                     if (_selectedMatchFilter ==
                   -1 ||
@@ -43936,44 +43940,21 @@ const Icon(
           
               
 
-          if ((_selectedMatchFilter ==
-                      1 &&
-                  liveMatches.isEmpty) ||
-              (_selectedMatchFilter ==
-                      2 &&
-                  upcomingMatches
-                      .isEmpty) ||
-              (_selectedMatchFilter ==
-                      3 &&
-                  completedMatches
-                      .isEmpty))
-            Container(
-              padding:
-                  const EdgeInsets.all(
-                26,
-              ),
-              decoration:
-                  BoxDecoration(
-                color: Colors.white,
-                borderRadius:
-                    BorderRadius.circular(
-                  18,
-                ),
-              ),
-              child: const Center(
-                child: Text(
-                  'No matches available',
-                  style: TextStyle(
-                    fontWeight:
-                        FontWeight.w700,
-                    color:
-                        Color(
-                      0xFF756B70,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          if (allMatches.isNotEmpty &&
+    ((_selectedMatchFilter == 1 &&
+            liveMatches.isEmpty) ||
+        (_selectedMatchFilter == 2 &&
+            upcomingMatches.isEmpty) ||
+        (_selectedMatchFilter == 3 &&
+            completedMatches.isEmpty)))
+  Center(
+    child: Image.asset(
+      'assets/admin_manage_matches.png',
+      width: 320,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+    ),
+  ),
         ],
       ),
     );
