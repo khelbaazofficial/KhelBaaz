@@ -17933,7 +17933,7 @@ class MyTeamsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('My Teams')),
-      body: ValueListenableBuappBar: AppBar(title: const Text('My Teams')),ilder<List<List<Player>>>(
+      body: ValueListenableBuilder<List<List<Player>>>(
         valueListenable: savedTeams,
         builder: (context, teams, _) {
           if (teams.isEmpty) {
