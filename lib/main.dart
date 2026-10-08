@@ -1863,15 +1863,12 @@ final instanceContestId =
             raw,
           );
 
-          if ((stored[
-                      'contestId'] ??
-                  '')
-              .toString()
-.trim() ==
-instanceContestId
-            joinedContest =
-                stored;
-            break;
+          if ((stored['contestId'] ?? '')
+        .toString()
+        .trim() ==
+    instanceContestId) {
+  joinedContest = stored;
+  break;
           }
         }
 
@@ -1922,6 +1919,7 @@ instanceContestId
           'name': username,
           'teamName': teamName,
           'points': points,
+      'instanceContestId': instanceContestId,
         });
       }
 
@@ -2105,7 +2103,13 @@ for (final group
             (result['teamName'] ??
                     'Team 1')
                 .toString();
-
+        
+final resultContestId =
+    (result['instanceContestId'] ??
+            contestId)
+        .toString()
+        .trim();
+        
         final userRef =
             firestore
                 .collection('users')
@@ -2173,7 +2177,7 @@ for (final group
                           '')
                       .toString()
                       .trim() ==
-                  contestId,
+                  resultContestId,
             );
 
             if (contestIndex ==
@@ -2210,7 +2214,7 @@ for (final group
                         '')
                     .toString()
                     .trim() ==
-                    contestId;
+                    resultContestId;
               },
             );
 
@@ -2223,7 +2227,7 @@ for (final group
 
             double newBalance =
                 savedBalance;
-
+final now = DateTime.now();
             String newWinningTxnNumber =
     '';
 
@@ -2284,10 +2288,10 @@ if (existingWinningIndex == -1 &&
                 'rank': rank,
 
                 'claimKey':
-                    '$matchKey-$contestId-$teamName',
+    '$matchKey-$resultContestId-$teamName',
 
-                'contestId':
-                    contestId,
+'contestId':
+    resultContestId,
 
                 'matchKey':
                     matchKey,
@@ -22236,7 +22240,7 @@ Widget _historyDateRibbon(DateTime date) {
 ),
       body: ValueListenableBuilder<List<Map<String, dynamic>>>(
         valueListenable: transactionHistory,
-builder: (context, history, _) 
+builder: (context, history, _) {
 final visibleHistory =
     history.reversed.take(100).toList();
   return ListView(
@@ -29971,7 +29975,6 @@ String _contestJoinedText(
 
   return '$joined/$total ✅'
       '${_contestIsFull(contest) ? ' FULL' : ''}';
-}
   }
 
   Widget _contestMetric(
@@ -37634,7 +37637,7 @@ final bonusList =
 final txnNumber =
     await generateTxnNumber('BONUS');
                   final selectedUserHistory =
-    List<Map<String, dynamic>>.final selectedUserHistory =from(
+    List<Map<String, dynamic>>.from(
   ((selectedUserData['transactionHistory'] as List?) ?? [])
       .map(
         (item) => Map<String, dynamic>.from(item as Map),
