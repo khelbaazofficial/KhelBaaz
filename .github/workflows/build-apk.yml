@@ -32,21 +32,15 @@ jobs:
       - name: Restore Release Keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/khelbaaz-release-key.jks
-      - name: Build Release APK
+      - name: Build ARM64 Release APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: flutter build apk --release
+        run: flutter build apk --release --split-per-abi --target-platform android-arm64
 
       - name: Prepare KhelBaaz APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk KhelBaaz.apk
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: KhelBaaz-APK
-          path: KhelBaaz.apk
+        run: cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk KhelBaaz.apk
 
       - name: Publish Latest APK
         uses: softprops/action-gh-release@v2
