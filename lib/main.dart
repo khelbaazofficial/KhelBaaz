@@ -22255,7 +22255,10 @@ final visibleHistory =
                     (item['title'] ?? '').toString();
                 final String subtitle =
                     (item['subtitle'] ?? '').toString();
-                final String adminNote =
+               final String description =
+    (item['description'] ?? '')
+        .toString();
+               final String adminNote =
     (item['adminNote'] ?? '')
         .toString()
         .trim();
