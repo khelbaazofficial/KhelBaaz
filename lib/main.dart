@@ -356,20 +356,16 @@ double _calculateWithdrawableBalance({
       ? withdrawable
       : safeWallet;
 }
-// ============== TRANSACTION NUMBER SYSTEM ==============
+// ============== GLOBAL TRANSACTION NUMBER SYSTEM ==============
 //
-// Format:
-// Ent Txn-261004-00001
-// Ent Txn-261004-00002
-// Win Txn-261004-00001
+// हर category का अपना KhelBaaz-wide global serial.
+// Date बदलने पर serial reset नहीं होगा.
 //
-// App reopen होने पर भी आज के existing
-// records count करके आगे की series चलेगी.
-// ======================================================
-
-final Map<String, int>
-    _transactionSerialCache =
-    <String, int>{};
+// Example:
+// D Txn-261008-00024
+// D Txn-261009-00025
+//
+// =============================================================
 
 String _transactionPrefix(
   String type,
@@ -388,6 +384,7 @@ String _transactionPrefix(
       return 'BNS-W-Txn';
 
     case 'BONUS':
+    case 'USER_BONUS':
       return 'Bns Txn';
 
     case 'ENTRY':
@@ -403,12 +400,42 @@ String _transactionPrefix(
   }
 }
 
-String generateTxnNumber(
+String _transactionCounterKey(
   String type,
 ) {
-  final now =
-      DateTime.now();
+  switch (type
+      .trim()
+      .toUpperCase()) {
+    case 'DEPOSIT':
+      return 'DEPOSIT';
 
+    case 'WITHDRAW':
+    case 'WITHDRAWAL':
+      return 'WITHDRAWAL';
+
+    case 'WELCOME_BONUS':
+      return 'WELCOME_BONUS';
+
+    case 'BONUS':
+    case 'USER_BONUS':
+      return 'USER_BONUS';
+
+    case 'ENTRY':
+    case 'CONTEST_ENTRY':
+      return 'CONTEST_ENTRY';
+
+    case 'WIN':
+    case 'WINNING':
+      return 'WINNING';
+
+    default:
+      return 'GENERAL';
+  }
+}
+
+String _transactionDateKey(
+  DateTime now,
+) {
   final yy =
       (now.year % 100)
           .toString()
@@ -433,73 +460,96 @@ String generateTxnNumber(
             '0',
           );
 
-  final dateKey =
-      '$yy$mm$dd';
+  return '$yy$mm$dd';
+}
+
+Future<String>
+    _generateTxnNumberInTransaction(
+  Transaction transaction,
+  String type,
+  DateTime now,
+) async {
+  final counterKey =
+      _transactionCounterKey(
+    type,
+  );
 
   final prefix =
       _transactionPrefix(
     type,
   );
 
-  final serialKey =
-      '$prefix-$dateKey';
+  final counterRef =
+      FirebaseFirestore.instance
+          .collection(
+            'transaction_counters',
+          )
+          .doc(
+            counterKey,
+          );
 
-  final existingIds =
-      <String>{};
-
-  void collectIds(
-    List<Map<String, dynamic>>
-        items,
-  ) {
-    for (final item in items) {
-      final id =
-          (item['txnNumber'] ??
-                  '')
-              .toString()
-              .trim();
-
-      if (id.startsWith(
-        '$serialKey-',
-      )) {
-        existingIds.add(
-          id,
-        );
-      }
-    }
-  }
-
-  collectIds(
-    transactionHistory.value,
+  final counterSnapshot =
+      await transaction.get(
+    counterRef,
   );
 
-  collectIds(
-    walletRequests.value,
+  final data =
+      counterSnapshot.data() ??
+          <String, dynamic>{};
+
+  final currentSerial =
+      (data['lastSerial']
+                  as num?)
+              ?.toInt() ??
+          0;
+
+  final nextSerial =
+      currentSerial + 1;
+
+  transaction.set(
+    counterRef,
+    {
+      'category':
+          counterKey,
+      'lastSerial':
+          nextSerial,
+      'updatedAt':
+          FieldValue
+              .serverTimestamp(),
+    },
+    SetOptions(
+      merge: true,
+    ),
   );
 
-  int serial =
-      _transactionSerialCache[
-              serialKey] ??
-          existingIds.length;
+  final dateKey =
+      _transactionDateKey(
+    now,
+  );
 
-  String candidate;
-
-  do {
-    serial++;
-
-    candidate =
-        '$serialKey-'
-        '${serial.toString().padLeft(5, '0')}';
-  } while (
-      existingIds.contains(
-    candidate,
-  ));
-
-  _transactionSerialCache[
-          serialKey] =
-      serial;
-
-  return candidate;
+  return '$prefix-$dateKey-'
+      '${nextSerial.toString().padLeft(5, '0')}';
 }
+
+Future<String> generateTxnNumber(
+  String type,
+) async {
+  final now =
+      DateTime.now();
+
+  return FirebaseFirestore.instance
+      .runTransaction<String>(
+    (transaction) {
+      return _generateTxnNumberInTransaction(
+        transaction,
+        type,
+        now,
+      );
+    },
+  );
+}
+  
+  
     
     
 // ================= DEPOSIT PAYMENT SETTINGS =================
@@ -1547,62 +1597,7 @@ List<Map<String, dynamic>>
 // WINNING TXN NUMBER FOR A USER
 // ======================================================
 
-String _nextAdminWinningTxnNumber(
-  List<Map<String, dynamic>> history,
-  DateTime now,
-) {
-  final yy =
-      (now.year % 100)
-          .toString()
-          .padLeft(2, '0');
 
-  final mm =
-      now.month
-          .toString()
-          .padLeft(2, '0');
-
-  final dd =
-      now.day
-          .toString()
-          .padLeft(2, '0');
-
-  final prefix =
-      'Win Txn-$yy$mm$dd';
-
-  int maxSerial = 0;
-
-  for (final item
-      in history) {
-    final txn =
-        (item['txnNumber'] ?? '')
-            .toString()
-            .trim();
-
-    if (!txn.startsWith(
-      '$prefix-',
-    )) {
-      continue;
-    }
-
-    final serial =
-        int.tryParse(
-              txn.substring(
-                prefix.length + 1,
-              ),
-            ) ??
-            0;
-
-    if (serial > maxSerial) {
-      maxSerial = serial;
-    }
-  }
-
-  final next =
-      maxSerial + 1;
-
-  return '$prefix-'
-      '${next.toString().padLeft(5, '0')}';
-}
 
 
 String _adminSettlementDateTime(
@@ -1725,22 +1720,78 @@ Future<void>
         continue;
       }
 
-      final joinsSnapshot =
-          await firestore
-              .collection(
-                'contest_joins',
-              )
-              .where(
-                'contestId',
-                isEqualTo:
-                    contestId,
-              )
-              .get();
+      final bool isH2H =
+    (contest['name'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase() ==
+        'head to head';
 
-      if (joinsSnapshot
-          .docs.isEmpty) {
-        continue;
-      }
+final joinDocs = <
+    QueryDocumentSnapshot<
+        Map<String, dynamic>>>[];
+
+if (isH2H) {
+  final byTemplate =
+      await firestore
+          .collection(
+            'contest_joins',
+          )
+          .where(
+            'templateContestId',
+            isEqualTo: contestId,
+          )
+          .get();
+
+  final oldBase =
+      await firestore
+          .collection(
+            'contest_joins',
+          )
+          .where(
+            'contestId',
+            isEqualTo: contestId,
+          )
+          .get();
+
+  final uniqueDocs = <
+      String,
+      QueryDocumentSnapshot<
+          Map<String, dynamic>>>{};
+
+  for (final doc
+      in byTemplate.docs) {
+    uniqueDocs[doc.id] = doc;
+  }
+
+  for (final doc
+      in oldBase.docs) {
+    uniqueDocs[doc.id] = doc;
+  }
+
+  joinDocs.addAll(
+    uniqueDocs.values,
+  );
+} else {
+  final snapshot =
+      await firestore
+          .collection(
+            'contest_joins',
+          )
+          .where(
+            'contestId',
+            isEqualTo: contestId,
+          )
+          .get();
+
+  joinDocs.addAll(
+    snapshot.docs,
+  );
+}
+
+if (joinDocs.isEmpty) {
+  continue;
+}
 
       final candidates =
           <Map<String, dynamic>>[];
@@ -1750,10 +1801,14 @@ Future<void>
       // ==========================================
 
       for (final joinDoc
-          in joinsSnapshot.docs) {
+    in joinDocs) {
         final joinData =
             joinDoc.data();
-
+final instanceContestId =
+    (joinData['contestId'] ??
+            contestId)
+        .toString()
+        .trim();
         final userId =
             (joinData['userId'] ?? '')
                 .toString()
@@ -1812,8 +1867,8 @@ Future<void>
                       'contestId'] ??
                   '')
               .toString()
-              .trim() ==
-              contestId) {
+.trim() ==
+instanceContestId
             joinedContest =
                 stored;
             break;
@@ -1874,119 +1929,137 @@ Future<void>
         continue;
       }
 
-      // ==========================================
-      // POINTS HIGH -> LOW
-      // ==========================================
+      final resultEntries =
+    <Map<String, dynamic>>[];
 
-      candidates.sort(
-        (a, b) {
-          final aPoints =
-              _userGameDouble(
-            a['points'],
-          );
+final groupedCandidates = <
+    String,
+    List<Map<String, dynamic>>>{};
 
-          final bPoints =
-              _userGameDouble(
-            b['points'],
-          );
-
-          final pointsCompare =
-              bPoints.compareTo(
-            aPoints,
-          );
-
-          if (pointsCompare != 0) {
-            return pointsCompare;
-          }
-
-          return (a['username'] ??
-                  '')
+for (final candidate
+    in candidates) {
+  final groupId =
+      isH2H
+          ? (candidate[
+                      'instanceContestId'] ??
+                  contestId)
               .toString()
-              .compareTo(
-                (b['username'] ??
-                        '')
-                    .toString(),
-              );
-        },
+          : contestId;
+
+  groupedCandidates
+      .putIfAbsent(
+        groupId,
+        () =>
+            <Map<String, dynamic>>[],
+      )
+      .add(candidate);
+}
+
+for (final group
+    in groupedCandidates.entries) {
+  final groupUsers =
+      group.value;
+
+  groupUsers.sort(
+    (a, b) {
+      final aPoints =
+          _userGameDouble(
+        a['points'],
       );
 
-      // ==========================================
-      // REAL RANK + TIE HANDLING
-      //
-      // Example:
-      // Rank 1 prize ₹100
-      // Rank 2 prize ₹50
-      // 2 users tie for first:
-      // (100 + 50) / 2 = ₹75 each
-      // ==========================================
+      final bPoints =
+          _userGameDouble(
+        b['points'],
+      );
 
-      final resultEntries =
-          <Map<String, dynamic>>[];
+      final pointsCompare =
+          bPoints.compareTo(
+        aPoints,
+      );
 
-      int i = 0;
-
-      while (i <
-          candidates.length) {
-        int j = i;
-
-        final points =
-            _userGameDouble(
-          candidates[i]['points'],
-        );
-
-        while (j + 1 <
-                candidates.length &&
-            (_userGameDouble(
-                      candidates[j + 1]
-                          ['points'],
-                    ) -
-                    points)
-                .abs() <
-                0.0001) {
-          j++;
-        }
-
-        final rank = i + 1;
-
-        double occupiedPrize = 0;
-
-        for (int position =
-                i + 1;
-            position <= j + 1;
-            position++) {
-          occupiedPrize +=
-              _storedContestWinningForRank(
-            contest,
-            position,
-          );
-        }
-
-        final groupSize =
-            j - i + 1;
-
-        final winning =
-            groupSize > 0
-                ? double.parse(
-                    (occupiedPrize /
-                            groupSize)
-                        .toStringAsFixed(
-                      2,
-                    ),
-                  )
-                : 0.0;
-
-        for (int k = i;
-            k <= j;
-            k++) {
-          resultEntries.add({
-            ...candidates[k],
-            'rank': rank,
-            'winning': winning,
-          });
-        }
-
-        i = j + 1;
+      if (pointsCompare != 0) {
+        return pointsCompare;
       }
+
+      return (a['username'] ?? '')
+          .toString()
+          .compareTo(
+            (b['username'] ?? '')
+                .toString(),
+          );
+    },
+  );
+
+  int i = 0;
+
+  while (i <
+      groupUsers.length) {
+    int j = i;
+
+    final points =
+        _userGameDouble(
+      groupUsers[i]['points'],
+    );
+
+    while (j + 1 <
+            groupUsers.length &&
+        (_userGameDouble(
+                  groupUsers[j + 1]
+                      ['points'],
+                ) -
+                points)
+            .abs() <
+            0.0001) {
+      j++;
+    }
+
+    final rank =
+        i + 1;
+
+    double occupiedPrize =
+        0;
+
+    for (int position =
+            i + 1;
+        position <= j + 1;
+        position++) {
+      occupiedPrize +=
+          _storedContestWinningForRank(
+        contest,
+        position,
+      );
+    }
+
+    final groupSize =
+        j - i + 1;
+
+    final winning =
+        groupSize > 0
+            ? double.parse(
+                (occupiedPrize /
+                        groupSize)
+                    .toStringAsFixed(
+                  2,
+                ),
+              )
+            : 0.0;
+
+    for (int k = i;
+        k <= j;
+        k++) {
+      resultEntries.add({
+        ...groupUsers[k],
+        'rank': rank,
+        'winning': winning,
+        'instanceContestId':
+            group.key,
+      });
+    }
+
+    i = j + 1;
+  }
+}
+        
 
       final contestName =
           (contest['name'] ??
@@ -2151,8 +2224,18 @@ Future<void>
             double newBalance =
                 savedBalance;
 
-            final now =
-                DateTime.now();
+            String newWinningTxnNumber =
+    '';
+
+if (existingWinningIndex == -1 &&
+    winning > 0) {
+  newWinningTxnNumber =
+      await _generateTxnNumberInTransaction(
+    transaction,
+    'WINNING',
+    now,
+  );
+}
 
             Map<String, dynamic>
                 makeWinningItem({
@@ -2188,12 +2271,9 @@ Future<void>
                     'WINNING',
 
                 'txnNumber':
-                    oldTxn.isNotEmpty
-                        ? oldTxn
-                        : _nextAdminWinningTxnNumber(
-                            history,
-                            now,
-                          ),
+    oldTxn.isNotEmpty
+        ? oldTxn
+        : newWinningTxnNumber,
 
                 'subtitle':
                     contestName,
@@ -2341,40 +2421,69 @@ Future<void>
       // No selected players/C/VC are exposed.
       // ==========================================
 
-      await firestore
-          .collection(
-            'contest_results',
-          )
-          .doc(contestId)
-          .set({
-        'contestId':
-            contestId,
+      final resultGroups = <
+    String,
+    List<Map<String, dynamic>>>{};
 
-        'matchKey':
-            matchKey,
+for (final result
+    in resultEntries) {
+  final resultId =
+      (result[
+                  'instanceContestId'] ??
+              contestId)
+          .toString();
 
-        'team1':
-            team1,
+  resultGroups
+      .putIfAbsent(
+        resultId,
+        () =>
+            <Map<String, dynamic>>[],
+      )
+      .add(result);
+}
 
-        'team2':
-            team2,
+for (final resultGroup
+    in resultGroups.entries) {
+  await firestore
+      .collection(
+        'contest_results',
+      )
+      .doc(
+        resultGroup.key,
+      )
+      .set({
+    'contestId':
+        resultGroup.key,
 
-        'contestName':
-            contestName,
+    'templateContestId':
+        contestId,
 
-        'winningType':
-            winningType,
+    'matchKey':
+        matchKey,
 
-        'finalized':
-            true,
+    'team1':
+        team1,
 
-        'entries':
-            resultEntries,
+    'team2':
+        team2,
 
-        'finalizedAt':
-            FieldValue
-                .serverTimestamp(),
-      });
+    'contestName':
+        contestName,
+
+    'winningType':
+        winningType,
+
+    'finalized':
+        true,
+
+    'entries':
+        resultGroup.value,
+
+    'finalizedAt':
+        FieldValue
+            .serverTimestamp(),
+  });
+}
     }
   } catch (e) {
     debugPrint(
@@ -4300,7 +4409,9 @@ if (savedRequestsRaw is List) {
     }
 
     final String txnNumber =
-        generateTxnNumber('WELCOME_BONUS');
+    await generateTxnNumber(
+  'WELCOME_BONUS',
+);
 
     final now = DateTime.now();
 
@@ -12437,7 +12548,13 @@ void dispose() {
               },
             ),
           ),
-          Padding(
+          SafeArea(
+  top: false,
+  minimum:
+      const EdgeInsets.only(
+    bottom: 8,
+  ),
+  child: Padding(
             padding: const EdgeInsets.all(12),
             child: SizedBox(
               width: double.infinity,
@@ -12450,7 +12567,8 @@ void dispose() {
                 child: const Text('CONTINUE'),
               ),
             ),
-          ),
+            ),
+),
         ],
       ),
     );
@@ -12622,7 +12740,13 @@ void initState() {
               },
             ),
           ),
-          Padding(
+          SafeArea(
+  top: false,
+  minimum:
+      const EdgeInsets.only(
+    bottom: 8,
+  ),
+  child: Padding(
             padding: const EdgeInsets.all(12),
             child: SizedBox(
               width: double.infinity,
@@ -12640,7 +12764,8 @@ void initState() {
                 child: const Text('SAVE TEAM'),
               ),
             ),
-          ),
+            ),
+),
         ],
       ),
     );
@@ -12788,6 +12913,76 @@ if (badge.isNotEmpty) ...[
   }
 }
 
+Future<String>
+    _allocateH2HInstance(
+  String templateContestId,
+) async {
+  final firestore =
+      FirebaseFirestore.instance;
+
+  final lobbyRef =
+      firestore
+          .collection('h2h_lobbies')
+          .doc(templateContestId);
+
+  return firestore
+      .runTransaction<String>(
+    (transaction) async {
+      final snapshot =
+          await transaction.get(
+        lobbyRef,
+      );
+
+      final data =
+          snapshot.data() ??
+              <String, dynamic>{};
+
+      int currentInstance =
+          (data['currentInstance']
+                      as num?)
+                  ?.toInt() ??
+              1;
+
+      int joinedInCurrent =
+          (data['joinedInCurrent']
+                      as num?)
+                  ?.toInt() ??
+              0;
+
+      if (joinedInCurrent >= 2) {
+        currentInstance++;
+        joinedInCurrent = 0;
+      }
+
+      final assignedId =
+          '${templateContestId}_H2H_'
+          '${currentInstance.toString().padLeft(5, '0')}';
+
+      joinedInCurrent++;
+
+      transaction.set(
+        lobbyRef,
+        {
+          'templateContestId':
+              templateContestId,
+          'currentInstance':
+              currentInstance,
+          'joinedInCurrent':
+              joinedInCurrent,
+          'updatedAt':
+              FieldValue
+                  .serverTimestamp(),
+        },
+        SetOptions(
+          merge: true,
+        ),
+      );
+
+      return assignedId;
+    },
+  );
+}
+
 // ================= CONTEST PAGE =================
 
 class ContestPage extends StatelessWidget {
@@ -12876,29 +13071,71 @@ Future<void> joinContest(
     return;
   }
 
-  final alreadyJoinedThisContest =
-      joinedContests.value.any(
-    (contest) {
-      return (contest['contestId'] ??
-                  '')
-              .toString() ==
-          contestId;
-    },
+  final bool isH2H =
+    contestName
+            .trim()
+            .toLowerCase() ==
+        'head to head';
+
+final alreadyJoinedThisContest =
+    joinedContests.value.any(
+  (contest) {
+    final savedContestId =
+        (contest['contestId'] ?? '')
+            .toString();
+
+    final templateId =
+        (contest[
+                    'templateContestId'] ??
+                savedContestId)
+            .toString();
+
+    return isH2H
+        ? templateId == contestId
+        : savedContestId ==
+            contestId;
+  },
+);
+
+if (alreadyJoinedThisContest) {
+  ScaffoldMessenger.of(context)
+      .showSnackBar(
+    const SnackBar(
+      content: Text(
+        'You have already joined this contest',
+      ),
+    ),
   );
 
-  if (alreadyJoinedThisContest) {
+  return;
+}
+
+String joinedContestId =
+    contestId;
+
+if (isH2H) {
+  try {
+    joinedContestId =
+        await _allocateH2HInstance(
+      contestId,
+    );
+  } catch (e) {
+    if (!context.mounted) {
+      return;
+    }
+
     ScaffoldMessenger.of(context)
         .showSnackBar(
       const SnackBar(
         content: Text(
-          'You have already joined this contest',
+          'H2H slot create नहीं हुआ • फिर try करें',
         ),
       ),
     );
 
     return;
   }
-
+} else {
   final globalJoined =
       _globalContestJoinedCount(
     contestId,
@@ -12917,6 +13154,8 @@ Future<void> joinContest(
 
     return;
   }
+}
+  
 
   if (walletBalance.value <
       entryFee) {
@@ -12988,10 +13227,10 @@ return parts
         .join();
   }
 
-  final txnNumber =
-      generateTxnNumber(
-    'ENTRY',
-  );
+ final txnNumber =
+    await generateTxnNumber(
+  'ENTRY',
+);
 
   history.add({
     'title':
@@ -13037,7 +13276,15 @@ return parts
         matchKey,
 
     'contestId':
-        contestId,
+    joinedContestId,
+
+'templateContestId':
+    contestId,
+
+'h2hInstanceId':
+    isH2H
+        ? joinedContestId
+        : '',
 
     'amount':
         -entryFee,
@@ -13225,11 +13472,18 @@ return parts
         now,
 
     'joinId':
-        '${contestId}_${user.uid}',
+    '${joinedContestId}_${user.uid}',
 
-    'contestId':
-        contestId,
+'contestId':
+    joinedContestId,
 
+'templateContestId':
+    contestId,
+
+'h2hInstanceId':
+    isH2H
+        ? joinedContestId
+        : '',
     'selectedPlayers':
         List<Player>.from(
       selected,
@@ -13302,18 +13556,26 @@ return parts
       await _saveUserContestStateToFirebase(
     user.uid,
     joinRecord: {
-      'contestId':
-          contestId,
+  'contestId':
+      joinedContestId,
 
-      'matchKey':
-          matchKey,
+  'templateContestId':
+      contestId,
 
-      'entryFee':
-          entryFee,
+  'h2hInstanceId':
+      isH2H
+          ? joinedContestId
+          : '',
 
-      'joinedAt':
-          now,
-    },
+  'matchKey':
+      matchKey,
+
+  'entryFee':
+      entryFee,
+
+  'joinedAt':
+      now,
+},
   );
 
   if (!saved) {
@@ -13570,10 +13832,20 @@ return Column(
                           ) ??
                           0;
 
-                  final joined =
-                      joinCounts[
-                              contestId] ??
-                          0;
+                  final joinedTotal =
+    joinCounts[contestId] ?? 0;
+
+final bool isH2H =
+    (contest['name'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase() ==
+        'head to head';
+
+final joined =
+    isH2H && totalSpots > 0
+        ? joinedTotal % totalSpots
+        : joinedTotal;
 
                   final winningType =
                       (contest[
@@ -13584,38 +13856,46 @@ return Column(
                           .toString();
 
                   final alreadyJoined =
-                      myJoined.any(
-                    (joinedContest) {
-                      final oldId =
-                          (joinedContest[
-                                      'contestId'] ??
-                                  '')
-                              .toString();
+    myJoined.any(
+  (joinedContest) {
+    final oldId =
+        (joinedContest[
+                    'contestId'] ??
+                '')
+            .toString();
 
-                      if (contestId
-                              .isNotEmpty &&
-                          oldId.isNotEmpty) {
-                        return oldId ==
-                            contestId;
-                      }
+    final templateId =
+        (joinedContest[
+                    'templateContestId'] ??
+                oldId)
+            .toString();
 
-                      return joinedContest[
-                                  'matchKey'] ==
-                              matchKey &&
-                          joinedContest[
-                                  'contestName'] ==
-                              contest[
-                                  'name'] &&
-                          (joinedContest[
-                                      'h2hWinningType'] ??
-                                  joinedContest[
-                                      'winningType'] ??
-                                  '')
-                              .toString() ==
-                              winningType;
-                    },
-                  );
+    if (isH2H) {
+      return templateId ==
+          contestId;
+    }
 
+    if (contestId.isNotEmpty &&
+        oldId.isNotEmpty) {
+      return oldId ==
+          contestId;
+    }
+
+    return joinedContest[
+                'matchKey'] ==
+            matchKey &&
+        joinedContest[
+                'contestName'] ==
+            contest['name'] &&
+        (joinedContest[
+                    'h2hWinningType'] ??
+                joinedContest[
+                    'winningType'] ??
+                '')
+            .toString() ==
+            winningType;
+  },
+);
                   final displayName =
                       contest['name'] ==
                                   'Head to Head' &&
@@ -13664,12 +13944,12 @@ return Column(
                             : const [],
 
                     onJoin:
-                        teamSaved &&
-                                match.currentStatus ==
-                                    'UPCOMING' &&
-                                joined <
-                                    totalSpots &&
-                                !alreadyJoined
+    teamSaved &&
+            match.currentStatus ==
+                'UPCOMING' &&
+            (isH2H ||
+                joined < totalSpots) &&
+            !alreadyJoined
                             ? () async {
                                 await joinContest(
                                   context,
