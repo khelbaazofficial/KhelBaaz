@@ -6239,14 +6239,52 @@ elevation: 3,
 
                     const SizedBox(height: 28),
 
-                    const Text(
-                      'KhelBaaz Fantasy Cricket',
-                      style: TextStyle(
-                        color: Colors.white60,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+const Text(
+  'Trusted by 10m+',
+  textAlign: TextAlign.center,
+  style: TextStyle(
+    color: Colors.white38,
+    fontSize: 32,
+    fontWeight: FontWeight.w900,
+    fontStyle: FontStyle.italic,
+    height: 1.0,
+  ),
+),
+
+const Text(
+  'Indian Cricket Fans',
+  textAlign: TextAlign.center,
+  style: TextStyle(
+    color: Colors.white30,
+    fontSize: 25,
+    fontWeight: FontWeight.w900,
+    fontStyle: FontStyle.italic,
+  ),
+),
+
+const SizedBox(height: 10),
+
+const Text(
+  'Play • Compete • Win with KhelBaaz',
+  textAlign: TextAlign.center,
+  style: TextStyle(
+    color: Colors.white60,
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 1.1,
+  ),
+),
+
+const SizedBox(height: 12),
+
+const Text(
+  'KhelBaaz Fantasy Cricket',
+  style: TextStyle(
+    color: Colors.white38,
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+  ),
+),
 
                     const SizedBox(height: 24),
                   ],
@@ -17840,6 +17878,47 @@ Card(
 },
      ),
 ),
+
+const SizedBox(height: 26),
+
+const Text(
+  'Trusted by 1m+',
+  textAlign: TextAlign.center,
+  style: TextStyle(
+    color: Color(0x22C96A7A),
+    fontSize: 38,
+    fontWeight: FontWeight.w900,
+    fontStyle: FontStyle.italic,
+    height: 1.0,
+  ),
+),
+
+const Text(
+  'Indian Cricket Fans',
+  textAlign: TextAlign.center,
+  style: TextStyle(
+    color: Color(0x22C96A7A),
+    fontSize: 30,
+    fontWeight: FontWeight.w900,
+    fontStyle: FontStyle.italic,
+  ),
+),
+
+const SizedBox(height: 6),
+
+const Text(
+  'PLAY • COMPETE • WIN',
+  textAlign: TextAlign.center,
+  style: TextStyle(
+    color: Color(0x339B6F74),
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 2,
+  ),
+),
+
+const SizedBox(height: 20),
+
 ],
 ),
 );
@@ -17854,7 +17933,7 @@ class MyTeamsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('My Teams')),
-      body: ValueListenableBuilder<List<List<Player>>>(
+      body: ValueListenableBuappBar: AppBar(title: const Text('My Teams')),ilder<List<List<Player>>>(
         valueListenable: savedTeams,
         builder: (context, teams, _) {
           if (teams.isEmpty) {
