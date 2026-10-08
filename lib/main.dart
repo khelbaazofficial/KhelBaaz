@@ -16342,7 +16342,9 @@ Text(
           ),
         ),
         builder: (context) {
-          return Padding(
+          return SafeArea(
+  top: false,
+  child: Padding(
             padding: const EdgeInsets.all(18),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -16454,16 +16456,7 @@ else
         );
       }
 
-      displayUsers.sort(
-        (a, b) => _userGameInt(
-          a['rank'],
-        ).compareTo(
-          _userGameInt(
-            b['rank'],
-          ),
-        ),
-      );
-
+    
       return Column(
         children:
             displayUsers.map(
@@ -16688,7 +16681,8 @@ else
                 
               ],
             ),
-          );
+            ),
+);
         },
       );
     },
@@ -21962,24 +21956,7 @@ Widget _historyDateRibbon(DateTime date) {
 ),
       body: ValueListenableBuilder<List<Map<String, dynamic>>>(
         valueListenable: transactionHistory,
-builder: (context, history, _) {
-
-  // Winning में Txn number missing हो तो एक बार बना दो
-  for (final item in history) {
-    final itemTitle =
-        (item['title'] ?? '').toString();
-
-    final savedTxn =
-        (item['txnNumber'] ?? '')
-            .toString()
-            .trim();
-
-    if (itemTitle == 'Winning' &&
-        savedTxn.isEmpty) {
-      item['txnNumber'] =
-          generateTxnNumber('WINNING');
-    }
-  }
+builder: (context, history, _) 
 final visibleHistory =
     history.reversed.take(100).toList();
   return ListView(
@@ -21994,8 +21971,10 @@ final visibleHistory =
                     (item['title'] ?? '').toString();
                 final String subtitle =
                     (item['subtitle'] ?? '').toString();
-                final String description =
-                    (item['description'] ?? '').toString();
+                final String adminNote =
+    (item['adminNote'] ?? '')
+        .toString()
+        .trim();
                 final String winningType =
                     (item['winningType'] ?? '').toString();
                 final dynamic rank = item['rank'];
@@ -22147,6 +22126,15 @@ if (title == 'Winning') {
           ? '\n⏰$dateTime'
           : ''}';
                 
+} else if (
+    title == 'Deposit Approved' ||
+    title == 'Withdraw Approved') {
+
+  subtitleText =
+      '${txnNumber.isNotEmpty ? '$txnNumber\n' : ''}'
+      '${adminNote.isNotEmpty ? adminNote : ''}'
+      '${dateTime.isNotEmpty ? '\n⏰$dateTime' : ''}';
+
 } else {
   subtitleText =
       '${txnNumber.isNotEmpty ? '$txnNumber\n' : ''}'
@@ -29426,21 +29414,23 @@ void _startContestJoinCountsListener() {
       final counts =
           <String, int>{};
 
-      for (final doc
-          in snapshot.docs) {
-        final contestId =
-            (doc.data()['contestId'] ??
-                    '')
-                .toString()
-                .trim();
+      for (final doc in snapshot.docs) {
+  final data = doc.data();
 
-        if (contestId.isEmpty) {
-          continue;
-        }
+  final templateContestId =
+      (data['templateContestId'] ??
+              data['contestId'] ??
+              '')
+          .toString()
+          .trim();
 
-        counts[contestId] =
-            (counts[contestId] ?? 0) +
-                1;
+  if (templateContestId.isEmpty) {
+    continue;
+  }
+
+  counts[templateContestId] =
+      (counts[templateContestId] ?? 0) +
+          1;
       }
 
       contestJoinCounts.value =
@@ -29651,38 +29641,57 @@ class _AdminContestsPageState
         );
   }
 
-  bool _contestIsFull(
-    Map<String, dynamic> contest,
-  ) {
-    final joined =
-        _contestJoinedCount(
-      contest,
-    );
+  bool _contestIsHeadToHead(
+  Map<String, dynamic> contest,
+) {
+  return (contest['name'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase() ==
+      'head to head';
+}
 
-    final total =
-        _contestTotalSpots(
-      contest,
-    );
-
-    return total > 0 &&
-        joined >= total;
+bool _contestIsFull(
+  Map<String, dynamic> contest,
+) {
+  if (_contestIsHeadToHead(contest)) {
+    return false;
   }
 
-  String _contestJoinedText(
-    Map<String, dynamic> contest,
-  ) {
-    final joined =
-        _contestJoinedCount(
-      contest,
-    );
+  final joined =
+      _contestJoinedCount(contest);
 
-    final total =
-        _contestTotalSpots(
-      contest,
-    );
+  final total =
+      _contestTotalSpots(contest);
 
-    return '$joined/$total ✅'
-        '${_contestIsFull(contest) ? ' FULL' : ''}';
+  return total > 0 &&
+      joined >= total;
+}
+
+String _contestJoinedText(
+  Map<String, dynamic> contest,
+) {
+  final joined =
+      _contestJoinedCount(contest);
+
+  final total =
+      _contestTotalSpots(contest);
+
+  if (_contestIsHeadToHead(contest)) {
+    final completedPairs =
+        joined ~/ 2;
+
+    final currentPairJoined =
+        joined % 2;
+
+    return '$joined Joined • '
+        '$completedPairs H2H Full • '
+        '$currentPairJoined/2 Open';
+  }
+
+  return '$joined/$total ✅'
+      '${_contestIsFull(contest) ? ' FULL' : ''}';
+}
   }
 
   Widget _contestMetric(
@@ -32826,13 +32835,11 @@ class _AdminWalletRequestsPageState
   }
 
   final txnNumber =
-      type == 'DEPOSIT'
-          ? generateTxnNumber(
-              'DEPOSIT',
-            )
-          : generateTxnNumber(
-              'WITHDRAW',
-            );
+    await generateTxnNumber(
+  type == 'DEPOSIT'
+      ? 'DEPOSIT'
+      : 'WITHDRAW',
+);
 
   try {
     await FirebaseFirestore.instance
@@ -33001,37 +33008,42 @@ class _AdminWalletRequestsPageState
                     amount;
 
         savedHistory.add({
-          'title':
-              type == 'DEPOSIT'
-                  ? 'Deposit Approved'
-                  : 'Withdraw Approved',
-          'subtitle':
-              type == 'DEPOSIT'
-                  ? 'Admin approved deposit request'
-                  : 'Admin approved withdraw request',
-          'description':
-              'Admin approved wallet request',
-          'type':
-              type == 'DEPOSIT'
-                  ? 'DEPOSIT'
-                  : 'WITHDRAWAL',
-          'amount':
-              type == 'DEPOSIT'
-                  ? amount
-                  : -amount,
-          'txnNumber':
-              txnNumber,
-          'userId': userId,
-          'username':
-              username,
-          'createdAt': now,
-          'dateTime':
-              '${now.day.toString().padLeft(2, '0')}/'
-              '${now.month.toString().padLeft(2, '0')}/'
-              '${now.year} '
-              '${now.hour.toString().padLeft(2, '0')}:'
-              '${now.minute.toString().padLeft(2, '0')}',
-        });
+  'title':
+      type == 'DEPOSIT'
+          ? 'Deposit Approved'
+          : 'Withdraw Approved',
+
+  'subtitle': adminNote,
+
+  'description': '',
+
+  'adminNote': adminNote,
+
+  'type':
+      type == 'DEPOSIT'
+          ? 'DEPOSIT'
+          : 'WITHDRAWAL',
+
+  'amount':
+      type == 'DEPOSIT'
+          ? amount
+          : -amount,
+
+  'txnNumber': txnNumber,
+
+  'userId': userId,
+
+  'username': username,
+
+  'createdAt': now,
+
+  'dateTime':
+      '${now.day.toString().padLeft(2, '0')}/'
+      '${now.month.toString().padLeft(2, '0')}/'
+      '${now.year} '
+      '${now.hour.toString().padLeft(2, '0')}:'
+      '${now.minute.toString().padLeft(2, '0')}',
+});
 
         final approvedRequest =
             <String, dynamic>{
@@ -37340,9 +37352,9 @@ final bonusList =
   bonusHistory.value,
 );
 final txnNumber =
-    generateTxnNumber('BONUS');
+    await generateTxnNumber('BONUS');
                   final selectedUserHistory =
-    List<Map<String, dynamic>>.from(
+    List<Map<String, dynamic>>.final selectedUserHistory =from(
   ((selectedUserData['transactionHistory'] as List?) ?? [])
       .map(
         (item) => Map<String, dynamic>.from(item as Map),
@@ -42490,7 +42502,7 @@ TextField(
             child: const Text('CANCEL'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final updated =
                   List<Map<String, String>>.from(adminMatches.value);
 
@@ -42558,6 +42570,7 @@ if (index != -1) {
 }
 
 adminMatches.value = updated;
+                await _saveAdminMatchesToFirebase();
 bool contestMatchChanged = false;
 
 for (final contest in createdContests) {
@@ -42591,7 +42604,7 @@ for (final contest in createdContests) {
 if (contestMatchChanged) {
   createdContestsVersion.value++;
 
-  _saveAdminContestsToFirebase();
+  await _saveAdminContestsToFirebase();
 }
 final syncedJoinedMatches = joinedMatches.value.map((j) {
   if (j.team1 == (match['team1'] ?? '') &&
