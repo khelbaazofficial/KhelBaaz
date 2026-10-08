@@ -17291,12 +17291,15 @@ class _ProfilePageState extends State<ProfilePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                username,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+  username,
+  maxLines: 1,
+  overflow: TextOverflow.ellipsis,
+  softWrap: false,
+  style: const TextStyle(
+    fontSize: 20,
+    fontWeight: FontWeight.bold,
+  ),
+),
               const SizedBox(height: 5),
               Text(
                 mobileNumber,
@@ -17307,6 +17310,9 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(height: 5),
 Text(
   FirebaseAuth.instance.currentUser?.email ?? '',
+  maxLines: 1,
+  overflow: TextOverflow.ellipsis,
+  softWrap: false,
   style: const TextStyle(
     fontSize: 14,
   ),
