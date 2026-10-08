@@ -23237,7 +23237,9 @@ class AboutPage
         _infoRow(
           Icons.build_outlined,
           'Build',
-          info?.buildNumber ?? '...',
+          info == null
+    ? '...'
+    : ((int.tryParse(info.buildNumber) ?? 0) % 1000).toString(),
         ),
       ],
     );
