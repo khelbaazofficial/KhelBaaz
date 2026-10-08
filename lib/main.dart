@@ -6240,7 +6240,7 @@ elevation: 3,
                     const SizedBox(height: 28),
 
 const Text(
-  'Trusted by 10m+',
+  'Trusted by 1m+',
   textAlign: TextAlign.center,
   style: TextStyle(
     color: Colors.white38,
