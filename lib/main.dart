@@ -42792,7 +42792,13 @@ TextField(
               final updated =
                   List<Map<String, String>>.from(adminMatches.value);
 
-              final index = updated.indexOf(match);
+              final index = updated.indexWhere(
+  (item) =>
+      (item['team1'] ?? '') == oldTeam1 &&
+      (item['team2'] ?? '') == oldTeam2 &&
+      (item['date'] ?? '') == oldDate &&
+      (item['time'] ?? '') == oldTime,
+);
 
               if (index != -1) {
                 updated[index] = {
