@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -23164,19 +23165,17 @@ class AboutPage
               borderRadius:
                   BorderRadius.circular(22),
             ),
-            child: const Column(
+            child: Column(
               children: [
-                CircleAvatar(
-                  radius: 38,
-                  backgroundColor:
-                      Color(0xFFFFD9E1),
-                  child: Text(
-                    '🏏',
-                    style: TextStyle(
-                      fontSize: 40,
-                    ),
-                  ),
-                ),
+                ClipRRect(
+  borderRadius: BorderRadius.circular(18),
+  child: Image.asset(
+    'assets/app_logo.png.png',
+    width: 76,
+    height: 76,
+    fit: BoxFit.cover,
+  ),
+),
                 SizedBox(height: 12),
                 Text(
                   'KhelBaaz',
@@ -23223,16 +23222,27 @@ class AboutPage
                   'App Name',
                   'KhelBaaz',
                 ),
-                _infoRow(
-                  Icons.info_outline,
-                  'Version',
-                  '1.0.0',
-                ),
-                _infoRow(
-                  Icons.build_outlined,
-                  'Build',
-                  '1',
-                ),
+                FutureBuilder<PackageInfo>(
+  future: PackageInfo.fromPlatform(),
+  builder: (context, snapshot) {
+    final info = snapshot.data;
+
+    return Column(
+      children: [
+        _infoRow(
+          Icons.info_outline,
+          'Version',
+          info?.version ?? '...',
+        ),
+        _infoRow(
+          Icons.build_outlined,
+          'Build',
+          info?.buildNumber ?? '...',
+        ),
+      ],
+    );
+  },
+),
                 _infoRow(
                   Icons
                       .sports_cricket,
