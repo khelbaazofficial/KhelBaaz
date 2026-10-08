@@ -17220,217 +17220,27 @@ class _ProfilePageState extends State<ProfilePage> {
         padding: const EdgeInsets.all(16),
         children: [
           
-          Card(
-  margin: EdgeInsets.zero,
-  color: const Color(0xFFFFF1F4),
-  surfaceTintColor: Colors.transparent,
-  elevation: 1,
-  shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(18),
-    side: BorderSide(
-      color: Colors.pink.shade100,
-      width: 1,
-    ),
-  ),
-  child: Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 16,
-      vertical: 14,
-    ),
-    child: Row(
-      children: [
-        GestureDetector(
-          onTap: () {
-            showDialog(
-              context: context,
-              builder: (context) {
-                final icons = <IconData>[
-                  Icons.person,
-                  Icons.sports_cricket,
-                  Icons.emoji_events,
-                  Icons.star,
-                ];
-
-                return AlertDialog(
-                  title: const Text('Choose Profile Icon'),
-                  content: Wrap(
-                    spacing: 16,
-                    runSpacing: 16,
-                    children: icons.map((icon) {
-                      return IconButton(
-                        iconSize: 40,
-                        onPressed: () {
-                          setState(() {
-                            profileIcon = icon;
-                          });
-                          Navigator.pop(context);
-                        },
-                        icon: Icon(icon),
-                      );
-                    }).toList(),
-                  ),
-                );
-              },
-            );
-          },
-          child: CircleAvatar(
-            radius: 38,
-            backgroundColor: Colors.pink.shade50,
-            child: Icon(
-              profileIcon,
-              size: 45,
-              color: Colors.pink.shade700,
-            ),
-          ),
-        ),
-
-        const SizedBox(width: 16),
-
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-  username,
-  maxLines: 1,
-  overflow: TextOverflow.ellipsis,
-  softWrap: false,
-  style: const TextStyle(
-    fontSize: 20,
-    fontWeight: FontWeight.bold,
-  ),
-),
-              const SizedBox(height: 5),
-              Text(
-                mobileNumber,
-                style: const TextStyle(
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 5),
-Text(
-  FirebaseAuth.instance.currentUser?.email ?? '',
-  maxLines: 1,
-  overflow: TextOverflow.ellipsis,
-  softWrap: false,
-  style: const TextStyle(
-    fontSize: 14,
-  ),
-),
-            ],
-          ),
-        ),
-
-        const SizedBox(width: 8),
-
-        OutlinedButton.icon(
-          
-                    style: OutlinedButton.styleFrom(
+     style: OutlinedButton.styleFrom(
   backgroundColor: const Color(0xFFFFE7F0),
   foregroundColor: const Color(0xFFC2185B),
   side: const BorderSide(
     color: Color(0xFFE91E63),
     width: 1.2,
   ),
-  shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(24),
+  padding: const EdgeInsets.symmetric(
+    horizontal: 12,
+    vertical: 8,
   ),
-),
-          onPressed: () {
-            final controller =
-                TextEditingController(text: playerName);
-
-            final usernameController =
-                TextEditingController(text: username);
-
-            final mobileController =
-                TextEditingController(text: mobileNumber);
-
-            showDialog(
-              context: context,
-              builder: (context) {
-                return AlertDialog(
-                  title: const Text('Edit Profile'),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(
-                        controller: controller,
-                        decoration: const InputDecoration(
-                          labelText: 'Player Name',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                     controller: usernameController,
-                     readOnly: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Username',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                    controller: mobileController,
-                    readOnly: true,
-                      
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
-                          labelText: 'Mobile Number',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ],
-                  ),
-                                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Text('CANCEL'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-  final newName = controller.text.trim();
-  final user = FirebaseAuth.instance.currentUser;
-
-  if (user == null || newName.isEmpty) {
-    return;
-  }
-
-  await FirebaseFirestore.instance
-      .collection('users')
-      .doc(user.uid)
-      .set(
-    {
-      'playerName': newName,
-    },
-    SetOptions(merge: true),
-  );
-
-  if (!mounted) return;
-
-  setState(() {
-    playerName = newName;
-  });
-
-  Navigator.pop(context);
-},
-                      child: const Text('SAVE'),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-          icon: const Icon(Icons.edit),
-          label: const Text('Edit Profile'),
-        ),
-      ],
+  minimumSize: const Size(0, 38),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  shape: const BeveledRectangleBorder(
+    borderRadius: BorderRadius.all(
+      Radius.circular(9),
     ),
   ),
 ),
+
+  
 
 const SizedBox(height: 12),  
 
