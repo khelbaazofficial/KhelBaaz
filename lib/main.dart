@@ -8524,10 +8524,10 @@ const SizedBox(
       children: [
         Image.asset(
           selectedFilter == 1
-              ? 'assets/admin_live.png'
+              ? 'assets/admin_live.webp'
               : selectedFilter == 2
-                  ? 'assets/admin_upcoming.png'
-                  : 'assets/admin_completed.png',
+                  ? 'assets/admin_upcoming.webp'
+                  : 'assets/admin_completed.webp',
           width: 320,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
@@ -9806,10 +9806,10 @@ if (currentMatches.isEmpty)
       children: [
         Image.asset(
           selectedTab == 0
-              ? 'assets/user_upcoming.png'
+              ? 'assets/user_upcoming.webp'
               : selectedTab == 1
-                  ? 'assets/user_live.png'
-                  : 'assets/user_completed.png',
+                  ? 'assets/user_live.webp'
+                  : 'assets/user_completed.webp',
           width: 320,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
@@ -14454,7 +14454,7 @@ final deleteAt =
   width: 300,
   height: 300,
   child: Image.asset(
-    'assets/my_contests_empty.png',
+    'assets/my_contests_empty.webp',
     fit: BoxFit.contain,
     filterQuality: FilterQuality.high,
   ),
@@ -15321,7 +15321,7 @@ final deleteAt =
       mainAxisSize: MainAxisSize.min,
       children: [
         Image.asset(
-          'assets/user_my_matches.png',
+          'assets/user_my_matches.webp',
           width: 320,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
@@ -17942,7 +17942,7 @@ class MyTeamsPage extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Image.asset(
-          'assets/user_my_teams.png',
+          'assets/user_my_teams.webp',
           width: 320,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
@@ -19066,7 +19066,7 @@ Container(
     child: AspectRatio(
       aspectRatio: 1870 / 841,
       child: Image.asset(
-        'assets/wallet_withdraw_banner.png.png',
+        'assets/wallet_withdraw_banner.webp',
         width: double.infinity,
         fit: BoxFit.cover,
         filterQuality: FilterQuality.high,
@@ -23249,7 +23249,7 @@ class AboutPage
                 ClipRRect(
   borderRadius: BorderRadius.circular(18),
   child: Image.asset(
-    'assets/app_logo.png.png',
+    'assets/app_logo.webp',
     width: 76,
     height: 76,
     fit: BoxFit.cover,
@@ -25961,7 +25961,7 @@ const SizedBox(
       mainAxisSize: MainAxisSize.min,
       children: [
         Image.asset(
-          'assets/admin_manage_player_stats.png',
+          'assets/admin_manage_player_stats.webp',
           width: 320,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
@@ -26159,7 +26159,7 @@ const SizedBox(
       mainAxisSize: MainAxisSize.min,
       children: [
         Image.asset(
-          'assets/admin_manage_player_stats.png',
+         'assets/admin_manage_player_stats.webp',
           width: 320,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
@@ -30942,7 +30942,7 @@ if ((_selectedContestFilter == 1 &&
       mainAxisSize: MainAxisSize.min,
       children: [
         Image.asset(
-          'assets/admin_manage_contests.png',
+          'assets/admin_manage_contests.webp',
           width: 320,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
@@ -44114,7 +44114,7 @@ const Icon(
       mainAxisSize: MainAxisSize.min,
       children: [
         Image.asset(
-          'assets/admin_manage_matches.png',
+          'assets/admin_manage_matches.webp',
           width: 320,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
@@ -44212,7 +44212,7 @@ const Icon(
       mainAxisSize: MainAxisSize.min,
       children: [
         Image.asset(
-          'assets/admin_manage_matches.png',
+          'assets/admin_manage_matches.webp',
           width: 320,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
