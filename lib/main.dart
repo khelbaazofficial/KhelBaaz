@@ -10682,10 +10682,10 @@ final team2Runs =
     totalTeamStat(team2Players, matchStats, 'runs');
 
 final team1Wickets =
-    totalTeamStat(team1Players, matchStats, 'wickets');
+    totalTeamStat(team2Players, matchStats, 'wickets');
 
 final team2Wickets =
-    totalTeamStat(team2Players, matchStats, 'wickets');
+    totalTeamStat(team1Players, matchStats, 'wickets');
     final latestAdminMatch = adminMatches.value.where(
   (m) =>
       m['team1'] == widget.match.team1 &&
@@ -42624,8 +42624,8 @@ for (final player in team2PlayerNames) {
 
 m.team1Score = team1Runs;
 m.team2Score = team2Runs;
-m.team1Wickets = team1Wickets;
-m.team2Wickets = team2Wickets;
+m.team1Wickets = team2Wickets;
+m.team2Wickets = team1Wickets;
     
 if (completeMatchNow) {
   m.status = 'COMPLETED';
@@ -42656,11 +42656,11 @@ final updatedAdminMatches =
 
 for (final adminMatch in updatedAdminMatches) {
   if (adminMatch['team1'] == match['team1'] &&
-    adminMatch['team2'] == match['team2']) {
-    adminMatch['team1Score'] = team1Runs.toString();
+adminMatch['team2'] == match['team2']) {
+adminMatch['team1Score'] = team1Runs.toString();
 adminMatch['team2Score'] = team2Runs.toString();
-adminMatch['team1Wickets'] = team1Wickets.toString();
-adminMatch['team2Wickets'] = team2Wickets.toString();
+adminMatch['team1Wickets'] = team2Wickets.toString();
+adminMatch['team2Wickets'] = team1Wickets.toString();
 
 if (completeMatchNow) {
   adminMatch['currentStatus'] = 'COMPLETED';
