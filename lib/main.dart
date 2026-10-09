@@ -12281,21 +12281,36 @@ const SizedBox(height: 12),
 }
 
 // ================= TEAM PAGE =================
-class TeamPage extends StatefulWidget {
+class TeamPage
+    extends StatefulWidget {
   final List<Player> players;
   final List<Player> selected;
 
-  final Function(Player captain, Player viceCaptain) onSave;
-final Player? initialCaptain;
-final Player? initialViceCaptain;
+  final Function(
+    Player captain,
+    Player viceCaptain,
+  ) onSave;
+
+  final Player? initialCaptain;
+  final Player? initialViceCaptain;
+
+  final bool isEditing;
+
   const TeamPage({
     super.key,
     required this.players,
     required this.selected,
     required this.onSave,
     this.initialCaptain,
-this.initialViceCaptain,
+    this.initialViceCaptain,
+    this.isEditing = false,
   });
+
+  @override
+  State<TeamPage>
+      createState() =>
+          _TeamPageState();
+}
 
   @override
   State<TeamPage> createState() => _TeamPageState();
@@ -12438,10 +12453,16 @@ void dispose() {
       MaterialPageRoute(
         builder: (_) =>
             CaptainPage(
-  selected: widget.selected,
-  initialCaptain: widget.initialCaptain,
-  initialViceCaptain: widget.initialViceCaptain,
-  onSave: widget.onSave,
+  selected:
+      widget.selected,
+  initialCaptain:
+      widget.initialCaptain,
+  initialViceCaptain:
+      widget.initialViceCaptain,
+  isEditing:
+      widget.isEditing,
+  onSave:
+      widget.onSave,
 ),
       ),
     );
@@ -12457,7 +12478,11 @@ void dispose() {
       appBar: AppBar(
   backgroundColor: const Color(0xFFE85D5D),
   foregroundColor: Colors.white,
-  title: const Text('Create Team'),
+  title: Text(
+  widget.isEditing
+      ? 'Edit Team'
+      : 'Create Team',
+),
 ),
       body: Column(
         children: [
@@ -12633,18 +12658,28 @@ void dispose() {
 }
 
 // ================= CAPTAIN PAGE =================
-class CaptainPage extends StatefulWidget {
+class CaptainPage
+    extends StatefulWidget {
   final List<Player> selected;
-final void Function(Player, Player) onSave;
-final Player? initialCaptain;
-final Player? initialViceCaptain;
+
+  final void Function(
+    Player,
+    Player,
+  ) onSave;
+
+  final Player? initialCaptain;
+  final Player? initialViceCaptain;
+
+  final bool isEditing;
+
   const CaptainPage({
-  super.key,
-  required this.selected,
-  required this.onSave,
-  this.initialCaptain,
-  this.initialViceCaptain,
-});
+    super.key,
+    required this.selected,
+    required this.onSave,
+    this.initialCaptain,
+    this.initialViceCaptain,
+    this.isEditing = false,
+  });
 
   @override
   State<CaptainPage> createState() => _CaptainPageState();
@@ -12680,7 +12715,11 @@ void initState() {
        appBar: AppBar(
   backgroundColor: const Color(0xFFE85D5D),
   foregroundColor: Colors.white,
-  title: const Text('Choose Captain'),
+  title: Text(
+  widget.isEditing
+      ? 'Edit Captain / VC'
+      : 'Choose Captain',
+),
 ),
       body: Column(
         children: [
@@ -13649,6 +13688,516 @@ return parts
   );
 }
 
+Future<void>
+    editJoinedContestTeam(
+  BuildContext context,
+  String contestId,
+  bool isH2H,
+) async {
+  final user =
+      FirebaseAuth.instance
+          .currentUser;
+
+  if (user == null) {
+    return;
+  }
+
+  final startTime =
+      match.startTime;
+
+  if (startTime == null) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Match start time नहीं मिला',
+        ),
+      ),
+    );
+    return;
+  }
+
+  final lockTime =
+      startTime.subtract(
+    const Duration(minutes: 5),
+  );
+
+  if (match.currentStatus !=
+          'UPCOMING' ||
+      !DateTime.now()
+          .isBefore(lockTime)) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Team match start से 5 मिनट पहले lock हो चुकी है',
+        ),
+      ),
+    );
+    return;
+  }
+
+  Map<String, dynamic>?
+      joinedRecord;
+
+  for (final item
+      in joinedContests.value) {
+    final savedContestId =
+        (item['contestId'] ?? '')
+            .toString();
+
+    final templateId =
+        (item[
+                    'templateContestId'] ??
+                savedContestId)
+            .toString();
+
+    final matches =
+        isH2H
+            ? templateId ==
+                contestId
+            : savedContestId ==
+                contestId;
+
+    if (matches) {
+      joinedRecord =
+          Map<String,
+              dynamic>.from(
+        item,
+      );
+      break;
+    }
+  }
+
+  if (joinedRecord == null) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Joined team नहीं मिली',
+        ),
+      ),
+    );
+    return;
+  }
+
+  final rawPlayers =
+      joinedRecord[
+          'selectedPlayers'];
+
+  final oldSelected =
+      rawPlayers is List
+          ? rawPlayers
+              .whereType<Player>()
+              .toList()
+          : <Player>[];
+
+  if (oldSelected.isEmpty) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Saved players नहीं मिले',
+        ),
+      ),
+    );
+    return;
+  }
+
+  Player? oldPlayer(
+    String name,
+  ) {
+    for (final player
+        in oldSelected) {
+      if (player.name.trim() ==
+          name.trim()) {
+        return player;
+      }
+    }
+
+    return null;
+  }
+
+  Player makePlayer(
+    String raw,
+    String team,
+  ) {
+    final parts =
+        raw.split('|');
+
+    final name =
+        parts.first.trim();
+
+    final role =
+        parts.length > 1
+            ? parts[1]
+                .trim()
+                .toUpperCase()
+            : 'BAT';
+
+    final existing =
+        oldPlayer(name);
+
+    return Player(
+      name: name,
+      role: role,
+      team: team,
+      credit:
+          existing?.credit ??
+              8.5,
+      playing:
+          existing?.playing ??
+              true,
+    );
+  }
+
+  final allPlayers =
+      <Player>[
+    ...match.team1Players
+        .split(',')
+        .map(
+          (e) => e.trim(),
+        )
+        .where(
+          (e) => e.isNotEmpty,
+        )
+        .map(
+          (e) => makePlayer(
+            e,
+            match.team1,
+          ),
+        ),
+
+    ...match.team2Players
+        .split(',')
+        .map(
+          (e) => e.trim(),
+        )
+        .where(
+          (e) => e.isNotEmpty,
+        )
+        .map(
+          (e) => makePlayer(
+            e,
+            match.team2,
+          ),
+        ),
+  ];
+
+  final editableSelected =
+      <Player>[];
+
+  for (final old
+      in oldSelected) {
+    for (final player
+        in allPlayers) {
+      if (player.name.trim() ==
+          old.name.trim()) {
+        editableSelected.add(
+          player,
+        );
+        break;
+      }
+    }
+  }
+
+  final oldCaptainName =
+      (joinedRecord[
+                  'captainName'] ??
+              '')
+          .toString();
+
+  final oldViceCaptainName =
+      (joinedRecord[
+                  'viceCaptainName'] ??
+              '')
+          .toString();
+
+  Player? initialCaptain;
+  Player? initialViceCaptain;
+
+  for (final player
+      in editableSelected) {
+    if (player.name ==
+        oldCaptainName) {
+      initialCaptain = player;
+    }
+
+    if (player.name ==
+        oldViceCaptainName) {
+      initialViceCaptain =
+          player;
+    }
+  }
+
+  final joinedTeamName =
+      (joinedRecord[
+                  'joinedTeamName'] ??
+              'Team 1')
+          .toString();
+
+  final joinedMatchKey =
+      (joinedRecord['matchKey'] ??
+              matchKey)
+          .toString();
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) =>
+          TeamPage(
+        players: allPlayers,
+        selected:
+            editableSelected,
+        initialCaptain:
+            initialCaptain,
+        initialViceCaptain:
+            initialViceCaptain,
+        isEditing: true,
+
+        onSave:
+            (newCaptain,
+                newViceCaptain) async {
+          // Save दबाते समय
+          // दोबारा lock check.
+          if (match.currentStatus !=
+                  'UPCOMING' ||
+              !DateTime.now()
+                  .isBefore(
+                lockTime,
+              )) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Team अब lock हो चुकी है',
+                ),
+              ),
+            );
+            return;
+          }
+
+          final updatedContests =
+              joinedContests.value
+                  .map(
+            (item) {
+              final copy =
+                  Map<String,
+                      dynamic>.from(
+                item,
+              );
+
+              final sameTeam =
+                  (copy['matchKey'] ??
+                              '')
+                          .toString() ==
+                      joinedMatchKey &&
+                  (copy[
+                              'joinedTeamName'] ??
+                          '')
+                      .toString() ==
+                      joinedTeamName;
+
+              if (sameTeam) {
+                copy[
+                        'selectedPlayers'] =
+                    List<Player>.from(
+                  editableSelected,
+                );
+
+                copy['captainName'] =
+                    newCaptain.name;
+
+                copy[
+                        'viceCaptainName'] =
+                    newViceCaptain.name;
+              }
+
+              return copy;
+            },
+          ).toList();
+
+          joinedContests.value =
+              updatedContests;
+
+          // Saved team भी वही update होगी.
+          int savedTeamIndex = -1;
+
+          for (int i = 0;
+              i <
+                  savedTeams
+                      .value.length;
+              i++) {
+            if (i >=
+                    savedTeamMatchKeys
+                        .length ||
+                savedTeamMatchKeys[
+                        i] !=
+                    joinedMatchKey) {
+              continue;
+            }
+
+            final savedTeam =
+                savedTeams.value[i];
+
+            final sameOldTeam =
+                savedTeam.length ==
+                        oldSelected
+                            .length &&
+                    savedTeam.every(
+                      (savedPlayer) =>
+                          oldSelected.any(
+                        (oldPlayer) =>
+                            oldPlayer
+                                .name ==
+                            savedPlayer
+                                .name,
+                      ),
+                    );
+
+            if (sameOldTeam) {
+              savedTeamIndex = i;
+              break;
+            }
+          }
+
+          if (savedTeamIndex >=
+              0) {
+            final updatedTeams =
+                List<List<Player>>.from(
+              savedTeams.value,
+            );
+
+            updatedTeams[
+                    savedTeamIndex] =
+                List<Player>.from(
+              editableSelected,
+            );
+
+            savedTeams.value =
+                updatedTeams;
+
+            if (savedTeamIndex <
+                savedCaptainNames
+                    .length) {
+              savedCaptainNames[
+                      savedTeamIndex] =
+                  newCaptain.name;
+            }
+
+            if (savedTeamIndex <
+                savedViceCaptainNames
+                    .length) {
+              savedViceCaptainNames[
+                      savedTeamIndex] =
+                  newViceCaptain.name;
+            }
+          }
+
+          // अगर current draft वही पुरानी
+          // team है, तभी draft update करें.
+          final drafts =
+              Map<String,
+                  Map<String,
+                      dynamic>>.from(
+            draftTeams.value,
+          );
+
+          final oldDraft =
+              drafts[
+                  joinedMatchKey];
+
+          if (oldDraft != null) {
+            final draftRaw =
+                oldDraft['players'];
+
+            final draftPlayers =
+                draftRaw is List
+                    ? draftRaw
+                        .whereType<
+                            Player>()
+                        .toList()
+                    : <Player>[];
+
+            final sameDraft =
+                draftPlayers.length ==
+                        oldSelected
+                            .length &&
+                    draftPlayers.every(
+                      (draftPlayer) =>
+                          oldSelected.any(
+                        (oldPlayer) =>
+                            oldPlayer
+                                .name ==
+                            draftPlayer
+                                .name,
+                      ),
+                    );
+
+            if (sameDraft) {
+              drafts[
+                  joinedMatchKey] = {
+                'players':
+                    List<Player>.from(
+                  editableSelected,
+                ),
+                'captain':
+                    newCaptain,
+                'viceCaptain':
+                    newViceCaptain,
+              };
+
+              draftTeams.value =
+                  drafts;
+            }
+          }
+
+          // केवल team data save होगा.
+          // Wallet / entry transaction untouched.
+          final saved =
+              await _saveUserContestStateToFirebase(
+            user.uid,
+          );
+
+          if (!context.mounted) {
+            return;
+          }
+
+          if (!saved) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Team update save नहीं हुआ • फिर try करें',
+                ),
+              ),
+            );
+            return;
+          }
+
+          // Captain page अपने आप pop होगी.
+          // यह TeamPage को close करेगा.
+          Navigator.pop(
+            context,
+          );
+
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Team updated successfully ✓',
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+}
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -13967,7 +14516,21 @@ final joined =
                                     'prizeSlabs'],
                               )
                             : const [],
+matchStartTime:
+    match.startTime,
 
+onEditTeam:
+    alreadyJoined &&
+            match.currentStatus ==
+                'UPCOMING'
+        ? () {
+            editJoinedContestTeam(
+              context,
+              contestId,
+              isH2H,
+            );
+          }
+        : null,
                     onJoin:
     teamSaved &&
             match.currentStatus ==
@@ -14034,7 +14597,8 @@ class ContestCard
   final String spots;
 
   final VoidCallback? onJoin;
-
+final VoidCallback? onEditTeam;
+final DateTime? matchStartTime;
   final bool showJoinButton;
 
   final bool isJoined;
@@ -14053,6 +14617,8 @@ class ContestCard
     required this.entry,
     required this.spots,
     required this.onJoin,
+    this.onEditTeam,
+    this.matchStartTime,
     required this.showJoinButton,
     required this.isJoined,
     required this.prizeSlabs,
@@ -14209,51 +14775,261 @@ final Color contestCardColor =
   ),
 ),
                   
-                ElevatedButton(
-  onPressed: (isFull || isJoined) ? null : onJoin,
-  style: ElevatedButton.styleFrom(
-    elevation: 0,
-    backgroundColor: const Color(0xFF43A047),
-foregroundColor: Colors.white,
-
-    disabledBackgroundColor: isJoined
-    ? const Color(0xFF000000)
-    : const Color(0xFFE0E0E0),
-disabledForegroundColor: isJoined
-    ? const Color(0xFFFFFFFF)
-    : const Color(0xFF757575),
-    
-
-    padding: const EdgeInsets.symmetric(
-      horizontal: 20,
-      vertical: 9,
-    ),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(22),
-    ),
+                StreamBuilder<int>(
+  stream: Stream<int>.periodic(
+    const Duration(seconds: 1),
+    (value) => value,
   ),
-  child: Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Text(
-        isJoined
-            ? 'JOINED'
-            : isFull
-                ? 'FULL'
-                : 'JOIN',
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
+  builder: (context, _) {
+    final now = DateTime.now();
+
+    final lockTime =
+        matchStartTime?.subtract(
+      const Duration(minutes: 5),
+    );
+
+    final bool canEditTeam =
+        isJoined &&
+        onEditTeam != null &&
+        lockTime != null &&
+        now.isBefore(lockTime);
+
+    String editStatus = 'Team locked';
+
+    if (canEditTeam &&
+        lockTime != null) {
+      final remaining =
+          lockTime.difference(now);
+
+      // Lock होने में 5 मिनट या कम बाकी
+      if (remaining.inSeconds <=
+          300) {
+        final minutes =
+            remaining.inMinutes;
+
+        final seconds =
+            remaining.inSeconds % 60;
+
+        editStatus =
+            'Team locks in '
+            '${minutes.toString().padLeft(2, '0')}:'
+            '${seconds.toString().padLeft(2, '0')}';
+      } else {
+        int hour =
+            lockTime.hour;
+
+        final minute =
+            lockTime.minute
+                .toString()
+                .padLeft(2, '0');
+
+        final period =
+            hour >= 12
+                ? 'PM'
+                : 'AM';
+
+        hour = hour % 12;
+
+        if (hour == 0) {
+          hour = 12;
+        }
+
+        editStatus =
+            'Team editable till '
+            '$hour:$minute $period';
+      }
+    }
+
+    // Contest join नहीं किया है:
+    // पुराना JOIN / FULL button बिल्कुल same रहेगा.
+    if (!isJoined) {
+      return ElevatedButton(
+        onPressed:
+            isFull ? null : onJoin,
+        style:
+            ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor:
+              const Color(
+            0xFF43A047,
+          ),
+          foregroundColor:
+              Colors.white,
+          disabledBackgroundColor:
+              const Color(
+            0xFFE0E0E0,
+          ),
+          disabledForegroundColor:
+              const Color(
+            0xFF757575,
+          ),
+          padding:
+              const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 9,
+          ),
+          shape:
+              RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(
+              22,
+            ),
+          ),
         ),
-      ),
-      if (isJoined) ...[
-        const SizedBox(width: 5),
-        const Icon(
-          Icons.check,
-          size: 18,
+        child: Text(
+          isFull
+              ? 'FULL'
+              : 'JOIN',
+          style: const TextStyle(
+            fontWeight:
+                FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    // Contest already joined
+    return Column(
+      mainAxisSize:
+          MainAxisSize.min,
+      crossAxisAlignment:
+          CrossAxisAlignment.end,
+      children: [
+        Container(
+          padding:
+              const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 9,
+          ),
+          decoration:
+              BoxDecoration(
+            color: Colors.black,
+            borderRadius:
+                BorderRadius.circular(
+              22,
+            ),
+          ),
+          child: const Row(
+            mainAxisSize:
+                MainAxisSize.min,
+            children: [
+              Text(
+                'JOINED',
+                style: TextStyle(
+                  color:
+                      Colors.white,
+                  fontWeight:
+                      FontWeight.w700,
+                ),
+              ),
+              SizedBox(width: 5),
+              Icon(
+                Icons.check,
+                color: Colors.white,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 7),
+
+        SizedBox(
+          height: 36,
+          child:
+              ElevatedButton.icon(
+            onPressed:
+                canEditTeam
+                    ? onEditTeam
+                    : null,
+            icon: const Icon(
+              Icons.edit,
+              size: 16,
+            ),
+            label: const Text(
+              'EDIT TEAM',
+              style: TextStyle(
+                fontWeight:
+                    FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+            style:
+                ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor:
+                  const Color(
+                0xFF079669,
+              ),
+              foregroundColor:
+                  Colors.white,
+              disabledBackgroundColor:
+                  const Color(
+                0xFFD6D6D6,
+              ),
+              disabledForegroundColor:
+                  const Color(
+                0xFF858585,
+              ),
+              padding:
+                  const EdgeInsets.symmetric(
+                horizontal: 13,
+              ),
+              shape:
+                  RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.circular(
+                  20,
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 5),
+
+        Row(
+          mainAxisSize:
+              MainAxisSize.min,
+          children: [
+            Icon(
+              canEditTeam
+                  ? Icons
+                      .schedule_rounded
+                  : Icons
+                      .lock_rounded,
+              size: 15,
+              color: canEditTeam
+                  ? const Color(
+                      0xFF16813C,
+                    )
+                  : const Color(
+                      0xFFD32F2F,
+                    ),
+            ),
+
+            const SizedBox(width: 4),
+
+            Text(
+              editStatus,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight:
+                    FontWeight.w700,
+                color: canEditTeam
+                    ? const Color(
+                        0xFF16813C,
+                      )
+                    : const Color(
+                        0xFFD32F2F,
+                      ),
+              ),
+            ),
+          ],
         ),
       ],
-    ],
-  ),
+    );
+  },
 ),
             ],
 ),
