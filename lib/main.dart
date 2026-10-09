@@ -11267,7 +11267,7 @@ int get team2LiveScore {
       final playerName =
           entry.key.split('|').first.trim();
 
-      if (widget.match.team1Players
+      if (widget.match.team2Players
           .split(',')
           .any(
             (p) =>
@@ -11291,7 +11291,7 @@ int get team2LiveScore {
       final playerName =
           entry.key.split('|').first.trim();
 
-      if (widget.match.team2Players
+      if (widget.match.team1Players
           .split(',')
           .any(
             (p) =>
@@ -42299,6 +42299,7 @@ if (index > 0) {
 
   showTeamGap = previousIsTeam1 != isTeam1;
 }
+              return Column(
   children: [
     if (showTeamGap)
       const SizedBox(height: 14),
