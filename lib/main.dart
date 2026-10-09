@@ -13117,19 +13117,27 @@ Future<void> joinContest(
     return;
   }
 
-  if (match.currentStatus !=
-      'UPCOMING') {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Match शुरू हो चुका है, अब contest join नहीं कर सकते',
-        ),
-      ),
-    );
+  
+  final matchStartTime = match.startTime;
 
-    return;
-  }
+final joinLockTime =
+    matchStartTime?.subtract(
+  const Duration(minutes: 5),
+);
+
+if (match.currentStatus != 'UPCOMING' ||
+    joinLockTime == null ||
+    !DateTime.now().isBefore(joinLockTime)) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Contest Join मैच शुरू होने से 5 मिनट पहले बंद हो जाता है',
+      ),
+    ),
+  );
+
+  return;
+}
 
   final bool isH2H =
     contestName
@@ -14779,10 +14787,14 @@ final Color contestCardColor =
   builder: (context, _) {
     final now = DateTime.now();
 
-    final lockTime =
-        matchStartTime?.subtract(
-      const Duration(minutes: 5),
-    );
+final lockTime =
+    matchStartTime?.subtract(
+  const Duration(minutes: 5),
+);
+
+final bool joinClosed =
+    lockTime == null ||
+    !now.isBefore(lockTime);
 
     final bool canEditTeam =
         isJoined &&
@@ -14841,7 +14853,9 @@ final Color contestCardColor =
     if (!isJoined) {
       return ElevatedButton(
         onPressed:
-            isFull ? null : onJoin,
+    isFull || joinClosed
+        ? null
+        : onJoin,
         style:
             ElevatedButton.styleFrom(
           elevation: 0,
@@ -14873,9 +14887,11 @@ final Color contestCardColor =
           ),
         ),
         child: Text(
-          isFull
-              ? 'FULL'
-              : 'JOIN',
+  isFull
+      ? 'FULL'
+      : joinClosed
+          ? 'JOIN CLOSED'
+          : 'JOIN',
           style: const TextStyle(
             fontWeight:
                 FontWeight.w600,
@@ -15238,37 +15254,154 @@ SizedBox(
 
 const SizedBox(height: 10),      
                       
-            Text(
-  totalSpots > 0
-      ? '$joinedCount/$totalSpots Joined'
-      : spots,
-),
+            SizedBox(
+  width: double.infinity,
+  child: Stack(
+    children: [
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            totalSpots > 0
+                ? '$joinedCount/$totalSpots Joined'
+                : spots,
+          ),
+
+          const SizedBox(height: 6),
+
+          if (totalSpots > 0) ...[
+            Text('$spotsLeft Spots Left'),
+
             const SizedBox(height: 6),
 
-if (totalSpots > 0) ...[
-  Text('$spotsLeft Spots Left'),
-
-  const SizedBox(height: 6),
-
-  Align(
-  alignment: Alignment.centerLeft,
-  child: SizedBox(
-    width: 140,
-    child: LinearProgressIndicator(
-  value: totalSpots > 0
-      ? joinedCount / totalSpots
-      : 0.0,
-  minHeight: 6,
-  borderRadius: BorderRadius.circular(10),
-  color: Colors.red,
-  backgroundColor: Colors.green,
-),
-    
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: 140,
+                child: LinearProgressIndicator(
+                  value: totalSpots > 0
+                      ? joinedCount / totalSpots
+                      : 0.0,
+                  minHeight: 6,
+                  borderRadius:
+                      BorderRadius.circular(10),
+                  color: Colors.red,
+                  backgroundColor: Colors.green,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
-    ),
-  
-  
-],
+
+      Positioned(
+        right: 0,
+        bottom: 0,
+        child: StreamBuilder<int>(
+          stream: Stream<int>.periodic(
+            const Duration(seconds: 1),
+            (tick) => tick,
+          ),
+          builder: (context, _) {
+            final remainingSeconds =
+                matchStartTime == null
+                    ? null
+                    : matchStartTime!
+                        .difference(DateTime.now())
+                        .inSeconds;
+
+            final seconds =
+                remainingSeconds == null
+                    ? 0
+                    : remainingSeconds < 0
+                        ? 0
+                        : remainingSeconds;
+
+            final bool closed =
+                remainingSeconds == null ||
+                remainingSeconds <= 300;
+
+            final bool warning =
+                remainingSeconds != null &&
+                remainingSeconds > 300 &&
+                remainingSeconds <= 900;
+
+            String leftTime;
+
+            if (remainingSeconds == null) {
+              leftTime = 'Time N/A';
+            } else if (seconds >= 3600) {
+              final hours = seconds ~/ 3600;
+
+              final minutes =
+                  (seconds % 3600) ~/ 60;
+
+              leftTime = '${hours}h ${minutes}m left';
+            } else {
+              final minutes = seconds ~/ 60;
+
+              final secs = seconds % 60;
+
+              leftTime =
+                  '${minutes.toString().padLeft(2, '0')}:'
+                  '${secs.toString().padLeft(2, '0')} left';
+            }
+
+            final Color badgeColor = closed
+                ? const Color(0xFFFFE3E3)
+                : warning
+                    ? const Color(0xFFFFEACC)
+                    : const Color(0xFFE1F5E8);
+
+            final Color textColor = closed
+                ? const Color(0xFFD32F2F)
+                : warning
+                    ? const Color(0xFFB45309)
+                    : const Color(0xFF16813C);
+
+            return Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 7,
+              ),
+              decoration: BoxDecoration(
+                color: badgeColor,
+                borderRadius:
+                    BorderRadius.circular(12),
+                border: Border.all(
+                  color: textColor.withOpacity(0.25),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    closed
+                        ? Icons.lock_clock
+                        : Icons.access_time,
+                    size: 16,
+                    color: textColor,
+                  ),
+
+                  const SizedBox(width: 5),
+
+                  Text(
+                    leftTime,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  ),
+),
           ],
         ),
       ),
