@@ -12312,10 +12312,6 @@ class TeamPage
           _TeamPageState();
 }
 
-  @override
-  State<TeamPage> createState() => _TeamPageState();
-}
-
 class _TeamPageState extends State<TeamPage> {
   String selectedRole = 'ALL';
 Timer? teamLiveTimer;
