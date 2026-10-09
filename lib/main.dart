@@ -10669,17 +10669,25 @@ int totalTeamStat(
     final players =
         selectedTeam == 0 ? team1Players : team2Players;
 
-    final matchStats =
+    final matchStats =totalTeamStat(team2Players, matchStats, 'runs');
         savedPlayerStats[matchKey] ?? {};
  final team1Runs =
     totalTeamStat(team1Players, matchStats, 'runs');
     final team2Runs =
     totalTeamStat(team2Players, matchStats, 'runs');
 final team1Wickets =
-    totalTeamStat(team1Players, matchStats, 'wickets');
+    totalTeamStat(
+      team2Players,
+      matchStats,
+      'wickets',
+    );
 
 final team2Wickets =
-    totalTeamStat(team2Players, matchStats, 'wickets');
+    totalTeamStat(
+      team1Players,
+      matchStats,
+      'wickets',
+    );
     final latestAdminMatch = adminMatches.value.where(
   (m) =>
       m['team1'] == widget.match.team1 &&
@@ -11252,39 +11260,53 @@ int get team2LiveScore {
 
   return total;
 }
-  int get team1Wickets {
-  int total = 0;
-  final stats = savedPlayerStats[currentMatchKey] ?? {};
+    int get team1Wickets {
+    int total = 0;
+    final stats =
+        savedPlayerStats[currentMatchKey] ?? {};
 
-  for (final entry in stats.entries) {
-    final playerName = entry.key.split('|').first.trim();
+    for (final entry in stats.entries) {
+      final playerName =
+          entry.key.split('|').first.trim();
 
-    if (widget.match.team1Players
-        .split(',')
-        .any((p) => p.split('|').first.trim() == playerName)) {
-      total += entry.value['wickets'] ?? 0;
+      if (widget.match.team2Players
+          .split(',')
+          .any(
+            (p) =>
+                p.split('|').first.trim() ==
+                playerName,
+          )) {
+        total +=
+            entry.value['wickets'] ?? 0;
+      }
     }
+
+    return total;
   }
 
-  return total;
-}
+  int get team2Wickets {
+    int total = 0;
+    final stats =
+        savedPlayerStats[currentMatchKey] ?? {};
 
-int get team2Wickets {
-  int total = 0;
-  final stats = savedPlayerStats[currentMatchKey] ?? {};
+    for (final entry in stats.entries) {
+      final playerName =
+          entry.key.split('|').first.trim();
 
-  for (final entry in stats.entries) {
-    final playerName = entry.key.split('|').first.trim();
-
-    if (widget.match.team2Players
-        .split(',')
-        .any((p) => p.split('|').first.trim() == playerName)) {
-      total += entry.value['wickets'] ?? 0;
+      if (widget.match.team1Players
+          .split(',')
+          .any(
+            (p) =>
+                p.split('|').first.trim() ==
+                playerName,
+          )) {
+        total +=
+            entry.value['wickets'] ?? 0;
+      }
     }
-  }
 
-  return total;
-}
+    return total;
+  }
   String get currentMatchKey {
   final parts = widget.match.time.split(' • ');
 
@@ -12552,27 +12574,28 @@ void dispose() {
               },
             ),
           ),
-          SafeArea(
-  top: false,
-  minimum:
-      const EdgeInsets.only(
-    bottom: 8,
-  ),
-  child: Padding(
-            padding: const EdgeInsets.all(12),
+                    Padding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              12,
+              12,
+              MediaQuery.of(context).viewPadding.bottom + 12,
+            ),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-  backgroundColor: const Color(0xFFE85D5D),
-  foregroundColor: Colors.white,
-),
-                onPressed: widget.selected.length == 11 ? continueTeam : null,
+                  backgroundColor: const Color(0xFFE85D5D),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed:
+                    widget.selected.length == 11
+                        ? continueTeam
+                        : null,
                 child: const Text('CONTINUE'),
               ),
             ),
-            ),
-),
+          ),
         ],
       ),
     );
@@ -12744,32 +12767,32 @@ void initState() {
               },
             ),
           ),
-          SafeArea(
-  top: false,
-  minimum:
-      const EdgeInsets.only(
-    bottom: 8,
-  ),
-  child: Padding(
-            padding: const EdgeInsets.all(12),
+                    Padding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              12,
+              12,
+              MediaQuery.of(context).viewPadding.bottom + 12,
+            ),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: save,
                 style: ElevatedButton.styleFrom(
-  backgroundColor: const Color(0xFFE85D5D),
-  foregroundColor: Colors.white,
-  padding: const EdgeInsets.symmetric(vertical: 15),
-  textStyle: const TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.bold,
-  ),
-),
+                  backgroundColor: const Color(0xFFE85D5D),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 15,
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 child: const Text('SAVE TEAM'),
               ),
             ),
-            ),
-),
+          ),
         ],
       ),
     );
@@ -42528,8 +42551,8 @@ for (final player in team2PlayerNames) {
 
     m.team1Score = team1Runs;
     m.team2Score = team2Runs;
-    m.team1Wickets = team1Wickets;
-    m.team2Wickets = team2Wickets;
+    m.team1Wickets = team2Wickets;
+    m.team2Wickets = team1Wickets;
     
 if (completeMatchNow) {
   m.status = 'COMPLETED';
@@ -42560,11 +42583,11 @@ final updatedAdminMatches =
 
 for (final adminMatch in updatedAdminMatches) {
   if (adminMatch['team1'] == match['team1'] &&
-      adminMatch['team2'] == match['team2']) {
+    adminMatch['team2'] == match['team2']) {
     adminMatch['team1Score'] = team1Runs.toString();
     adminMatch['team2Score'] = team2Runs.toString();
-    adminMatch['team1Wickets'] = team1Wickets.toString();
-adminMatch['team2Wickets'] = team2Wickets.toString();
+    adminMatch['team1Wickets'] = team2Wickets.toString();
+    adminMatch['team2Wickets'] = team1Wickets.toString();
     if (completeMatchNow) {
   adminMatch['currentStatus'] = 'COMPLETED';
   adminMatch['status'] = 'COMPLETED';
