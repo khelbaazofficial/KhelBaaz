@@ -42281,13 +42281,30 @@ selectAllOnFocus: false,
                   player.split('|').first.trim();
 
               final isTeam1 =
-                  team1PlayerNames.contains(cleanName);
+    team1PlayerNames.contains(cleanName);
 
-              final playerColor =
-                  isTeam1 ? team1Color : team2Color;
+final playerColor =
+    isTeam1 ? team1Color : team2Color;
 
-              return Row(
-                children: [
+// ✅ दोनों teams के बीच clear gap
+bool showTeamGap = false;
+
+if (index > 0) {
+  final previousPlayer = allPlayers[index - 1];
+  final previousCleanName =
+      previousPlayer.split('|').first.trim();
+
+  final previousIsTeam1 =
+      team1PlayerNames.contains(previousCleanName);
+
+  showTeamGap = previousIsTeam1 != isTeam1;
+}
+  children: [
+    if (showTeamGap)
+      const SizedBox(height: 14),
+
+    Row(
+      children: [
                   Expanded(
                     flex: 3,
                     child: Container(
@@ -42352,8 +42369,13 @@ selectAllOnFocus: false,
                   ),
 
                   
-                ],
-              );
+                               ],
+              ),
+
+    if (showTeamGap)
+      const SizedBox(height: 6),
+  ],
+);
             },
           ),
         ),
