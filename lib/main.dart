@@ -10669,25 +10669,20 @@ int totalTeamStat(
     final players =
         selectedTeam == 0 ? team1Players : team2Players;
 
-    final matchStats =totalTeamStat(team2Players, matchStats, 'runs');
-        savedPlayerStats[matchKey] ?? {};
- final team1Runs =
+    final matchStats =
+    savedPlayerStats[matchKey] ?? {};
+
+final team1Runs =
     totalTeamStat(team1Players, matchStats, 'runs');
-    final team2Runs =
+
+final team2Runs =
     totalTeamStat(team2Players, matchStats, 'runs');
+
 final team1Wickets =
-    totalTeamStat(
-      team2Players,
-      matchStats,
-      'wickets',
-    );
+    totalTeamStat(team2Players, matchStats, 'wickets');
 
 final team2Wickets =
-    totalTeamStat(
-      team1Players,
-      matchStats,
-      'wickets',
-    );
+    totalTeamStat(team1Players, matchStats, 'wickets');
     final latestAdminMatch = adminMatches.value.where(
   (m) =>
       m['team1'] == widget.match.team1 &&
