@@ -42996,7 +42996,7 @@ liveDuration: editedMinutes > 0
     : j.liveDuration,
 completedAt: newStatus == 'COMPLETED'
     ? (j.completedAt ?? DateTime.now())
-    : j.completedAt,contestName: j.contestName,
+    : j.completedAt,
 winner: j.winner,
       team1Score: j.team1Score,
       team2Score: j.team2Score,
