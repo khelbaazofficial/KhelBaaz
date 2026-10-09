@@ -42302,7 +42302,42 @@ if (index > 0) {
               return Column(
   children: [
     if (showTeamGap)
-      const SizedBox(height: 14),
+  Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              color: const Color(0xFF667085),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            'VS',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF667085),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              color: const Color(0xFF667085),
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
 
     Row(
       children: [
