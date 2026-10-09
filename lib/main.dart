@@ -9495,7 +9495,10 @@ team2Flag: (m['team2Logo'] ?? '').isNotEmpty
     : '🏏',
       title: '${m['team1'] ?? ''} vs ${m['team2'] ?? ''}',
       time: '${m['date'] ?? ''} • ${m['time'] ?? ''}',
-      status: m['status'] ?? 'UPCOMING',
+      status:
+    m['currentStatus'] ??
+    m['status'] ??
+    'UPCOMING',
       startTime: _adminDateTime(
   m['date'] ?? '',
   m['time'] ?? '',
@@ -10679,10 +10682,10 @@ final team2Runs =
     totalTeamStat(team2Players, matchStats, 'runs');
 
 final team1Wickets =
-    totalTeamStat(team2Players, matchStats, 'wickets');
+    totalTeamStat(team1Players, matchStats, 'wickets');
 
 final team2Wickets =
-    totalTeamStat(team1Players, matchStats, 'wickets');
+    totalTeamStat(team2Players, matchStats, 'wickets');
     final latestAdminMatch = adminMatches.value.where(
   (m) =>
       m['team1'] == widget.match.team1 &&
@@ -11264,7 +11267,7 @@ int get team2LiveScore {
       final playerName =
           entry.key.split('|').first.trim();
 
-      if (widget.match.team2Players
+      if (widget.match.team1Players
           .split(',')
           .any(
             (p) =>
@@ -11288,7 +11291,7 @@ int get team2LiveScore {
       final playerName =
           entry.key.split('|').first.trim();
 
-      if (widget.match.team1Players
+      if (widget.match.team2Players
           .split(',')
           .any(
             (p) =>
@@ -15536,7 +15539,11 @@ return MatchModel(
               '${adminMatch['time'] ?? ''}'
           : (adminMatch['time'] ??
               joinedMatch.time),
-  status: joinedMatch.status,
+  status:
+    (adminMatch['currentStatus'] ??
+            adminMatch['status'] ??
+            joinedMatch.status)
+        .toString(),
   userPoints: joinedMatch.userPoints,
   startTime: newStartTime ?? joinedMatch.startTime,
   liveDuration: Duration(minutes: newDurationMinutes),
@@ -25263,10 +25270,12 @@ class _AdminPlayerStatsPageState
     Map<String, dynamic> match,
   ) {
     final savedStatus =
-        (match['status'] ?? '')
-            .toString()
-            .trim()
-            .toUpperCase();
+    (match['currentStatus'] ??
+            match['status'] ??
+            '')
+        .toString()
+        .trim()
+        .toUpperCase();
 
     if (savedStatus ==
         'COMPLETED') {
@@ -30295,10 +30304,12 @@ String contestStatus(
       contestMatchData(contest);
 
   final savedStatus =
-      (data['status'] ?? '')
-          .toString()
-          .trim()
-          .toUpperCase();
+    (data['currentStatus'] ??
+            data['status'] ??
+            '')
+        .toString()
+        .trim()
+        .toUpperCase();
 
   if (savedStatus == 'COMPLETED') {
     return 'COMPLETED';
@@ -40688,41 +40699,82 @@ void dispose() {
   bool changed = false;
 
   final updated = adminMatches.value.map((match) {
-    final startTime = _parseMatchDateTime(
-      match['date'] ?? '',
-      match['time'] ?? '',
-    );
+  final savedStatus =
+      (match['currentStatus'] ??
+              match['status'] ??
+              '')
+          .trim()
+          .toUpperCase();
 
-    if (startTime == null) return match;
-
-    final durationMinutes =
-    int.tryParse(match['durationMinutes'] ?? '180') ?? 180;
-
-final endTime = startTime.add(
-  Duration(minutes: durationMinutes),
-);
-
-    String newStatus;
-
-    if (now.isBefore(startTime)) {
-      newStatus = 'UPCOMING';
-    } else if (now.isBefore(endTime)) {
-      newStatus = 'LIVE';
-    } else {
-      newStatus = 'COMPLETED';
-    }
-
-    if (match['status'] != newStatus) {
+  // Complete Now के बाद timer match को वापस LIVE नहीं करेगा.
+  if (savedStatus == 'COMPLETED') {
+    if (match['status'] != 'COMPLETED' ||
+        match['currentStatus'] != 'COMPLETED') {
       changed = true;
 
       return <String, String>{
         ...match,
-        'status': newStatus,
+        'status': 'COMPLETED',
+        'currentStatus': 'COMPLETED',
       };
     }
 
     return match;
-  }).toList();
+  }
+
+  final startTime = _parseMatchDateTime(
+    match['date'] ?? '',
+    match['time'] ?? '',
+  );
+
+  if (startTime == null) return match;
+
+  final durationMinutes =
+      int.tryParse(
+        match['durationMinutes'] ?? '180',
+      ) ??
+      180;
+
+  final endTime = startTime.add(
+    Duration(minutes: durationMinutes),
+  );
+
+  String newStatus;
+
+  if (now.isBefore(startTime)) {
+    newStatus = 'UPCOMING';
+  } else if (now.isBefore(endTime)) {
+    newStatus = 'LIVE';
+  } else {
+    newStatus = 'COMPLETED';
+  }
+
+  final statusChanged =
+      match['status'] != newStatus ||
+      match['currentStatus'] != newStatus;
+
+  if (!statusChanged) {
+    return match;
+  }
+
+  changed = true;
+
+  final updatedMatch = <String, String>{
+    ...match,
+    'status': newStatus,
+    'currentStatus': newStatus,
+  };
+
+  if (newStatus == 'COMPLETED' &&
+      (updatedMatch['completedAt'] ?? '')
+          .trim()
+          .isEmpty) {
+    updatedMatch['completedAt'] =
+        endTime.toIso8601String();
+  }
+
+  return updatedMatch;
+}).toList();
 
   if (changed) {
   adminMatches.value = updated;
@@ -40760,7 +40812,10 @@ final endTime = startTime.add(
         (admin['time'] ?? '').trim().isNotEmpty
     ? '${admin['date']!.trim()} • ${admin['time']!.trim()}'
     : joined.time,
-      status: admin['status'] ?? joined.status,
+      status:
+    admin['currentStatus'] ??
+    admin['status'] ??
+    joined.status,
       userPoints: joined.userPoints,
       startTime: newStartTime ?? joined.startTime,
       liveDuration: Duration(minutes: durationMinutes),
@@ -42544,10 +42599,10 @@ for (final player in team2PlayerNames) {
   if (m.team1 == match['team1'] &&
       m.team2 == match['team2']) {
 
-    m.team1Score = team1Runs;
-    m.team2Score = team2Runs;
-    m.team1Wickets = team2Wickets;
-    m.team2Wickets = team1Wickets;
+m.team1Score = team1Runs;
+m.team2Score = team2Runs;
+m.team1Wickets = team1Wickets;
+m.team2Wickets = team2Wickets;
     
 if (completeMatchNow) {
   m.status = 'COMPLETED';
@@ -42580,12 +42635,18 @@ for (final adminMatch in updatedAdminMatches) {
   if (adminMatch['team1'] == match['team1'] &&
     adminMatch['team2'] == match['team2']) {
     adminMatch['team1Score'] = team1Runs.toString();
-    adminMatch['team2Score'] = team2Runs.toString();
-    adminMatch['team1Wickets'] = team2Wickets.toString();
-    adminMatch['team2Wickets'] = team1Wickets.toString();
-    if (completeMatchNow) {
+adminMatch['team2Score'] = team2Runs.toString();
+adminMatch['team1Wickets'] = team1Wickets.toString();
+adminMatch['team2Wickets'] = team2Wickets.toString();
+
+if (completeMatchNow) {
   adminMatch['currentStatus'] = 'COMPLETED';
   adminMatch['status'] = 'COMPLETED';
+
+  if ((adminMatch['completedAt'] ?? '').trim().isEmpty) {
+    adminMatch['completedAt'] =
+        DateTime.now().toIso8601String();
+  }
 }
     final currentStatus =
     adminMatch['currentStatus'] ??
@@ -42935,7 +42996,7 @@ liveDuration: editedMinutes > 0
     : j.liveDuration,
 completedAt: newStatus == 'COMPLETED'
     ? (j.completedAt ?? DateTime.now())
-    : j.completedAt,
+    : j.completedAt,contestName: j.contestName,
 winner: j.winner,
       team1Score: j.team1Score,
       team2Score: j.team2Score,
@@ -42990,9 +43051,11 @@ joinedMatches.value = syncedJoinedMatches;
       Map<String, String> match,
     ) {
       final savedStatus =
-          (match['status'] ?? '')
-              .trim()
-              .toUpperCase();
+    (match['currentStatus'] ??
+            match['status'] ??
+            '')
+        .trim()
+        .toUpperCase();
 
       if (savedStatus == 'COMPLETED') {
         return 'COMPLETED';
