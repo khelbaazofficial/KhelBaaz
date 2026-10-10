@@ -3543,68 +3543,45 @@ Future<void>
 // SAVE USER GAME STATE + OPTIONAL JOIN RECORD
 // ======================================================
 
-Future<bool>
-    _saveUserContestStateToFirebase(
+Future<bool> _saveUserContestStateToFirebase(
   String uid, {
-  Map<String, dynamic>?
-      joinRecord,
+  Map<String, dynamic>? joinRecord,
+  bool teamOnly = false,
+  DateTime? lockAt,
 }) async {
-  final firestore =
-      FirebaseFirestore.instance;
-
-  final userRef =
-      firestore
-          .collection('users')
-          .doc(uid);
+  final firestore = FirebaseFirestore.instance;
+  final userRef = firestore.collection('users').doc(uid);
 
   try {
-    final batch =
-        firestore.batch();
+    if (lockAt != null && !DateTime.now().isBefore(lockAt)) {
+      throw StateError('Match join/edit time expired');
+    }
 
-    batch.set(
-      userRef,
-      {
-        'walletBalance':
-            walletBalance.value,
+    final batch = firestore.batch();
 
-        'transactionHistory':
-            transactionHistory.value,
+    final data = <String, dynamic>{
+      'joinedContests':
+          joinedContests.value.map(_userContestToFirebase).toList(),
+      'savedTeamsData': _userSavedTeamsForFirebase(),
+      'contestDataUpdatedAt': FieldValue.serverTimestamp(),
+    };
 
-        'joinedContests':
-            joinedContests.value
-                .map(
-                  _userContestToFirebase,
-                )
-                .toList(),
-
+    if (!teamOnly) {
+      data.addAll({
+        'walletBalance': walletBalance.value,
+        'transactionHistory': transactionHistory.value,
         'joinedMatches':
-            joinedMatches.value
-                .map(
-                  _userMatchToFirebase,
-                )
-                .toList(),
-
-        'savedTeamsData':
-            _userSavedTeamsForFirebase(),
-
+            joinedMatches.value.map(_userMatchToFirebase).toList(),
         'joinedContestsCount':
-    _userJoinedCountFromHistory(
-      transactionHistory.value,
-    ),
-
+            _userJoinedCountFromHistory(transactionHistory.value),
         'totalEntryAmount':
-            _userTotalEntryFromHistory(
-          transactionHistory.value,
-        ),
+            _userTotalEntryFromHistory(transactionHistory.value),
+      });
+    }
 
-        'contestDataUpdatedAt':
-            FieldValue
-                .serverTimestamp(),
-      },
-      SetOptions(
-        merge: true,
-      ),
-    );
+    batch.set(userRef, data, SetOptions(merge: true));
+
+        
 
     if (joinRecord != null) {
       final contestId =
@@ -11910,7 +11887,7 @@ initialViceCaptain: viceCaptain,
 
   draftTeams.value = drafts;
 
-  Navigator.pop(context);
+     return true;
 },
         ),
       ),
@@ -11931,7 +11908,7 @@ initialViceCaptain: viceCaptain,
     );
   }
 
-  void openContests() {
+    void openContests({bool allowJoinedTeamEdit = false}) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -11941,7 +11918,8 @@ initialViceCaptain: viceCaptain,
           viceCaptain: viceCaptain,
           selected: selected,
           match: widget.match,
-          matchKey: currentAdminMatchKey,
+                    matchKey: currentAdminMatchKey,
+          allowJoinedTeamEdit: allowJoinedTeamEdit,
         ),
       ),
     );
@@ -12147,7 +12125,7 @@ else if (widget.match.currentStatus == 'COMPLETED')
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: openContests,
+                            onPressed: () => openContests(allowJoinedTeamEdit: true),
               icon: const Icon(Icons.emoji_events),
               label: const Text(
                 'VIEW CONTESTS',
@@ -12471,11 +12449,7 @@ class TeamPage
   final List<Player> players;
   final List<Player> selected;
 
-  final Function(
-    Player captain,
-    Player viceCaptain,
-  ) onSave;
-
+    final FutureOr<bool> Function(Player, Player) onSave;
   final Player? initialCaptain;
   final Player? initialViceCaptain;
 
@@ -12624,31 +12598,26 @@ void dispose() {
     return true;
   }
 
-  void continueTeam() {
-    if (!validateTeam()) {
-      return;
-    }
+    Future<void> continueTeam() async {
+    if (!validateTeam()) return;
 
-    Navigator.push(
+    final saved = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            CaptainPage(
-  selected:
-      widget.selected,
-  initialCaptain:
-      widget.initialCaptain,
-  initialViceCaptain:
-      widget.initialViceCaptain,
-  isEditing:
-      widget.isEditing,
-  onSave:
-      widget.onSave,
-),
+        builder: (_) => CaptainPage(
+          selected: widget.selected,
+          initialCaptain: widget.initialCaptain,
+          initialViceCaptain: widget.initialViceCaptain,
+          isEditing: widget.isEditing,
+          onSave: widget.onSave,
+        ),
       ),
     );
-  }
 
+    if (!mounted || saved != true) return;
+
+    Navigator.pop(context, true);
+    }
   @override
   Widget build(BuildContext context) {
     final filteredPlayers = selectedRole == 'ALL'
@@ -12843,10 +12812,7 @@ class CaptainPage
     extends StatefulWidget {
   final List<Player> selected;
 
-  final void Function(
-    Player,
-    Player,
-  ) onSave;
+    final FutureOr<bool> Function(Player, Player) onSave;
 
   final Player? initialCaptain;
   final Player? initialViceCaptain;
@@ -12869,25 +12835,71 @@ class CaptainPage
 class _CaptainPageState extends State<CaptainPage> {
   Player? captain;
   Player? viceCaptain;
-@override
-void initState() {
-  super.initState();
+  bool _saving = false;
 
-  captain = widget.initialCaptain;
-  viceCaptain = widget.initialViceCaptain;
-}
-  void save() {
-    if (captain == null || viceCaptain == null) {
+  @override
+  void initState() {
+    super.initState();
+
+    for (final player in widget.selected) {
+      if (player.name == widget.initialCaptain?.name) {
+        captain = player;
+      }
+
+      if (player.name == widget.initialViceCaptain?.name) {
+        viceCaptain = player;
+      }
+    }
+
+    if (captain?.name == viceCaptain?.name) {
+      viceCaptain = null;
+    }
+  }
+
+  Future<void> save() async {
+    if (_saving) return;
+
+    final valid = widget.selected.length == 11 &&
+        captain != null &&
+        viceCaptain != null &&
+        captain!.name != viceCaptain!.name &&
+        widget.selected.any((p) => p.name == captain!.name) &&
+        widget.selected.any((p) => p.name == viceCaptain!.name);
+
+    if (!valid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Captain और Vice Captain चुनें')),
+        const SnackBar(
+          content: Text(
+            'Selected 11 में अलग Captain और Vice Captain चुनें',
+          ),
+        ),
       );
-
       return;
     }
 
-    widget.onSave(captain!, viceCaptain!);
+    setState(() => _saving = true);
 
-    Navigator.pop(context);
+    try {
+      final saved = await widget.onSave(captain!, viceCaptain!);
+
+      if (!mounted) return;
+
+      if (saved) {
+        Navigator.pop(context, true);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Team save नहीं हुई • फिर try करें'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
   }
 
   @override
@@ -12995,7 +13007,7 @@ void initState() {
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: save,
+                                onPressed: _saving ? null : save,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFE85D5D),
                   foregroundColor: Colors.white,
@@ -13236,7 +13248,8 @@ class ContestPage extends StatelessWidget {
   final Player? viceCaptain;
   final List<Player> selected;
   final MatchModel match;
-  final String matchKey;
+    final String matchKey;
+  final bool allowJoinedTeamEdit;
 
   ContestPage({
     super.key,
@@ -13246,6 +13259,7 @@ class ContestPage extends StatelessWidget {
     required this.selected,
     required this.match,
     required this.matchKey,
+    this.allowJoinedTeamEdit = false,
   });
   
 double get totalPoints {
@@ -13807,8 +13821,12 @@ return parts
 
   final saved =
       await _saveUserContestStateToFirebase(
-    user.uid,
-    joinRecord: {
+        user.uid,
+    lockAt: joinLockTime,
+        joinRecord: {
+      'templateContestIndex': createdContests.indexWhere(
+        (c) => (c['id'] ?? '').toString() == contestId,
+      ),
   'contestId':
       joinedContestId,
 
@@ -14147,8 +14165,10 @@ Future<void>
         onSave:
             (newCaptain,
                 newViceCaptain) async {
-          // Save दबाते समय
-          // दोबारा lock check.
+                    final draftsBeforeSave =
+              Map<String, Map<String, dynamic>>.from(draftTeams.value);
+
+          // Save पर cutoff दोबारा जाँचें.
           if (match.currentStatus !=
                   'UPCOMING' ||
               !DateTime.now()
@@ -14164,7 +14184,7 @@ Future<void>
                 ),
               ),
             );
-            return;
+                        return false;
           }
 
           final updatedContests =
@@ -14342,45 +14362,31 @@ Future<void>
             }
           }
 
-          // केवल team data save होगा.
-          // Wallet / entry transaction untouched.
-          final saved =
-              await _saveUserContestStateToFirebase(
+                    final saved = await _saveUserContestStateToFirebase(
             user.uid,
+            teamOnly: true,
+            lockAt: lockTime,
           );
 
-          if (!context.mounted) {
-            return;
+          if (!saved) {
+            draftTeams.value = draftsBeforeSave;
           }
 
-          if (!saved) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(
-              const SnackBar(
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
                 content: Text(
-                  'Team update save नहीं हुआ • फिर try करें',
+                  saved
+                      ? 'Team updated successfully ✓'
+                      : 'Team save नहीं हुई / समय समाप्त • फिर जाँचें',
                 ),
               ),
             );
-            return;
           }
 
-          // Captain page अपने आप pop होगी.
-          // यह TeamPage को close करेगा.
-          Navigator.pop(
-            context,
-          );
+          return saved;
 
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Team updated successfully ✓',
-              ),
-            ),
-          );
+          
         },
       ),
     ),
@@ -14709,7 +14715,7 @@ matchStartTime:
     match.startTime,
 
 onEditTeam:
-    alreadyJoined &&
+        allowJoinedTeamEdit && alreadyJoined &&
             match.currentStatus ==
                 'UPCOMING'
         ? () {
@@ -15085,7 +15091,13 @@ final bool joinClosed =
       );
     }
 
-    // Contest already joined
+        if (onEditTeam == null) {
+      return const Chip(
+        avatar: Icon(Icons.check, color: Colors.white, size: 16),
+        label: Text('JOINED', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.black,
+      );
+    }
     return Column(
       mainAxisSize:
           MainAxisSize.min,
@@ -15502,9 +15514,10 @@ const SizedBox(height: 10),
                         ? 0
                         : remainingSeconds;
 
-            final bool closed =
-                remainingSeconds == null ||
-                remainingSeconds <= 300;
+                        final bool closed = matchStartTime == null ||
+                !DateTime.now().isBefore(
+                  matchStartTime!.subtract(const Duration(minutes: 5)),
+                );
 
             final bool warning =
                 remainingSeconds != null &&
