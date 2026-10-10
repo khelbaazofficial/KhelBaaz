@@ -10521,8 +10521,24 @@ final safeRemaining =
 ), 
               const SizedBox(height: 15),
             
+                            if (match.currentStatus == 'UPCOMING' &&
+                  match.startTime != null &&
+                  safeRemaining != null &&
+                  safeRemaining <= const Duration(hours: 12)) ...[
+                Text(
+                  'Match starts: ${match.startTime!.toLocal().day.toString().padLeft(2, '0')}/'
+                  '${match.startTime!.toLocal().month.toString().padLeft(2, '0')} • '
+                  '${TimeOfDay.fromDateTime(match.startTime!.toLocal()).format(context)}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
               if (match.currentStatus == 'UPCOMING' &&
-    safeRemaining != null)
+                  safeRemaining != null)
   safeRemaining <= const Duration(hours: 12)
       ? Text(
           'Starts in '
@@ -12125,10 +12141,12 @@ else if (widget.match.currentStatus == 'COMPLETED')
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-                            onPressed: () => openContests(allowJoinedTeamEdit: true),
+                                          onPressed: () => openContests(
+                allowJoinedTeamEdit: true,
+              ),
               icon: const Icon(Icons.emoji_events),
               label: const Text(
-                'VIEW CONTESTS',
+                'VIEW CONTESTS • EDIT TEAM',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                 ),
@@ -14396,7 +14414,17 @@ Future<void>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Contests')),
+            appBar: AppBar(
+        title: Text(
+          allowJoinedTeamEdit
+              ? 'View Contests'
+              : 'Join Contests',
+        ),
+        backgroundColor: allowJoinedTeamEdit
+            ? const Color(0xFFB84353)
+            : const Color(0xFF2563EB),
+        foregroundColor: Colors.white,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -14451,29 +14479,48 @@ BorderRadius.circular(16),
   },
 ),
 const SizedBox(height: 16),
-           Text.rich(
-  TextSpan(
-    children: [
-      TextSpan(
-        text:
-    '${match.team1} vs ${match.team2} • ${match.matchFormat}',
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF7A3E48),
-        ),
-      ),
-      const TextSpan(
-        text: ' • Available Contests',
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF2E7D6B),
-        ),
-      ),
-    ],
+           Text(
+  '${match.team1} vs ${match.team2} • ${match.matchFormat}',
+  style: const TextStyle(
+    fontSize: 17,
+    fontWeight: FontWeight.bold,
+    color: Color(0xFF7A3E48),
   ),
 ),
+const SizedBox(height: 6),
+const Text(
+  'Available Contests',
+  style: TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.bold,
+    color: Color(0xFF2E7D6B),
+  ),
+),
+if (!allowJoinedTeamEdit)
+  TextButton.icon(
+    icon: const Icon(
+      Icons.edit_outlined,
+      size: 18,
+    ),
+    label: const Text(
+      'Joined team edit करने के लिए View Contests खोलें →',
+    ),
+    onPressed: () => Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ContestPage(
+          teamSaved: false,
+          captain: null,
+          viceCaptain: null,
+          selected: <Player>[],
+          match: match,
+          matchKey: matchKey,
+          allowJoinedTeamEdit: true,
+        ),
+      ),
+    ),
+  ),
+const SizedBox(height: 6),
 ValueListenableBuilder<int>(
   valueListenable:
       createdContestsVersion,
@@ -15107,8 +15154,8 @@ final bool joinClosed =
         Container(
           padding:
               const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 9,
+                        horizontal: 14,
+            vertical: 4,
           ),
           decoration:
               BoxDecoration(
@@ -15141,7 +15188,7 @@ final bool joinClosed =
           ),
         ),
 
-        const SizedBox(height: 7),
+                const SizedBox(height: 2),
 
         SizedBox(
           height: 36,
@@ -15449,8 +15496,7 @@ SizedBox(
     ),
   ),
 
-const SizedBox(height: 10),      
-                      
+const SizedBox(height: 4),
             SizedBox(
   width: double.infinity,
   child: Stack(
@@ -15458,16 +15504,21 @@ const SizedBox(height: 10),
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            totalSpots > 0
-                ? '$joinedCount/$totalSpots Joined'
-                : spots,
+                    Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            children: [
+              Text(
+                totalSpots > 0
+                    ? '$joinedCount/$totalSpots Joined'
+                    : spots,
+              ),
+              if (totalSpots > 0)
+                Text('$spotsLeft Spots Left'),
+            ],
           ),
-
-          const SizedBox(height: 6),
-
           if (totalSpots > 0) ...[
-            Text('$spotsLeft Spots Left'),
+            const SizedBox(height: 24),
 
             const SizedBox(height: 6),
 
