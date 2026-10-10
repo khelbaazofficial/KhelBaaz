@@ -9214,6 +9214,177 @@ Future<bool>
 // SAVE MATCHES + PLAYER STATS TO FIREBASE
 // ======================================================
 
+// ==============================================
+// ADMIN MATCH JOIN / EDIT LOCK TIMES
+// ==============================================
+
+Map<String, dynamic>
+    _matchJoinLocksFromAdminMatches(
+  List<Map<String, String>> matches,
+) {
+  const months = <String, int>{
+    'jan': 1,
+    'feb': 2,
+    'mar': 3,
+    'apr': 4,
+    'may': 5,
+    'jun': 6,
+    'jul': 7,
+    'aug': 8,
+    'sep': 9,
+    'oct': 10,
+    'nov': 11,
+    'dec': 12,
+  };
+
+  final locks = <String, dynamic>{};
+
+  for (final match in matches) {
+    final team1 =
+        (match['team1'] ?? '').trim();
+
+    final team2 =
+        (match['team2'] ?? '').trim();
+
+    final date =
+        (match['date'] ?? '').trim();
+
+    final time =
+        (match['time'] ?? '').trim();
+
+    if (team1.isEmpty ||
+        team2.isEmpty ||
+        date.isEmpty ||
+        time.isEmpty) {
+      continue;
+    }
+
+    try {
+      final dateParts = date.contains('/')
+          ? date.split('/')
+          : date.split(RegExp(r'\s+'));
+
+      if (dateParts.length != 3) {
+        continue;
+      }
+
+      final day =
+          int.parse(dateParts[0]);
+
+      final int? month = date.contains('/')
+          ? int.parse(dateParts[1])
+          : months[
+              dateParts[1]
+                  .substring(0, 3)
+                  .toLowerCase()
+            ];
+
+      if (month == null) {
+        continue;
+      }
+
+      final year =
+          int.parse(dateParts[2]);
+
+      final timeText =
+          time.toUpperCase();
+
+      final isPM =
+          timeText.contains('PM');
+
+      final isAM =
+          timeText.contains('AM');
+
+      final cleanTime = timeText
+          .replaceAll('AM', '')
+          .replaceAll('PM', '')
+          .trim();
+
+      final timeParts =
+          cleanTime.split(':');
+
+      int hour =
+          int.parse(timeParts[0]);
+
+      final minute =
+          timeParts.length > 1
+              ? int.parse(timeParts[1])
+              : 0;
+
+      if (minute < 0 || minute > 59) {
+        continue;
+      }
+
+      if (isAM || isPM) {
+        if (hour < 1 || hour > 12) {
+          continue;
+        }
+
+        if (isPM && hour != 12) {
+          hour += 12;
+        }
+
+        if (isAM && hour == 12) {
+          hour = 0;
+        }
+      } else {
+        if (hour < 0 || hour > 23) {
+          continue;
+        }
+      }
+
+      final startTime = DateTime(
+        year,
+        month,
+        day,
+        hour,
+        minute,
+      );
+
+      if (startTime.year != year ||
+          startTime.month != month ||
+          startTime.day != day ||
+          startTime.hour != hour ||
+          startTime.minute != minute) {
+        continue;
+      }
+
+      final matchKey =
+          '${team1}_${team2}_${date}_$time';
+
+      final joinLockTime =
+          startTime.subtract(
+        const Duration(minutes: 5),
+      );
+
+      locks[matchKey] = {
+        'startAt':
+            Timestamp.fromDate(startTime),
+
+        'joinLockAt':
+            Timestamp.fromDate(joinLockTime),
+
+        'status':
+            (match['currentStatus'] ??
+                    match['status'] ??
+                    'UPCOMING')
+                .trim()
+                .toUpperCase(),
+      };
+    } catch (e) {
+      debugPrint(
+        'Match lock time error: $e',
+      );
+    }
+  }
+
+  return locks;
+}
+
+// ==============================================
+// EXISTING ADMIN MATCH SAVE FUNCTION
+// ==============================================
+
 Future<void>
     _saveAdminMatchesToFirebase()
     async {
@@ -9251,7 +9422,12 @@ Future<void>
               .toList();
 
       final currentPlayerStats =
-          _playerStatsForFirebase();
+    _playerStatsForFirebase();
+
+final currentJoinLocks =
+    _matchJoinLocksFromAdminMatches(
+  currentMatches,
+);
 
       await FirebaseFirestore.instance
           .collection('settings')
@@ -9260,8 +9436,11 @@ Future<void>
         {
           'matches': currentMatches,
 
-          'playerStats':
-              currentPlayerStats,
+'playerStats':
+    currentPlayerStats,
+
+'joinLocks':
+    currentJoinLocks,
 
           'updatedAt':
               FieldValue.serverTimestamp(),
@@ -9274,8 +9453,14 @@ Future<void>
                   '',
         },
         SetOptions(
-          merge: true,
-        ),
+  mergeFields: const [
+    'matches',
+    'playerStats',
+    'joinLocks',
+    'updatedAt',
+    'updatedBy',
+  ],
+),
       );
 
       debugPrint(
