@@ -10995,9 +10995,7 @@ final safeRemaining =
                   safeRemaining != null &&
                   safeRemaining <= const Duration(hours: 12)) ...[
                 Text(
-                  'Match starts: ${match.startTime!.toLocal().day.toString().padLeft(2, '0')}/'
-                  '${match.startTime!.toLocal().month.toString().padLeft(2, '0')} • '
-                  '${TimeOfDay.fromDateTime(match.startTime!.toLocal()).format(context)}',
+                                    'Match starts • ${TimeOfDay.fromDateTime(match.startTime!.toLocal()).format(context)}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 14,
@@ -14966,27 +14964,59 @@ const Text(
   ),
 ),
 if (!allowJoinedTeamEdit)
-  TextButton.icon(
-    icon: const Icon(
-      Icons.edit_outlined,
-      size: 18,
-    ),
-    label: const Text(
-      'Joined team edit करने के लिए View Contests खोलें →',
-    ),
-    onPressed: () => Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ContestPage(
-          teamSaved: false,
-          captain: null,
-          viceCaptain: null,
-          selected: <Player>[],
-          match: match,
-          matchKey: matchKey,
-          allowJoinedTeamEdit: true,
+  Padding(
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Joined team edit करने के लिए',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF7A3E48),
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFB84353),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 14,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          icon: const Icon(Icons.visibility_outlined),
+          label: const Text(
+            'View Contests →',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ContestPage(
+                  teamSaved: false,
+                  captain: null,
+                  viceCaptain: null,
+                  selected: <Player>[],
+                  match: match,
+                  matchKey: matchKey,
+                  allowJoinedTeamEdit: true,
+                ),
+              ),
+            );
+          },
+        ),
+      ],
     ),
   ),
 const SizedBox(height: 6),
