@@ -10866,96 +10866,33 @@ final safeRemaining =
                     child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(
-                flex: 44,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.center,
-                  child: SizedBox(
-                    width: 176,
-                    child: Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          width: 64,
-                          height: 72,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: match.currentStatus == 'LIVE'
-                                ? const Color(0xFFDDF4E8)
-                                : match.currentStatus == 'COMPLETED'
-                                    ? const Color(0xFFE9E5FF)
-                                    : const Color(0xFFFFE6DF),
-                            borderRadius:
-                                BorderRadius.circular(36),
-                            border: Border.all(
-                              color: match.currentStatus == 'LIVE'
-                                  ? const Color(0xFF71C9A3)
-                                  : match.currentStatus == 'COMPLETED'
-                                      ? const Color(0xFF9B8AE8)
-                                      : const Color(0xFFFF9C8D),
-                              width: 1.2,
-                            ),
-                          ),
-                          child: teamView(
-                            match.team1Flag,
-                            match.team1,
-                          ),
-                        ),
-                        Container(
-                          width: 34,
-                          height: 30,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF1BF),
-                            borderRadius:
-                                BorderRadius.circular(9),
-                            border: Border.all(
-                              color: const Color(0xFFFFB300),
-                              width: 1.2,
-                            ),
-                          ),
-                          child: const Text(
-                            'VS',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF8D5A00),
-                            ),
-                          ),
-                        ),
-                        Container(
-                          width: 64,
-                          height: 72,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: match.currentStatus == 'LIVE'
-                                ? const Color(0xFFDDF4E8)
-                                : match.currentStatus == 'COMPLETED'
-                                    ? const Color(0xFFE9E5FF)
-                                    : const Color(0xFFFFE6DF),
-                            borderRadius:
-                                BorderRadius.circular(36),
-                            border: Border.all(
-                              color: match.currentStatus == 'LIVE'
-                                  ? const Color(0xFF71C9A3)
-                                  : match.currentStatus == 'COMPLETED'
-                                      ? const Color(0xFF9B8AE8)
-                                      : const Color(0xFFFF9C8D),
-                              width: 1.2,
-                            ),
-                          ),
-                          child: teamView(
-                            match.team2Flag,
-                            match.team2,
-                          ),
-                        ),
-                      ],
+                            SizedBox(
+                width: 120,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    teamView(
+                      match.team1Flag,
+                      match.team1,
                     ),
-                  ),
+                    const Text(
+                      'vs',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF686363),
+                      ),
+                    ),
+                    teamView(
+                      match.team2Flag,
+                      match.team2,
+                    ),
+                  ],
                 ),
               ),
+                          
+                        
               Container(
                 width: 1,
                 height: 88,
@@ -11106,12 +11043,65 @@ else if (match.currentStatus == 'LIVE')
     );
   }
 
-  Widget teamView(String flag, String team) {
-  final cleanTeam = team.trim();
+    Widget teamView(String flag, String team) {
+    final label = shortName(team.trim());
 
-  final words = cleanTeam
-      .split(RegExp(r'\s+'))
-      .where((word) => word.isNotEmpty)
+    return SizedBox(
+      width: 48,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: match.currentStatus == 'LIVE'
+                  ? const Color(0xFFDDF4E8)
+                  : match.currentStatus == 'COMPLETED'
+                      ? const Color(0xFFE9E5FF)
+                      : const Color(0xFFFFE6DF),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: match.currentStatus == 'LIVE'
+                    ? const Color(0xFF71C9A3)
+                    : match.currentStatus == 'COMPLETED'
+                        ? const Color(0xFF9B8AE8)
+                        : const Color(0xFFFF9C8D),
+                width: 1,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(5),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  flag,
+                  style: const TextStyle(
+                    fontSize: 25,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.2,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF252222),
+            ),
+          ),
+        ],
+      ),
+    );
+    }
       .toList();
 
   String shortName;
