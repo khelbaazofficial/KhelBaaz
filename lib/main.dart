@@ -2117,7 +2117,17 @@ final resultContestId =
 
         await firestore
             .runTransaction(
-          (transaction) async {
+                    (transaction) async {
+            final retentionState = await transaction.get(
+              firestore
+                  .collection('settings')
+                  .doc('admin_matches'),
+            );
+
+            if (_retiredKeys(retentionState.data())
+                .contains(matchKey)) {
+              return;
+            }
             final freshUser =
                 await transaction.get(
               userRef,
@@ -3557,8 +3567,7 @@ Future<bool> _saveUserContestStateToFirebase(
       throw StateError('Match join/edit time expired');
     }
 
-    final batch = firestore.batch();
-
+      
     final data = <String, dynamic>{
       'joinedContests':
           joinedContests.value.map(_userContestToFirebase).toList(),
@@ -3579,45 +3588,12 @@ Future<bool> _saveUserContestStateToFirebase(
       });
     }
 
-    batch.set(userRef, data, SetOptions(merge: true));
-
-        
-
-    if (joinRecord != null) {
-      final contestId =
-          (joinRecord[
-                      'contestId'] ??
-                  '')
-              .toString()
-              .trim();
-
-      if (contestId.isEmpty) {
-        return false;
-      }
-
-      final joinRef =
-          firestore
-              .collection(
-                'contest_joins',
-              )
-              .doc(
-                '${contestId}_$uid',
-              );
-
-      batch.set(
-        joinRef,
-        {
-          ...joinRecord,
-          'contestId':
-              contestId,
-          'userId':
-              uid,
-        },
-      );
-    }
-
-    await batch.commit();
-
+        await _retentionSafeSave(
+      userRef,
+      data,
+      joinRecord: joinRecord,
+      lockAt: lockAt,
+    );
     return true;
   } catch (e) {
     debugPrint(
@@ -6991,6 +6967,434 @@ DateTime?
   }
 }
 
+bool _firebaseRetentionBusy = false;
+DateTime? _firebaseRetentionCheckedAt;
+
+Set<String> _retentionKeys(dynamic raw) {
+  if (raw is! Map) return <String>{};
+
+  final keys = <String>{};
+  final explicit =
+      (raw['matchKey'] ?? '').toString().trim();
+
+  if (explicit.isNotEmpty) keys.add(explicit);
+
+  final nested = raw['match'];
+  if (nested is Map) {
+    keys.addAll(_retentionKeys(nested));
+  }
+
+  final team1 = (raw['team1'] ?? '').toString().trim();
+  final team2 = (raw['team2'] ?? '').toString().trim();
+
+  if (team1.isEmpty || team2.isEmpty) return keys;
+
+  final date = (raw['date'] ?? '').toString().trim();
+  final time = (raw['time'] ?? '').toString().trim();
+
+  if (date.isNotEmpty && time.isNotEmpty) {
+    keys.add('${team1}_${team2}_${date}_$time');
+  }
+
+  final parts = time.split('•');
+  if (parts.length == 2) {
+    keys.add(
+      '${team1}_${team2}_'
+      '${parts[0].trim()}_${parts[1].trim()}',
+    );
+  }
+
+  final start =
+      _adminRetentionDateValue(raw['startTime'])?.toLocal();
+
+  if (start != null) {
+    final d =
+        '${start.day.toString().padLeft(2, '0')}/'
+        '${start.month.toString().padLeft(2, '0')}/'
+        '${start.year}';
+
+    final hour =
+        start.hour % 12 == 0 ? 12 : start.hour % 12;
+
+    final t =
+        '$hour:${start.minute.toString().padLeft(2, '0')} '
+        '${start.hour >= 12 ? 'PM' : 'AM'}';
+
+    keys.add('${team1}_${team2}_${d}_$t');
+  }
+
+  return keys;
+}
+
+Set<String> _retiredKeys(Map<String, dynamic>? data) {
+  final raw = data?['purgedMatchKeys'];
+
+  return raw is List
+      ? raw.map((e) => e.toString()).toSet()
+      : <String>{};
+}
+
+bool _retentionHas(dynamic raw, Set<String> keys) {
+  return _retentionKeys(raw).any(keys.contains);
+}
+
+Map<String, dynamic> _retentionPrune(
+  Map<String, dynamic> data,
+  Set<String> keys,
+) {
+  final result = Map<String, dynamic>.from(data);
+
+  for (final field in [
+    'matches',
+    'contests',
+    'joinedMatches',
+    'joinedContests',
+    'savedTeamsData',
+  ]) {
+    final raw = result[field];
+
+    if (raw is List) {
+      result[field] = raw
+          .where((item) => !_retentionHas(item, keys))
+          .toList();
+    }
+  }
+
+  for (final field in ['playerStats', 'joinLocks']) {
+    final raw = result[field];
+
+    if (raw is Map) {
+      result[field] = Map<String, dynamic>.from(raw)
+        ..removeWhere((key, value) => keys.contains(key));
+    }
+  }
+
+  return result;
+}
+
+Future<void> _retentionSafeSave(
+  DocumentReference<Map<String, dynamic>> ref,
+  Map<String, dynamic> data, {
+  Map<String, dynamic>? joinRecord,
+  DateTime? lockAt,
+}) async {
+  final db = FirebaseFirestore.instance;
+  final stateRef =
+      db.collection('settings').doc('admin_matches');
+
+  await db.runTransaction((tx) async {
+    final state = await tx.get(stateRef);
+    final keys = _retiredKeys(state.data());
+
+    if (lockAt != null &&
+        !DateTime.now().isBefore(lockAt)) {
+      throw StateError('Match join/edit time expired');
+    }
+
+    if (joinRecord != null &&
+        _retentionHas(joinRecord, keys)) {
+      throw StateError('This match has expired');
+    }
+
+    final cleaned = _retentionPrune(data, keys);
+
+    tx.set(
+      ref,
+      cleaned,
+      SetOptions(mergeFields: cleaned.keys.toList()),
+    );
+
+    if (joinRecord != null) {
+      final id =
+          (joinRecord['contestId'] ?? '').toString().trim();
+
+      if (id.isEmpty) {
+        throw StateError('Missing contest ID');
+      }
+
+      tx.set(
+        db.collection('contest_joins').doc('${id}_${ref.id}'),
+        {
+          ...joinRecord,
+          'contestId': id,
+          'userId': ref.id,
+        },
+      );
+    }
+  });
+}
+
+bool _retentionDue(Map match) {
+  final status =
+      (match['currentStatus'] ?? match['status'] ?? '')
+          .toString()
+          .trim()
+          .toUpperCase();
+
+  final completed =
+      _adminRetentionDateValue(match['completedAt']);
+
+  return status == 'COMPLETED' &&
+      completed != null &&
+      !DateTime.now().isBefore(
+        completed.add(const Duration(days: 5)),
+      );
+}
+
+Future<void> _cleanupFirebaseFiveDays() async {
+  if (_firebaseRetentionBusy) return;
+
+  final now = DateTime.now();
+
+  if (_firebaseRetentionCheckedAt != null &&
+      now.difference(_firebaseRetentionCheckedAt!) <
+          const Duration(minutes: 5)) {
+    return;
+  }
+
+  _firebaseRetentionBusy = true;
+  _firebaseRetentionCheckedAt = now;
+
+  try {
+    if (!await _currentUserCanSaveAdminMatches()) return;
+
+    final db = FirebaseFirestore.instance;
+    final matchRef =
+        db.collection('settings').doc('admin_matches');
+    final contestRef =
+        db.collection('settings').doc('admin_contests');
+
+    final initial = await matchRef.get(
+      const GetOptions(source: Source.server),
+    );
+
+    final raw = initial.data()?['matches'];
+    if (raw is! List) return;
+
+    final candidates =
+        raw.whereType<Map>().where(_retentionDue).toList();
+
+    if (candidates.isEmpty) return;
+
+    final users = await db.collection('users').get(
+      const GetOptions(source: Source.server),
+    );
+
+    final joins = await db.collection('contest_joins').get(
+      const GetOptions(source: Source.server),
+    );
+
+    for (final candidate in candidates) {
+      final keys = _retentionKeys(candidate);
+      if (keys.isEmpty) continue;
+
+      try {
+        await db.runTransaction((tx) async {
+          final matchDoc = await tx.get(matchRef);
+          final contestDoc = await tx.get(contestRef);
+
+          final matchData = matchDoc.data();
+          if (matchData == null) return;
+
+          final currentMatches = matchData['matches'];
+          if (currentMatches is! List) return;
+
+          final matching = currentMatches
+              .whereType<Map>()
+              .where((m) => _retentionHas(m, keys))
+              .toList();
+
+          if (matching.length != 1 ||
+              !_retentionDue(matching.single)) {
+            return;
+          }
+
+          bool ambiguous(dynamic item) {
+            if (item is! Map ||
+                _retentionKeys(item).isNotEmpty) {
+              return false;
+            }
+
+            final m =
+                item['match'] is Map ? item['match'] as Map : item;
+
+            return m['team1'] == candidate['team1'] &&
+                m['team2'] == candidate['team2'];
+          }
+
+          final contests = contestDoc.data()?['contests'];
+          final contestIds = <String>{};
+
+          if (contests is List) {
+            for (final c in contests.whereType<Map>()) {
+              if (ambiguous(c)) {
+                throw StateError(
+                  'Legacy contest identity missing',
+                );
+              }
+
+              if (_retentionHas(c, keys)) {
+                contestIds.add(
+                  (c['id'] ?? c['contestId'] ?? '').toString(),
+                );
+              }
+            }
+          }
+
+          contestIds.remove('');
+
+          final relatedJoins = joins.docs.where((j) {
+            final d = j.data();
+
+            return _retentionHas(d, keys) ||
+                contestIds.contains(
+                  (d['templateContestId'] ??
+                          d['contestId'] ??
+                          '')
+                      .toString(),
+                );
+          }).toList();
+
+          // Joins and final results remain as accounting records.
+          for (final join in relatedJoins) {
+            final cid =
+                (join.data()['contestId'] ?? '').toString();
+            final uid =
+                (join.data()['userId'] ?? '').toString();
+
+            if (cid.isEmpty || uid.isEmpty) {
+              throw StateError('Invalid join record');
+            }
+
+            final result = await tx.get(
+              db.collection('contest_results').doc(cid),
+            );
+
+            final r = result.data();
+            final entries = r?['entries'];
+
+            if (r?['finalized'] != true ||
+                !_retentionHas(r, keys) ||
+                entries is! List ||
+                !entries.whereType<Map>().any(
+                  (e) => e['userId'] == uid,
+                )) {
+              throw StateError(
+                'Final settlement/result pending',
+              );
+            }
+          }
+
+          final changes = <String, Map<String, dynamic>>{};
+
+          for (final user in users.docs) {
+            final doc = await tx.get(user.reference);
+            final data = doc.data();
+
+            if (data == null) continue;
+
+            final joined = data['joinedContests'];
+
+            if (joined is List) {
+              for (final c in joined.whereType<Map>()) {
+                if (_retentionHas(c, keys) &&
+                    c['settlementDone'] != true) {
+                  throw StateError(
+                    'User settlement pending: ${user.id}',
+                  );
+                }
+              }
+            }
+
+            final patch = <String, dynamic>{};
+
+            for (final field in [
+              'joinedMatches',
+              'joinedContests',
+              'savedTeamsData',
+            ]) {
+              final list = data[field];
+
+              if (list is List) {
+                if (list.any(ambiguous)) {
+                  throw StateError(
+                    'Legacy user match identity missing',
+                  );
+                }
+
+                final kept = list
+                    .where((e) => !_retentionHas(e, keys))
+                    .toList();
+
+                if (kept.length != list.length) {
+                  patch[field] = kept;
+                }
+              }
+            }
+
+            if (patch.isNotEmpty) {
+              changes[user.id] = patch;
+            }
+          }
+
+          // All checks and reads finish before writes.
+          for (final change in changes.entries) {
+            tx.update(
+              db.collection('users').doc(change.key),
+              change.value,
+            );
+          }
+
+          final matchPatch = _retentionPrune(
+            {
+              'matches': currentMatches,
+              'playerStats':
+                  matchData['playerStats'] ?? <String, dynamic>{},
+              'joinLocks':
+                  matchData['joinLocks'] ?? <String, dynamic>{},
+            },
+            keys,
+          );
+
+          matchPatch['purgedMatchKeys'] =
+              (_retiredKeys(matchData)..addAll(keys)).toList();
+
+          matchPatch['updatedAt'] =
+              FieldValue.serverTimestamp();
+
+          tx.update(matchRef, matchPatch);
+
+          if (contests is List) {
+            tx.update(
+              contestRef,
+              _retentionPrune(
+                {
+                  'contests': contests,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                },
+                keys,
+              ),
+            );
+          }
+        });
+
+        debugPrint(
+          'Firebase 5-day cleanup processed: $keys',
+        );
+      } catch (e) {
+        // Failed transaction leaves all records for a retry.
+        debugPrint(
+          'Firebase cleanup retained match $keys: $e',
+        );
+      }
+    }
+  } catch (e) {
+    debugPrint('Firebase 5-day cleanup failed: $e');
+  } finally {
+    _firebaseRetentionBusy = false;
+  }
+}
+
 bool _adminDisplayWithinFiveDays(
   Map<dynamic, dynamic> match,
 ) {
@@ -7132,14 +7536,16 @@ class _AdminHomePageState
 
   @override
   void initState() {
-    super.initState();
+       super.initState();
+    _cleanupFirebaseFiveDays();
 
     homeStatusTimer =
         Timer.periodic(
       const Duration(seconds: 30),
       (_) {
         if (mounted) {
-          setState(() {});
+                    setState(() {});
+          _cleanupFirebaseFiveDays();
         }
       },
     );
@@ -8293,25 +8699,16 @@ const SizedBox(
 
         const SizedBox(width: 7),
 
-        tab(
-          title:
-              'Player\nStats',
-          icon:
-              Icons.query_stats,
-          background:
-              const Color(
-            0xFFE5F6F4,
-          ),
-          foreground:
-              const Color(
-            0xFF168C82,
-          ),
+                tab(
+          title: 'Manage\nContests',
+          icon: Icons.emoji_events,
+          background: const Color(0xFFF0EAFF),
+          foreground: const Color(0xFF6841D8),
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) =>
-                    const AdminPlayerStatsPage(),
+                builder: (_) => const AdminContestsPage(),
               ),
             );
           },
@@ -8320,18 +8717,19 @@ const SizedBox(
         const SizedBox(width: 7),
 
         tab(
-          title:
-              'Manage\nContests',
-          icon:
-              Icons.emoji_events,
-          background:
-              const Color(
-            0xFFF0EAFF,
-          ),
-          foreground:
-              const Color(
-            0xFF6841D8,
-          ),
+          title: 'Player\nStats',
+          icon: Icons.query_stats,
+          background: const Color(0xFFE5F6F4),
+          foreground: const Color(0xFF168C82),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AdminPlayerStatsPage(),
+              ),
+            );
+          },
+        ),
           onTap: () {
             Navigator.push(
               context,
@@ -9406,39 +9804,19 @@ final currentJoinLocks =
   currentMatches,
 );
 
-      await FirebaseFirestore.instance
-          .collection('settings')
-          .doc('admin_matches')
-          .set(
+            await _retentionSafeSave(
+        FirebaseFirestore.instance
+            .collection('settings')
+            .doc('admin_matches'),
         {
           'matches': currentMatches,
-
-'playerStats':
-    currentPlayerStats,
-
-'joinLocks':
-    currentJoinLocks,
-
-          'updatedAt':
-              FieldValue.serverTimestamp(),
-
-          'updatedBy':
-              FirebaseAuth
-                      .instance
-                      .currentUser
-                      ?.uid ??
-                  '',
+          'playerStats': currentPlayerStats,
+          'joinLocks': currentJoinLocks,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedBy': FirebaseAuth.instance.currentUser?.uid ?? '',
         },
-        SetOptions(
-  mergeFields: const [
-    'matches',
-    'playerStats',
-    'joinLocks',
-    'updatedAt',
-    'updatedBy',
-  ],
-),
       );
+      
 
       debugPrint(
         'Admin matches + player stats saved: '
@@ -26320,7 +26698,7 @@ class _AdminPlayerStatsPageState
     super.initState();
 
     _statusTimer = Timer.periodic(
-      const Duration(seconds: 30),
+            const Duration(seconds: 1),
       (_) {
         if (mounted) {
           setState(() {});
@@ -26794,8 +27172,8 @@ class _AdminPlayerStatsPageState
             .toString()
             .trim();
 
-    final status =
-        _realStatus(match);
+        final status = _realStatus(match);
+    final canEditStats = _canEditAdminStats(match);
 
     Color borderColor =
         const Color(
@@ -26821,13 +27199,14 @@ class _AdminPlayerStatsPageState
           BorderRadius.circular(
         18,
       ),
-      onTap: () {
-        _AdminMatchesPageState
-            ._updatePlayerStats(
-          context,
-          match,
-        );
-      },
+            onTap: canEditStats
+          ? () {
+              _AdminMatchesPageState._updatePlayerStats(
+                context,
+                match,
+              );
+            }
+          : null,
       child: Container(
         margin:
             const EdgeInsets.only(
@@ -27083,6 +27462,7 @@ const SizedBox(
                   status,
                 ),
 
+                                if (canEditStats)
                 const Icon(
                   Icons.chevron_right,
                   color:
@@ -27098,6 +27478,7 @@ const SizedBox(
               height: 8,
             ),
 
+                        if (canEditStats)
             Container(
               width:
                   double.infinity,
@@ -30778,26 +31159,15 @@ Future<bool>
             )
             .toList();
 
-    await FirebaseFirestore.instance
-        .collection('settings')
-        .doc('admin_contests')
-        .set(
+        await _retentionSafeSave(
+      FirebaseFirestore.instance
+          .collection('settings')
+          .doc('admin_contests'),
       {
         'contests': contests,
-
-        'updatedAt':
-            FieldValue.serverTimestamp(),
-
-        'updatedBy':
-            FirebaseAuth
-                    .instance
-                    .currentUser
-                    ?.uid ??
-                '',
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': FirebaseAuth.instance.currentUser?.uid ?? '',
       },
-      SetOptions(
-        merge: true,
-      ),
     );
 
     return true;
@@ -43120,8 +43490,19 @@ await showDialog(
                   
   static void _updatePlayerStats(
   BuildContext context,
-  Map<String, dynamic> match,
+    Map<String, dynamic> match,
 ) {
+  if (!_canEditAdminStats(match)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Stats editing अभी उपलब्ध नहीं है।',
+        ),
+      ),
+    );
+    return;
+  }
+
   final allPlayers = <String>[
   ...((match['team1Players'] ?? '').toString())
       .split(',')
@@ -43661,7 +44042,18 @@ actions: [
       Expanded(
         flex: 2,
         child: ElevatedButton(
-                onPressed: () async {
+                                onPressed: () async {
+                  if (!_canEditAdminStats(match)) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Stats save नहीं हुई: editing का समय समाप्त है।',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
                   for (final player in allPlayers) {
                     final c = statsControllers[player]!;
 
@@ -43949,6 +44341,11 @@ child: const FittedBox(
   );
 }
 void _editMatch(Map<String, String> match) {
+  final latest = _latestAdminEditMatch(match);
+  if (latest == null ||
+      _adminEditStatus(latest) == 'COMPLETED') {
+    return;
+  }
  final oldTeam1 = match['team1'] ?? '';
 final oldTeam2 = match['team2'] ?? '';
 final oldDate = match['date'] ?? '';
@@ -44079,7 +44476,20 @@ TextField(
             child: const Text('CANCEL'),
           ),
           ElevatedButton(
-            onPressed: () async {
+                        onPressed: () async {
+              final latest = _latestAdminEditMatch(match);
+              if (latest == null ||
+                  _adminEditStatus(latest) == 'COMPLETED') {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Completed match edit नहीं कर सकते।',
+                    ),
+                  ),
+                );
+                return;
+              }
+
               final updated =
                   List<Map<String, String>>.from(adminMatches.value);
 
@@ -44747,6 +45157,7 @@ Future<void> deleteMatch(
           return SafeArea(
             child: Wrap(
               children: [
+                                if (_adminEditStatus(match) != 'COMPLETED')
                 ListTile(
                   leading: const Icon(
                     Icons.edit,
@@ -45259,10 +45670,12 @@ const SizedBox(
                         11,
                       ),
                     ),
-                    child: const Row(
+                                        child: Row(
                       children: [
                         Icon(
-                          Icons.edit,
+                                                    status == 'COMPLETED'
+                              ? Icons.delete_outline
+                              : Icons.edit,
                           color:
                               Color(
                             0xFFE44C6E,
@@ -45273,7 +45686,9 @@ const SizedBox(
                           width: 6,
                         ),
                         Text(
-                          'Tap to edit match',
+                                                    status == 'COMPLETED'
+                              ? 'Tap to delete match'
+                              : 'Tap to edit match',
                           style:
                               TextStyle(
                             color:
