@@ -11102,7 +11102,7 @@ else if (match.currentStatus == 'LIVE')
       ),
     );
     }
-      .
+    
 
   Widget statusBadge(String status) {
     Color color = const Color(0xFFE85A5A);
