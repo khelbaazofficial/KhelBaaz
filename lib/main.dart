@@ -11102,36 +11102,7 @@ else if (match.currentStatus == 'LIVE')
       ),
     );
     }
-      .toList();
-
-  String shortName;
-
-  if (words.length >= 2) {
-    shortName = words
-        .map((word) => word[0].toUpperCase())
-        .join();
-  } else {
-    shortName = cleanTeam.length <= 3
-        ? cleanTeam.toUpperCase()
-        : cleanTeam.substring(0, 3).toUpperCase();
-  }
-
-  return Column(
-    children: [
-      Text(
-        flag,
-        style: const TextStyle(fontSize: 35),
-      ),
-      Text(
-        shortName,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    ],
-  );
-}
+      .
 
   Widget statusBadge(String status) {
     Color color = const Color(0xFFE85A5A);
