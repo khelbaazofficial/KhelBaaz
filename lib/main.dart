@@ -10911,32 +10911,51 @@ final safeRemaining =
                       crossAxisAlignment:
                           WrapCrossAlignment.center,
                       children: [
-                        Container(
+                                                Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 5,
                           ),
                           decoration: BoxDecoration(
                             color: match.currentStatus == 'UPCOMING'
-                                ? const Color(0xFFFFE2C2)
+                                ? const Color(0xFFF0EDFF)
                                 : match.currentStatus == 'LIVE'
                                     ? const Color(0xFFDDF3E8)
                                     : const Color(0xFFE9E5FF),
-                            borderRadius:
-                                BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Text(
-                            '${match.matchFormat} 🏏',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: match.currentStatus == 'UPCOMING'
-                                  ? const Color(0xFFD96A18)
-                                  : match.currentStatus == 'LIVE'
-                                      ? const Color(0xFF258A64)
-                                      : const Color(0xFF6753B5),
-                            ),
-                          ),
+                          child: match.currentStatus == 'UPCOMING'
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.emoji_events_outlined,
+                                      size: 14,
+                                      color: Color(0xFF575361),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        match.matchFormat,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF443C8D),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Text(
+                                  '${match.matchFormat} 🏏',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: match.currentStatus == 'LIVE'
+                                        ? const Color(0xFF258A64)
+                                        : const Color(0xFF6753B5),
+                                  ),
+                                ),
                         ),
                         statusBadge(match.currentStatus),
                       ],
@@ -11104,8 +11123,8 @@ else if (match.currentStatus == 'LIVE')
     }
     
 
-  Widget statusBadge(String status) {
-    Color color = const Color(0xFFE85A5A);
+    Widget statusBadge(String status) {
+    Color color = const Color(0xFFC62850);
 
     if (status == 'LIVE') {
       color = Colors.red;
@@ -11116,11 +11135,14 @@ else if (match.currentStatus == 'LIVE')
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 4,
+      ),
       decoration: BoxDecoration(
         color: status == 'UPCOMING'
-    ? const Color(0xFFFFD59A)
-    : color.withValues(alpha: 0.24),
+            ? const Color(0xFFFCE7ED)
+            : color.withValues(alpha: 0.24),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -11132,7 +11154,7 @@ else if (match.currentStatus == 'LIVE')
         ),
       ),
     );
-  }
+    }
 }
 
 class HomePlayerStatsPage extends StatefulWidget {
