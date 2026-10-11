@@ -10333,6 +10333,10 @@ return matches;
     return Scaffold(
 
 appBar: AppBar(
+  backgroundColor: const Color(0xFFEDE7F6),
+  surfaceTintColor: Colors.transparent,
+  elevation: 0,
+  scrolledUnderElevation: 0,
   title: Row(
     children: [
       Container(
@@ -10905,11 +10909,11 @@ final safeRemaining =
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Wrap(
+                                        OverflowBar(
                       spacing: 8,
-                      runSpacing: 6,
-                      crossAxisAlignment:
-                          WrapCrossAlignment.center,
+                      overflowSpacing: 6,
+                      alignment: MainAxisAlignment.spaceBetween,
+                      overflowAlignment: OverflowBarAlignment.end,
                       children: [
                                                 Container(
                           padding: const EdgeInsets.symmetric(
