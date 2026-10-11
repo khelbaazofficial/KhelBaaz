@@ -10863,133 +10863,151 @@ final safeRemaining =
     horizontal: 14,
     vertical: 10,
   ),
-          child: Column(
+                    child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-    Row(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  children: [            
-    Flexible(
-  fit: FlexFit.loose,
-  child: Container(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 10,
-      vertical: 7,
-    ),
-    decoration: BoxDecoration(
-      color: match.currentStatus == 'UPCOMING'
-          ? const Color(0xFFFFE2C2)
-          : match.currentStatus == 'LIVE'
-              ? const Color(0xFFDDF3E8)
-              : const Color(0xFFE9E5FF),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: '${shortName(match.team1)} vs ${shortName(match.team2)} • ',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: Color(0xFF332626),
-            ),
-          ),
-          TextSpan(
-            text: '${match.matchFormat} 🏏',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: match.currentStatus == 'UPCOMING'
-                 ? const Color(0xFFD96A18)
-                  : match.currentStatus == 'LIVE'
-                      ? const Color(0xFF258A64)
-                      : const Color(0xFF6753B5),
-            ),
-          ),
-        ],
-      ),
-    ),
-  ),
-),
-    statusBadge(match.currentStatus),
-  ],
-),
-              
-              const Divider(height: 25),
-             Row(
-  mainAxisAlignment: MainAxisAlignment.spaceAround,
-  children: [
-    Container(
-      width: 92,
-      height: 92,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: match.currentStatus == 'LIVE'
-            ? const Color(0xFFDDF4E8)
-            : match.currentStatus == 'COMPLETED'
-                ? const Color(0xFFE9E5FF)
-                : const Color(0xFFFFE6DF),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: match.currentStatus == 'LIVE'
-              ? const Color(0xFF71C9A3)
-              : match.currentStatus == 'COMPLETED'
-                  ? const Color(0xFF9B8AE8)
-                  : const Color(0xFFFF9C8D),
-          width: 1.4,
-        ),
-      ),
-      child: teamView(match.team1Flag, match.team1),
-    ),
+              Expanded(
+                flex: 44,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.center,
+                  child: SizedBox(
+                    width: 176,
+                    child: Row(
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 72,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: match.currentStatus == 'LIVE'
+                                ? const Color(0xFFDDF4E8)
+                                : match.currentStatus == 'COMPLETED'
+                                    ? const Color(0xFFE9E5FF)
+                                    : const Color(0xFFFFE6DF),
+                            borderRadius:
+                                BorderRadius.circular(36),
+                            border: Border.all(
+                              color: match.currentStatus == 'LIVE'
+                                  ? const Color(0xFF71C9A3)
+                                  : match.currentStatus == 'COMPLETED'
+                                      ? const Color(0xFF9B8AE8)
+                                      : const Color(0xFFFF9C8D),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: teamView(
+                            match.team1Flag,
+                            match.team1,
+                          ),
+                        ),
+                        Container(
+                          width: 34,
+                          height: 30,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF1BF),
+                            borderRadius:
+                                BorderRadius.circular(9),
+                            border: Border.all(
+                              color: const Color(0xFFFFB300),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: const Text(
+                            'VS',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF8D5A00),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          width: 64,
+                          height: 72,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: match.currentStatus == 'LIVE'
+                                ? const Color(0xFFDDF4E8)
+                                : match.currentStatus == 'COMPLETED'
+                                    ? const Color(0xFFE9E5FF)
+                                    : const Color(0xFFFFE6DF),
+                            borderRadius:
+                                BorderRadius.circular(36),
+                            border: Border.all(
+                              color: match.currentStatus == 'LIVE'
+                                  ? const Color(0xFF71C9A3)
+                                  : match.currentStatus == 'COMPLETED'
+                                      ? const Color(0xFF9B8AE8)
+                                      : const Color(0xFFFF9C8D),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: teamView(
+                            match.team2Flag,
+                            match.team2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 88,
+                margin: const EdgeInsets.symmetric(horizontal: 10),
+                color: const Color(0xFFD7CCCC),
+              ),
+              Expanded(
+                flex: 56,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment:
+                          WrapCrossAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: match.currentStatus == 'UPCOMING'
+                                ? const Color(0xFFFFE2C2)
+                                : match.currentStatus == 'LIVE'
+                                    ? const Color(0xFFDDF3E8)
+                                    : const Color(0xFFE9E5FF),
+                            borderRadius:
+                                BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${match.matchFormat} 🏏',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: match.currentStatus == 'UPCOMING'
+                                  ? const Color(0xFFD96A18)
+                                  : match.currentStatus == 'LIVE'
+                                      ? const Color(0xFF258A64)
+                                      : const Color(0xFF6753B5),
+                            ),
+                          ),
+                        ),
+                        statusBadge(match.currentStatus),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+  
 
-    Container(
-  width: 64,
-  height: 52,
-  alignment: Alignment.center,
-  decoration: BoxDecoration(
-    color: const Color(0xFFFFF1BF),
-    borderRadius: BorderRadius.circular(17),
-    border: Border.all(
-      color: const Color(0xFFFFB300),
-      width: 1.7,
-    ),
-  ),
-  child: const Text(
-    'VS',
-    style: TextStyle(
-      fontWeight: FontWeight.bold,
-      fontSize: 18,
-      color: Color(0xFF8D5A00),
-    ),
-  ),
-),
-
-    Container(
-      width: 92,
-      height: 92,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: match.currentStatus == 'LIVE'
-            ? const Color(0xFFDDF4E8)
-            : match.currentStatus == 'COMPLETED'
-                ? const Color(0xFFE9E5FF)
-                : const Color(0xFFFFE6DF),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: match.currentStatus == 'LIVE'
-              ? const Color(0xFF71C9A3)
-              : match.currentStatus == 'COMPLETED'
-                  ? const Color(0xFF9B8AE8)
-                  : const Color(0xFFFF9C8D),
-          width: 1.4,
-        ),
-      ),
-      child: teamView(match.team2Flag, match.team2),
-    ),
-  ],
-), 
-              const SizedBox(height: 15),
-            
+    
                             if (match.currentStatus == 'UPCOMING' &&
                   match.startTime != null &&
                   safeRemaining != null &&
@@ -11078,6 +11096,9 @@ else if (match.currentStatus == 'LIVE')
     ),
   ],
 ),
+                             ],
+                ),
+              ),
             ],
           ),
         ),
@@ -12996,9 +13017,15 @@ void dispose() {
   }
 
   void showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+          content: Text(message),
+        ),
+      );
   }
 
   void togglePlayer(Player player) {
@@ -13232,29 +13259,27 @@ void dispose() {
               },
             ),
           ),
-                    Padding(
-            padding: EdgeInsets.fromLTRB(
-              12,
-              12,
-              12,
-              MediaQuery.of(context).viewPadding.bottom + 12,
-            ),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE85D5D),
-                  foregroundColor: Colors.white,
-                ),
-                onPressed:
-                    widget.selected.length == 11
-                        ? continueTeam
-                        : null,
-                child: const Text('CONTINUE'),
+                            ],
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        maintainBottomViewPadding: true,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE85D5D),
+                foregroundColor: Colors.white,
               ),
+              onPressed: widget.selected.length == 11
+                  ? continueTeam
+                  : null,
+              child: const Text('CONTINUE'),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -13352,13 +13377,17 @@ class _CaptainPageState extends State<CaptainPage> {
         widget.selected.any((p) => p.name == viceCaptain!.name);
 
     if (!valid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Selected 11 में अलग Captain और Vice Captain चुनें',
+            ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 3),
+            content: Text(
+              'Selected 11 में अलग Captain और Vice Captain चुनें',
+            ),
           ),
-        ),
-      );
+        );
       return;
     }
 
@@ -13374,11 +13403,15 @@ class _CaptainPageState extends State<CaptainPage> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Team save नहीं हुई • फिर try करें'),
-          ),
-        );
+                ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(
+            const SnackBar(
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 3),
+              content: Text('Team save नहीं हुई • फिर try करें'),
+            ),
+          );
       }
     } finally {
       if (mounted) {
@@ -13482,33 +13515,32 @@ class _CaptainPageState extends State<CaptainPage> {
               },
             ),
           ),
-                    Padding(
-            padding: EdgeInsets.fromLTRB(
-              12,
-              12,
-              12,
-              MediaQuery.of(context).viewPadding.bottom + 12,
-            ),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                                onPressed: _saving ? null : save,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE85D5D),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 15,
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                            ],
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        maintainBottomViewPadding: true,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _saving ? null : save,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE85D5D),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 15,
                 ),
-                child: const Text('SAVE TEAM'),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+              child: const Text('SAVE TEAM'),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
