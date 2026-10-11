@@ -10963,7 +10963,7 @@ final safeRemaining =
                   safeRemaining != null)
   safeRemaining <= const Duration(hours: 12)
       ? Text(
-          'Starts in '
+          '⏰ Starts in '
           '${safeRemaining.inHours.toString().padLeft(2, '0')}:'
           '${safeRemaining.inMinutes.remainder(60).toString().padLeft(2, '0')}:'
           '${safeRemaining.inSeconds.remainder(60).toString().padLeft(2, '0')}',
@@ -12475,7 +12475,8 @@ String _shortTeamName(String name) {
                   
                   if (widget.match.currentStatus == 'UPCOMING')
   Text(
-    'Starts in '
+        '⏰ Starts in '
+    '${countdown.inHours.toString().padLeft(2, '0')}:'
     '${countdown.inMinutes.remainder(60).toString().padLeft(2, '0')}:'
     '${countdown.inSeconds.remainder(60).toString().padLeft(2, '0')}',
     style: const TextStyle(
