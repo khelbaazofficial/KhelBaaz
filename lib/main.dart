@@ -8830,17 +8830,7 @@ const SizedBox(
               ),
             );
           },
-        ),
-                    onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    const AdminContestsPage(),
-              ),
-            );
-          },
-        ),
+        ),           
       ],
     );
   }
