@@ -7395,6 +7395,107 @@ Future<void> _cleanupFirebaseFiveDays() async {
   }
 }
 
+Map<String, dynamic>? _latestAdminEditMatch(
+  Map<String, dynamic> match,
+) {
+  for (final item in adminMatches.value) {
+    if (item['team1'] == match['team1'] &&
+        item['team2'] == match['team2'] &&
+        item['date'] == match['date'] &&
+        item['time'] == match['time']) {
+      return Map<String, dynamic>.from(item);
+    }
+  }
+
+  return null;
+}
+
+String _adminEditStatus(Map<String, dynamic> match) {
+  final saved =
+      (match['currentStatus'] ?? match['status'] ?? '')
+          .toString()
+          .trim()
+          .toUpperCase();
+
+  if (saved == 'COMPLETED') {
+    return 'COMPLETED';
+  }
+
+  final start = _adminRetentionStartTime(match);
+
+  if (start == null) {
+    return 'UNKNOWN';
+  }
+
+  final minutes = int.tryParse(
+        (match['durationMinutes'] ?? '180').toString(),
+      ) ??
+      180;
+
+  final now = DateTime.now();
+
+  if (now.isBefore(start)) {
+    return 'UPCOMING';
+  }
+
+  return now.isBefore(
+    start.add(Duration(minutes: minutes)),
+  )
+      ? 'LIVE'
+      : 'COMPLETED';
+}
+
+bool _canEditAdminStats(Map<String, dynamic> match) {
+  final latest = _latestAdminEditMatch(match);
+
+  if (latest == null) {
+    return false;
+  }
+
+  final status = _adminEditStatus(latest);
+
+  if (status == 'LIVE') {
+    return true;
+  }
+
+  if (status != 'COMPLETED') {
+    return false;
+  }
+
+  var completed = _adminRetentionDateValue(
+    latest['completedAt'],
+  );
+
+  final saved =
+      (latest['currentStatus'] ?? latest['status'] ?? '')
+          .toString()
+          .trim()
+          .toUpperCase();
+
+  if (completed == null && saved != 'COMPLETED') {
+    final start = _adminRetentionStartTime(latest);
+
+    final minutes = int.tryParse(
+          (latest['durationMinutes'] ?? '180').toString(),
+        ) ??
+        180;
+
+    completed = start?.add(Duration(minutes: minutes));
+  }
+
+  if (completed == null) {
+    return false;
+  }
+
+  final now = DateTime.now();
+
+  return !now.isBefore(completed) &&
+      now.isBefore(
+        completed.add(const Duration(hours: 24)),
+      );
+}
+  
+
 bool _adminDisplayWithinFiveDays(
   Map<dynamic, dynamic> match,
 ) {
@@ -8730,7 +8831,7 @@ const SizedBox(
             );
           },
         ),
-          onTap: () {
+                    onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
