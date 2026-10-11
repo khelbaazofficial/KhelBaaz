@@ -16537,8 +16537,32 @@ final linkedMatch = matchContests.isNotEmpty
     ? findLinkedMatch(matchContests.first)
     : null;
 
-final matchDay = linkedMatch?.startTime;
+    final matchDay = linkedMatch?.startTime?.toLocal();
 final now = DateTime.now();
+
+DateTime? previousDay;
+
+if (index > 0) {
+  final previousMatchName = matchNames[index - 1];
+
+  final previousContest = sourceContests.firstWhere(
+    (contest) =>
+        (contest['match'] ?? '').toString() ==
+        previousMatchName,
+  );
+
+  previousDay = findLinkedMatch(previousContest)
+      ?.startTime
+      ?.toLocal();
+}
+
+final showDateHeader =
+    index == 0 ||
+    previousDay == null ||
+    (matchDay != null &&
+        (matchDay.year != previousDay.year ||
+            matchDay.month != previousDay.month ||
+            matchDay.day != previousDay.day));
 
 String dayTitle = '';
 String fullDate = '';
@@ -16625,7 +16649,7 @@ final team2Short = makeShortName(team2Name);
     return Column(
   crossAxisAlignment: CrossAxisAlignment.start,
   children: [
-    if (matchDay != null)
+        if (matchDay != null && showDateHeader)
       Container(
         height: 56,
         margin: const EdgeInsets.only(bottom: 12),
@@ -20066,8 +20090,22 @@ return ListView.builder(
     final matchKey = matchKeys[matchIndex];
     final teamIndexes = matchGroups[matchKey]!;
 
-        final linkedMatch =
-        linkedTeamMatch(matchKey);
+            final linkedMatch = linkedTeamMatch(matchKey);
+
+    final currentDay = linkedMatch?.startTime?.toLocal();
+    final previousDay = matchIndex > 0
+        ? linkedTeamMatch(matchKeys[matchIndex - 1])
+            ?.startTime
+            ?.toLocal()
+        : null;
+
+    final showDateHeader =
+        matchIndex == 0 ||
+        currentDay == null ||
+        previousDay == null ||
+        currentDay.year != previousDay.year ||
+        currentDay.month != previousDay.month ||
+        currentDay.day != previousDay.day;
 
     String matchName = matchKey;
     String matchDate = '';
@@ -20080,8 +20118,7 @@ return ListView.builder(
       matchName =
           '${linkedMatch.team1} vs ${linkedMatch.team2}';
 
-      final start =
-          linkedMatch.startTime;
+            final start = linkedMatch.startTime?.toLocal();
 
       if (start != null) {
         matchDate =
@@ -20264,7 +20301,7 @@ final dateHeader = Container(
                 ),
               ),
               Text(
-                dateTimeLabel,
+                                dateTimeLabel.split(' • ').first,
                 style:
                     const TextStyle(
                   color: Colors.white,
@@ -20322,8 +20359,10 @@ final team2Short = shortName(team2Name);
     return Column(
   crossAxisAlignment: CrossAxisAlignment.start,
   children: [
-    dateHeader,
-    const SizedBox(height: 6),
+        if (showDateHeader) ...[
+      dateHeader,
+      const SizedBox(height: 6),
+    ],
     Card(
       color: const Color(0xFFD9E8FF),
       margin: const EdgeInsets.only(bottom: 12),
