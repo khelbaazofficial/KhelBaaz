@@ -11358,11 +11358,39 @@ final String winnerText =
     return Scaffold(
   backgroundColor: const Color(0xFFFFF8F6),
       appBar: AppBar(
-        title: Text(
-  '${widget.match.team1Flag} ${shortTeamName(widget.match.team1)} vs '
-'${shortTeamName(widget.match.team2)} ${widget.match.team2Flag} • '
-'${widget.match.matchFormat}',
-),
+                title: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text.rich(
+            TextSpan(
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF222222),
+              ),
+              children: [
+                TextSpan(
+                  text:
+                      '${widget.match.team1Flag} '
+                      '${shortTeamName(widget.match.team1)} vs '
+                      '${shortTeamName(widget.match.team2)} '
+                      '${widget.match.team2Flag}',
+                ),
+                if (widget.match.matchFormat.trim().isNotEmpty)
+                  TextSpan(
+                    text:
+                        '  • ${widget.match.matchFormat.trim()}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFFE85D5D),
+                    ),
+                  ),
+              ],
+            ),
+            maxLines: 1,
+            softWrap: false,
+          ),
+        ),
       ),
       body: Column(
         children: [
@@ -16907,28 +16935,35 @@ flag2 = (m['team2Logo'] ?? '').toString();
     return Scaffold(
       backgroundColor: const Color(0xFFFFF0ED),
       appBar: AppBar(
-        title: Text.rich(
-  TextSpan(
-    children: [
-      TextSpan(
-        text:
-            '$flag1 $team1Short vs $team2Short $flag2',
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF222222),
-        ),
-      ),
-      if (format.isNotEmpty)
-        TextSpan(
-          text: '   •   $format',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Color(0xFFE85D5D),
+                title: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text.rich(
+            TextSpan(
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF222222),
+              ),
+              children: [
+                TextSpan(
+                  text:
+                      '$flag1 $team1Short vs $team2Short $flag2',
+                ),
+                if (format.trim().isNotEmpty)
+                  TextSpan(
+                    text: '  • ${format.trim()}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFFE85D5D),
+                    ),
+                  ),
+              ],
+            ),
+            maxLines: 1,
+            softWrap: false,
           ),
         ),
-    ],
-  ),
-),
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(12),
@@ -20544,10 +20579,35 @@ final team1Short = makeShortName(team1Name);
 final team2Short = makeShortName(team2Name);
     return Scaffold(
       appBar: AppBar(
-  title: Text(
-  '$team1Flag $team1Short vs $team2Short $team2Flag'
-  '${matchFormat.isNotEmpty ? ' • $matchFormat' : ''}',
-),
+          title: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text.rich(
+            TextSpan(
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF222222),
+              ),
+              children: [
+                TextSpan(
+                  text:
+                      '$team1Flag $team1Short vs $team2Short $team2Flag',
+                ),
+                if (matchFormat.trim().isNotEmpty)
+                  TextSpan(
+                    text: '  • ${matchFormat.trim()}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFFE85D5D),
+                    ),
+                  ),
+              ],
+            ),
+            maxLines: 1,
+            softWrap: false,
+          ),
+        ),
 ),
       body: ListView.builder(
         padding: const EdgeInsets.all(12),
