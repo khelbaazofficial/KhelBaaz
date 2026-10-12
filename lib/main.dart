@@ -4351,7 +4351,21 @@ if (savedRequestsRaw is List) {
       return;
     }
 
-    final double amount = welcomeBonusAmount.value;
+    final bonusSettings = await FirebaseFirestore.instance
+    .collection('settings')
+    .doc('welcome_bonus')
+    .get(const GetOptions(source: Source.server));
+
+final rawAmount = bonusSettings.data()?['amount'];
+
+if (rawAmount is! num ||
+    !rawAmount.toDouble().isFinite ||
+    rawAmount < 0) {
+  throw StateError('Valid welcome bonus setting not found');
+}
+
+final double amount = rawAmount.toDouble();
+welcomeBonusAmount.value = amount;
 
     if (amount <= 0) {
       await userRef.set(
