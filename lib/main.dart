@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'payment_details.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -3836,8 +3837,9 @@ Future<bool> addWalletRequest({
   required double amount,
   String? screenshot,
   String? depositUpiId,
-  String? payoutMethod,
+    String? payoutMethod,
   String? payoutUpiId,
+  String? payoutApp,
   String? accountHolderName,
   String? bankName,
   String? bankAccountNumber,
@@ -4013,8 +4015,11 @@ Future<bool> addWalletRequest({
 
 if (payoutMethod != null &&
     payoutMethod.trim().isNotEmpty)
-  'payoutMethod':
+    'payoutMethod':
       payoutMethod.trim().toUpperCase(),
+
+if (payoutApp != null && payoutApp.trim().isNotEmpty)
+  'payoutApp': payoutApp.trim(),
 
 if (payoutUpiId != null &&
     payoutUpiId.trim().isNotEmpty)
@@ -6392,10 +6397,16 @@ class FantasyApp extends StatelessWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: darkMode,
       builder: (context, isDark, _) {
-        return MaterialApp(
+                return MaterialApp(
           debugShowCheckedModeBanner: false,
+          builder: (context, child) => ColoredBox(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: SafeArea(
+              top: false,
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
           title: 'Fantasy Cricket',
-
           theme: ThemeData(
             useMaterial3: true,
             colorScheme: ColorScheme.fromSeed(
@@ -19750,6 +19761,24 @@ Card(
 
 Card(
   child: ListTile(
+    leading: const Icon(
+      Icons.account_balance,
+      color: Colors.teal,
+    ),
+    title: const Text('Payment Details'),
+    subtitle: const Text('UPI / Payment App / Bank Account'),
+    trailing: const Icon(Icons.chevron_right),
+    onTap: () => Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PaymentDetailsPage(),
+      ),
+    ),
+  ),
+),
+
+Card(
+  child: ListTile(
     leading: Container(
       width: 46,
       height: 46,
@@ -22341,9 +22370,9 @@ ScaffoldMessenger.of(context)
                             ),
                             const SizedBox(
                               height: 7,
-                            ),
+                                                        ),
                             Text(
-                              'UPI ID: $payoutUpiId',
+                              'UPI / Mobile (${request['payoutApp'] ?? 'UPI'}): $payoutUpiId',
                               style:
                                   const TextStyle(
                                 fontSize:
@@ -22751,21 +22780,90 @@ Future<void> showWithdrawRequestDialog(
       TextEditingController();
 
   final mobileController =
-      TextEditingController();
+            TextEditingController();
 
-  String payoutMethod = 'UPI';
+  final paymentUid = FirebaseAuth.instance.currentUser?.uid;
+
+  if (paymentUid == null) {
+    amountController.dispose();
+    upiController.dispose();
+    holderController.dispose();
+    bankNameController.dispose();
+    accountController.dispose();
+    confirmAccountController.dispose();
+    ifscController.dispose();
+    mobileController.dispose();
+    return;
+  }
+
+  Map<String, dynamic> savedPayment = {};
+
+  try {
+    savedPayment = await loadPaymentDetails(paymentUid);
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Saved details load नहीं हुईं। Details manually भर सकते हैं।',
+          ),
+        ),
+      );
+    }
+  }
+
+  if (!context.mounted ||
+      FirebaseAuth.instance.currentUser?.uid != paymentUid) {
+    amountController.dispose();
+    upiController.dispose();
+    holderController.dispose();
+    bankNameController.dispose();
+    accountController.dispose();
+    confirmAccountController.dispose();
+    ifscController.dispose();
+    mobileController.dispose();
+    return;
+  }
+
+  String paymentValue(String key) =>
+      (savedPayment[key] ?? '').toString();
+
+  upiController.text = paymentValue('upiId').isNotEmpty
+      ? paymentValue('upiId')
+      : paymentValue('paymentMobile');
+
+  holderController.text = paymentValue('accountHolderName');
+  bankNameController.text = paymentValue('bankName');
+  accountController.text = paymentValue('bankAccountNumber');
+  confirmAccountController.text = accountController.text;
+  ifscController.text = paymentValue('bankIfsc');
+  mobileController.text = paymentValue('bankMobile');
+
+  String payoutMethod =
+      savedPayment['payoutMethod'] == 'BANK' ? 'BANK' : 'UPI';
+
+  String payoutApp = paymentApps.contains(savedPayment['paymentApp'])
+      ? savedPayment['paymentApp'] as String
+      : 'UPI';
+
+  bool saveToProfile = false;
+  bool sending = false;
+  String? profileSaveWarning;
 
     final requestSent =
       await showDialog<bool>(
     context: context,
+    barrierDismissible: false,
     builder: (dialogContext) {
       return StatefulBuilder(
         builder:
             (dialogContext, setDialogState) {
           final isUpi =
-              payoutMethod == 'UPI';
+                            payoutMethod == 'UPI';
 
-          return AlertDialog(
+          return PopScope(
+            canPop: !sending,
+            child: AlertDialog(
             scrollable: true,
             title: const Text(
               'Withdraw Request',
@@ -22900,6 +22998,27 @@ Future<void> showWithdrawRequestDialog(
                 const SizedBox(height: 16),
 
                 if (isUpi) ...[
+                  DropdownButtonFormField<String>(
+                    value: payoutApp,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment App',
+                    ),
+                    items: paymentApps
+                        .map(
+                          (x) => DropdownMenuItem(
+                            value: x,
+                            child: Text(x),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: sending
+                        ? null
+                        : (x) => setDialogState(
+                              () => payoutApp = x!,
+                            ),
+                  ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller:
                         upiController,
@@ -22907,9 +23026,9 @@ Future<void> showWithdrawRequestDialog(
                         TextInputType
                             .emailAddress,
                     decoration:
-                        const InputDecoration(
+                                                const InputDecoration(
                       labelText:
-                          'UPI ID',
+                          'UPI ID / Linked Mobile Number',
                       hintText:
                           'example@upi',
                       prefixIcon:
@@ -23045,6 +23164,22 @@ Future<void> showWithdrawRequestDialog(
 
                 const SizedBox(height: 14),
 
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: saveToProfile,
+                  onChanged: sending
+                      ? null
+                      : (x) => setDialogState(
+                            () => saveToProfile = x ?? false,
+                          ),
+                  title: const Text(
+                    'इन details को Profile में भी सेव करें',
+                  ),
+                  subtitle: const Text(
+                    'बिना चुने बदलाव केवल इस request के लिए है',
+                  ),
+                ),
+
                 Container(
                   padding:
                       const EdgeInsets.all(
@@ -23073,9 +23208,9 @@ Future<void> showWithdrawRequestDialog(
               ],
             ),
 
-            actions: [
+                        actions: [
               TextButton(
-  onPressed: () {
+  onPressed: sending ? null : () {
     Navigator.pop(
       dialogContext,
       false,
@@ -23091,16 +23226,14 @@ Future<void> showWithdrawRequestDialog(
                   backgroundColor:
                       Colors.red,
                   foregroundColor:
-                      Colors.white,
+                                            Colors.white,
                 ),
-                onPressed: () async {
+                onPressed: sending ? null : () async {
                   final amount =
-                      double.tryParse(
-                    amountController.text
-                        .trim(),
-                  );
+                      double.tryParse(amountController.text.trim());
 
                   if (amount == null ||
+                      !amount.isFinite ||
                       amount < 500) {
                     ScaffoldMessenger.of(
                       context,
@@ -23134,19 +23267,20 @@ Future<void> showWithdrawRequestDialog(
                   if (isUpi) {
                     final upi =
                         upiController.text
-                            .trim();
+                                                        .trim();
 
-                    if (upi.isEmpty ||
-                        !upi.contains('@')) {
+                    if (!validPaymentUpi(upi) &&
+                        !(payoutApp != 'UPI' &&
+                            validPaymentMobile(upi))) {
                       ScaffoldMessenger.of(
                         context,
                       ).showSnackBar(
                         const SnackBar(
+                                                  const SnackBar(
                           content: Text(
-                            'सही UPI ID भरें',
+                            'सही UPI ID या selected app का linked mobile भरें',
                           ),
                         ),
-                      );
                       return;
                     }
                   } else {
@@ -23290,42 +23424,79 @@ Future<void> showWithdrawRequestDialog(
                       ),
                     );
                     return;
+                                    }
+
+                  if (sending ||
+                      FirebaseAuth.instance.currentUser?.uid != paymentUid) {
+                    return;
                   }
 
-                  final saved =
-                      await addWalletRequest(
+                  if (!isUpi &&
+                      (!validPaymentAccount(accountController.text) ||
+                          !validPaymentIfsc(ifscController.text) ||
+                          !validPaymentMobile(mobileController.text))) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'सही account number, IFSC और 10 अंकों का mobile भरें',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
+                  final chosenMethod = payoutMethod;
+                  final chosenApp = payoutApp;
+                  final chosenId = upiController.text.trim();
+                  final chosenBank = bankNameController.text.trim();
+                  final chosenAccount = accountController.text.trim();
+                  final chosenIfsc =
+                      ifscController.text.trim().toUpperCase();
+                  final chosenMobile = mobileController.text.trim();
+                  final shouldSaveProfile = saveToProfile;
+
+                  setDialogState(() => sending = true);
+
+                  final saved = await addWalletRequest(
                     type: 'WITHDRAW',
                     amount: amount,
-                    payoutMethod:
-                        payoutMethod,
-                    payoutUpiId: isUpi
-                        ? upiController.text
-                            .trim()
-                        : null,
-                    accountHolderName:
-                        holderName,
-                    bankName: !isUpi
-                        ? bankNameController
-                            .text
-                            .trim()
-                        : null,
-                    bankAccountNumber:
-                        !isUpi
-                            ? accountController
-                                .text
-                                .trim()
-                            : null,
-                    bankIfsc: !isUpi
-                        ? ifscController.text
-                            .trim()
-                            .toUpperCase()
-                        : null,
-                    bankMobile: !isUpi
-                        ? mobileController
-                            .text
-                            .trim()
-                        : null,
+                    payoutMethod: chosenMethod,
+                    payoutApp: isUpi ? chosenApp : null,
+                    payoutUpiId: isUpi ? chosenId : null,
+                    accountHolderName: holderName,
+                    bankName: !isUpi ? chosenBank : null,
+                    bankAccountNumber: !isUpi ? chosenAccount : null,
+                    bankIfsc: !isUpi ? chosenIfsc : null,
+                    bankMobile: !isUpi ? chosenMobile : null,
                   );
+
+                  if (!saved && dialogContext.mounted) {
+                    setDialogState(() => sending = false);
+                  }
+
+                  if (saved && shouldSaveProfile) {
+                    try {
+                      await savePaymentDetails(paymentUid, {
+                        'accountHolderName': holderName,
+                        'payoutMethod': chosenMethod,
+                        if (isUpi) ...{
+                          'paymentApp': chosenApp,
+                          'upiId':
+                              validPaymentUpi(chosenId) ? chosenId : '',
+                          if (validPaymentMobile(chosenId))
+                            'paymentMobile': chosenId,
+                        } else ...{
+                          'bankName': chosenBank,
+                          'bankAccountNumber': chosenAccount,
+                          'bankIfsc': chosenIfsc,
+                          'bankMobile': chosenMobile,
+                        },
+                      });
+                    } catch (_) {
+                      profileSaveWarning =
+                          'Request भेज दी गई, लेकिन Profile details सेव नहीं हुईं।';
+                    }
+                  }
 
                   if (!context.mounted) {
                     return;
@@ -23360,18 +23531,19 @@ Future<void> showWithdrawRequestDialog(
 }
 
 if (dialogContext.mounted) {
+  setDialogState(() => sending = false);
   Navigator.pop(
     dialogContext,
     true,
   );
 }
                 },
-                child: const Text(
-                  'SEND REQUEST',
+                child: Text(
+                  sending ? 'SENDING…' : 'SEND REQUEST',
                 ),
               ),
             ],
-          );
+          ));
         },
       );
     },
@@ -23406,9 +23578,8 @@ if (dialogContext.mounted) {
     );
   }
 }
-        
-              
-class DepositPaymentPage extends StatelessWidget {
+
+class DepositPaymentPage extends StatefulWidget {
   final double amount;
 
   const DepositPaymentPage({
@@ -23417,7 +23588,69 @@ class DepositPaymentPage extends StatelessWidget {
   });
 
   @override
+  State<DepositPaymentPage> createState() =>
+      _DepositPaymentPageState();
+}
+
+class _DepositPaymentPageState extends State<DepositPaymentPage> {
+  final _sender = TextEditingController();
+
+  late final String? _paymentUid =
+      FirebaseAuth.instance.currentUser?.uid;
+
+  bool _saveToProfile = false;
+  bool _loadingPayment = true;
+  bool _sending = false;
+
+  double get amount => widget.amount;
+
+  @override
+  void initState() {
+    super.initState();
+    selectedPaymentScreenshot.value = null;
+    depositSenderUpiId.value = '';
+    _loadSavedPayment();
+  }
+
+  Future<void> _loadSavedPayment() async {
+    try {
+      if (_paymentUid == null) return;
+
+      final details = await loadPaymentDetails(_paymentUid!);
+
+      if (!mounted ||
+          FirebaseAuth.instance.currentUser?.uid != _paymentUid) {
+        return;
+      }
+
+      _sender.text = (details['upiId'] ?? '').toString();
+      depositSenderUpiId.value = _sender.text;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Saved UPI load नहीं हुई। जिस ID से payment किया वह भरें।',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loadingPayment = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _sender.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Payment QR Code'),
@@ -23564,6 +23797,8 @@ ValueListenableBuilder<String>(
           const SizedBox(height: 14),
 
 TextField(
+  controller: _sender,
+  enabled: !_loadingPayment && !_sending,
   keyboardType:
       TextInputType.emailAddress,
   onChanged: (value) {
@@ -23582,28 +23817,20 @@ TextField(
         'सिर्फ वही UPI ID लिखें जिससे payment किया है',
   ),
 ),
-          const SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
-OutlinedButton.icon(
-  style: OutlinedButton.styleFrom(
-    backgroundColor: Colors.teal,
-    foregroundColor: Colors.white,
-  ),
-  onPressed: () {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Payment image save feature ready for later connection',
-        ),
-      ),
-    );
-  },
-  icon: const Icon(Icons.download),
-  label: const Text('SAVE PAYMENT IMAGE'),
+CheckboxListTile(
+  contentPadding: EdgeInsets.zero,
+  value: _saveToProfile,
+  onChanged: _sending
+      ? null
+      : (x) => setState(() => _saveToProfile = x ?? false),
+  title: const Text('यह UPI ID Profile में भी सेव करें'),
 ),
 
-const SizedBox(height: 12),
+SavePaymentImageButton(image: depositPaymentImage),
 
+const SizedBox(height: 12),
 ElevatedButton.icon(
   style: ElevatedButton.styleFrom(
     backgroundColor: Colors.orange,
@@ -23670,14 +23897,19 @@ Center(
   fixedSize: const Size(280, 50),
   shape: RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(24),
-  ),
+    ),
 ),
-  onPressed: () async {
-  final paidFromUpiId =
-      depositSenderUpiId.value.trim();
+  onPressed: (_loadingPayment || _sending) ? null : () async {
+  if (_loadingPayment ||
+      _sending ||
+      _paymentUid == null ||
+      FirebaseAuth.instance.currentUser?.uid != _paymentUid) {
+    return;
+  }
 
-  if (paidFromUpiId.isEmpty ||
-      !paidFromUpiId.contains('@')) {
+  final paidFromUpiId = _sender.text.trim();
+
+  if (!validPaymentUpi(paidFromUpiId)) {
     ScaffoldMessenger.of(context)
         .showSnackBar(
       const SnackBar(
@@ -23702,16 +23934,33 @@ Center(
     return;
   }
 
+  final shouldSaveProfile = _saveToProfile;
+  setState(() => _sending = true);
   final saved =
       await addWalletRequest(
     type: 'DEPOSIT',
     amount: amount,
     screenshot:
         selectedPaymentScreenshot.value,
-    depositUpiId: paidFromUpiId,
+        depositUpiId: paidFromUpiId,
   );
 
+  String? profileWarning;
+
+  if (saved && shouldSaveProfile) {
+    try {
+      await savePaymentDetails(
+        _paymentUid!,
+        {'upiId': paidFromUpiId},
+      );
+    } catch (_) {
+      profileWarning =
+          'Request भेज दी गई, लेकिन Profile में UPI सेव नहीं हुई।';
+    }
+  }
+
   if (!context.mounted) return;
+  setState(() => _sending = false);
 
   if (!saved) {
     ScaffoldMessenger.of(context)
@@ -23730,9 +23979,9 @@ Center(
 
   
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
+        SnackBar(
       content: Text(
-        '₹${amount.toStringAsFixed(0)} deposit request sent to admin',
+        profileWarning ?? '₹${amount.toStringAsFixed(0)} deposit request sent to admin',
       ),
     ),
   );
@@ -23740,7 +23989,7 @@ Center(
   Navigator.pop(context);
 },
   icon: const Icon(Icons.check),
-  label: const Text('SUBMIT PAYMENT'),
+  label: Text(_sending ? 'SENDING…' : 'SUBMIT PAYMENT'),
           ),
         ),
       ),
@@ -36042,19 +36291,35 @@ if (!isDeposit) ...[
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          payoutMethod == 'BANK'
+                    payoutMethod == 'BANK'
               ? '🏦 Bank Account Withdrawal'
-              : '💳 UPI Withdrawal',
+              : '💳 ${request['payoutApp'] ?? 'UPI'} Withdrawal',
           style: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w900,
           ),
-        ),
+                ),
         const SizedBox(height: 8),
-
+        TextButton.icon(
+          icon: const Icon(Icons.copy),
+          label: const Text('COPY PAYMENT DETAILS'),
+          onPressed: () async {
+            final text = payoutMethod == 'UPI'
+                ? '${request['payoutApp'] ?? 'UPI'}: $payoutUpiId\nAccount Holder: $accountHolderName'
+                : 'Account Holder: $accountHolderName\nBank: $bankName\nAccount: $bankAccountNumber\nIFSC: $bankIfsc\nMobile: $bankMobile';
+            await Clipboard.setData(ClipboardData(text: text));
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Payment details copied'),
+                ),
+              );
+            }
+          },
+        ),
         if (payoutMethod == 'UPI') ...[
           Text(
-            'UPI ID: $payoutUpiId',
+            'UPI ID / Linked Mobile: $payoutUpiId',
             style: const TextStyle(
               fontWeight: FontWeight.w700,
             ),
