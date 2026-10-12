@@ -23272,15 +23272,13 @@ Future<void> showWithdrawRequestDialog(
                     if (!validPaymentUpi(upi) &&
                         !(payoutApp != 'UPI' &&
                             validPaymentMobile(upi))) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(
+                                            ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                                                  const SnackBar(
                           content: Text(
                             'सही UPI ID या selected app का linked mobile भरें',
                           ),
                         ),
+                      );
                       return;
                     }
                   } else {
