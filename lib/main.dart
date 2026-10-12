@@ -9112,6 +9112,7 @@ const SizedBox(
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+  const SizedBox(height: 120),
         Image.asset(
           selectedFilter == 1
               ? 'assets/admin_live.webp'
@@ -10561,6 +10562,8 @@ if (currentMatches.isEmpty)
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+  if (selectedTab != 0)
+    const SizedBox(height: 80),
         Image.asset(
           selectedTab == 0
               ? 'assets/user_upcoming.webp'
@@ -33074,6 +33077,7 @@ if ((_selectedContestFilter == 1 &&
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+  const SizedBox(height: 60),
         Image.asset(
           'assets/admin_manage_contests.webp',
           width: 320,
@@ -46411,6 +46415,7 @@ const Icon(
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+  const SizedBox(height: 56),
         Image.asset(
           'assets/admin_manage_matches.webp',
           width: 320,
@@ -46509,6 +46514,7 @@ const Icon(
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+  const SizedBox(height: 56),
         Image.asset(
           'assets/admin_manage_matches.webp',
           width: 320,
