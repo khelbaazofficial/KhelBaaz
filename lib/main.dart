@@ -8195,24 +8195,19 @@ child: Container(
           ],
 
           Flexible(
-            child: Text(
-              status,
-              maxLines: 1,
-              overflow:
-                  TextOverflow
-                      .ellipsis,
-              style:
-                  const TextStyle(
-                color:
-                    Color(
-                  0xFFE51F35,
-                ),
-                fontWeight:
-                    FontWeight.w900,
-                fontSize: 10.5,
-              ),
-            ),
-          ),
+  child: FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Text(
+      status,
+      maxLines: 1,
+      style: const TextStyle(
+        color: Color(0xFFE51F35),
+        fontWeight: FontWeight.w900,
+        fontSize: 10.5,
+      ),
+    ),
+  ),
+),
         ],
       ),
     );
@@ -10279,13 +10274,8 @@ return DateTime.now().isBefore(deleteAt);
   // COMPLETED:
   // latest completed सबसे ऊपर
   int compareCompleted(MatchModel a, MatchModel b) {
-    final aTime =
-        a.completedAt ??
-        a.startTime?.add(a.liveDuration);
-
-    final bTime =
-        b.completedAt ??
-b.startTime?.add(b.liveDuration);
+    final aTime = a.startTime;
+final bTime = b.startTime;
 
     if (aTime == null && bTime == null) return 0;
     if (aTime == null) return 1;
@@ -10606,10 +10596,7 @@ if (currentMatches.isEmpty)
   return MatchCard(match: match);
 }
 
-  final matchDate = selectedTab == 0
-    ? match.startTime
-    : (match.completedAt ??
-        match.startTime?.add(match.liveDuration));
+  final matchDate = match.startTime;
   if (matchDate == null) {
     return MatchCard(match: match);
   }
@@ -10617,12 +10604,7 @@ if (currentMatches.isEmpty)
   final previousMatch =
     index > 0 ? currentMatches[index - 1] : null;
 
-final previousDate = previousMatch == null
-    ? null
-    : selectedTab == 0
-        ? previousMatch.startTime
-        : (previousMatch.completedAt ??
-            previousMatch.startTime?.add(previousMatch.liveDuration));
+final previousDate = previousMatch?.startTime;
   final bool newDate =
       previousDate == null ||
       previousDate.year != matchDate.year ||
@@ -16070,12 +16052,18 @@ const SizedBox(height: 4),
             runSpacing: 4,
             children: [
               Text(
-                totalSpots > 0
-                    ? '$joinedCount/$totalSpots Joined'
-                    : spots,
-              ),
-              if (totalSpots > 0)
-                Text('$spotsLeft Spots Left'),
+  totalSpots > 0
+      ? lowerName.contains('head to head')
+          ? 'Next open lobby: $joinedCount/$totalSpots'
+          : '$joinedCount/$totalSpots Joined'
+      : spots,
+),
+if (totalSpots > 0)
+  Text(
+    lowerName.contains('head to head')
+        ? '$spotsLeft spots in next lobby'
+        : '$spotsLeft Spots Left',
+  ),
             ],
           ),
           if (totalSpots > 0) ...[
@@ -19029,44 +19017,54 @@ if (widget.contest != null &&
       ),
     ),
     clipBehavior: Clip.antiAlias,
-    child: ListTile(
-  title: const Text(
-    'Final Result',
-    style: TextStyle(
-      fontSize: 17,
-      fontWeight: FontWeight.bold,
-    ),
-  ),
-
-  subtitle: Padding(
-    padding: const EdgeInsets.only(top: 8),
-    child: Text(
-      '${widget.match.team1Flag} '
-      '${_shortTeamName(widget.match.team1)} '
-      '$team1LiveScore/$team1LiveWickets'
-      '  -  '
-      '$team2LiveScore/$team2LiveWickets '
-      '${_shortTeamName(widget.match.team2)} '
-      '${widget.match.team2Flag}',
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w600,
+    child: Padding(
+  padding: const EdgeInsets.all(14),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        'Final Result',
+        style: TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.bold,
+        ),
       ),
-    ),
-  ),
-
-  trailing: Text(
-    team1LiveScore > team2LiveScore
-        ? '👑\n${widget.match.team1} WON'
-        : team2LiveScore > team1LiveScore
-            ? '👑\n${widget.match.team2} WON'
-            : 'TIE',
-    textAlign: TextAlign.center,
-    style: const TextStyle(
-      fontSize: 14,
-      fontWeight: FontWeight.bold,
-      color: Colors.green,
-    ),
+      const SizedBox(height: 10),
+      SizedBox(
+        width: double.infinity,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '${widget.match.team1Flag} '
+            '${_shortTeamName(widget.match.team1)} '
+            '$team1LiveScore/$team1LiveWickets'
+            '  -  '
+            '$team2LiveScore/$team2LiveWickets '
+            '${_shortTeamName(widget.match.team2)} '
+            '${widget.match.team2Flag}',
+            maxLines: 1,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        team1LiveScore > team2LiveScore
+            ? '👑 ${widget.match.team1} WON'
+            : team2LiveScore > team1LiveScore
+                ? '👑 ${widget.match.team2} WON'
+                : 'TIE',
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: Colors.green,
+        ),
+      ),
+    ],
   ),
 ),
     ),
