@@ -21148,54 +21148,77 @@ class WalletPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Wallet'),
+  backgroundColor: const Color(0xFF145A32),
+  foregroundColor: Colors.white,
+  surfaceTintColor: Colors.transparent,
+  elevation: 0,
+  toolbarHeight: 68,
+  title: const Text(
+    'Wallet',
+    style: TextStyle(
+      color: Colors.white,
+      fontSize: 24,
+      fontWeight: FontWeight.bold,
+    ),
+  ),
+  actions: [
+    Padding(
+      padding: const EdgeInsets.only(
+        right: 12,
+        top: 10,
+        bottom: 10,
       ),
+      child: ValueListenableBuilder<double>(
+        valueListenable: walletBalance,
+        builder: (context, balance, _) {
+          return Container(
+            constraints: BoxConstraints(
+              maxWidth:
+                  MediaQuery.of(context).size.width * 0.44,
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.account_balance_wallet_rounded,
+                    color: Color(0xFF145A32),
+                    size: 22,
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    '₹${balance.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      color: Color(0xFF145A32),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  ],
+),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(
   child: Column(
           children: [
-            ValueListenableBuilder<double>(
-  valueListenable: walletBalance,
-  builder: (context, balance, _) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 9,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.green.shade700,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.account_balance_wallet,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              '₹${balance.toStringAsFixed(0)}',
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  },
-),
-
-            const SizedBox(height: 18),
-
-Container(
+            
+            Container(
   width: double.infinity,
   decoration: BoxDecoration(
     borderRadius: BorderRadius.circular(18),
@@ -21239,6 +21262,72 @@ ElevatedButton.icon(
   label: const Text(
     'MY REQUESTS',
     style: TextStyle(fontWeight: FontWeight.bold),
+  ),
+),
+
+const SizedBox(height: 14),
+
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.symmetric(
+    horizontal: 14,
+    vertical: 14,
+  ),
+  decoration: BoxDecoration(
+    color: const Color(0xFFFFF8DF),
+    borderRadius: BorderRadius.circular(18),
+    border: Border.all(
+      color: const Color(0xFFF1E4B8),
+    ),
+    boxShadow: const [
+      BoxShadow(
+        color: Color(0x10000000),
+        blurRadius: 6,
+        offset: Offset(0, 3),
+      ),
+    ],
+  ),
+  child: Row(
+    children: [
+      Container(
+        width: 46,
+        height: 46,
+        decoration: const BoxDecoration(
+          color: Color(0xFFFFE5E5),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.access_time_rounded,
+          color: Color(0xFFB71C1C),
+          size: 28,
+        ),
+      ),
+      const SizedBox(width: 12),
+      const Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Deposit / Withdrawal Approval Time',
+              style: TextStyle(
+                color: Color(0xFF616161),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(height: 5),
+            Text(
+              '6:00 PM – 10:00 PM (IST)',
+              style: TextStyle(
+                color: Color(0xFFB71C1C),
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
   ),
 ),
 
