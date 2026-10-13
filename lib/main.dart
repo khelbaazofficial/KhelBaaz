@@ -13053,7 +13053,7 @@ class _PlayingXiReminder extends StatelessWidget {
         children: [
           Icon(
             Icons.info,
-            color: Color(0xFFF29A00),
+            color: Color(0xFFE85D5D),
             size: 20,
           ),
           SizedBox(width: 8),
