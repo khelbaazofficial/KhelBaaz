@@ -19761,12 +19761,24 @@ Card(
 
 Card(
   child: ListTile(
-    leading: const Icon(
-      Icons.account_balance,
-      color: Colors.teal,
+    leading: Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Icon(
+        Icons.account_balance,
+        color: Color(0xFFC62828),
+        size: 28,
+      ),
     ),
     title: const Text('Payment Details'),
-    subtitle: const Text('UPI / Payment App / Bank Account'),
+    subtitle: const Text(
+      'UPI / Payment App / Bank Account',
+      softWrap: true,
+    ),
     trailing: const Icon(Icons.chevron_right),
     onTap: () => Navigator.push(
       context,
@@ -19776,7 +19788,6 @@ Card(
     ),
   ),
 ),
-
 Card(
   child: ListTile(
     leading: Container(
