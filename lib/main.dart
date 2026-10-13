@@ -1624,12 +1624,13 @@ String _adminSettlementDateTime(
 // contest_results -> public final leaderboard
 // ======================================================
 
-Future<void>
-    _finalizeRealContestResultsForMatch({
+Future<void> _finalizeRealContestResultsForMatch({
   required String matchKey,
-  required Map<String, String>
-      adminMatch,
+  required Map<String, String> adminMatch,
+  bool publishLiveOnly = false,
 }) async {
+  final liveRevision =
+      DateTime.now().microsecondsSinceEpoch;
   final signedIn =
       FirebaseAuth.instance.currentUser;
 
@@ -1673,7 +1674,7 @@ Future<void>
             .toLowerCase() ==
         'true';
 
-    if (!finalScoreUpdated) {
+    if (!finalScoreUpdated && !publishLiveOnly) {
       return;
     }
 
@@ -2059,7 +2060,61 @@ for (final group
   }
 }
         
+if (publishLiveOnly) {
+  // Publish live ranks without wallet or settlement changes.
+  for (final group in groupedCandidates.entries) {
+    final rows = resultEntries.where(
+      (entry) =>
+          entry['instanceContestId'] == group.key,
+    ).toList();
 
+    final ref = firestore
+        .collection('contest_results')
+        .doc(group.key);
+
+    await firestore.runTransaction((tx) async {
+      final existing = (await tx.get(ref)).data();
+
+      if (existing?['finalized'] == true) {
+        return;
+      }
+
+      final previous = _userGameInt(
+        existing?['liveRevision'],
+      );
+
+      if (previous >= liveRevision) {
+        return;
+      }
+
+      tx.set(ref, {
+        'contestId': group.key,
+        'templateContestId': contestId,
+        'matchKey': matchKey,
+        'team1': team1,
+        'team2': team2,
+        'contestName': (
+          contest['name'] ??
+          contest['contestName'] ??
+          'Contest'
+        ).toString(),
+        'winningType': (
+          contest['h2hWinningType'] ??
+          contest['winningType'] ??
+          ''
+        ).toString(),
+        'phase': 'LIVE',
+        'finalized': false,
+        'entries': rows,
+        'liveRevision': liveRevision,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  continue;
+}
+      
       final contestName =
           (contest['name'] ??
                   contest[
@@ -18044,19 +18099,25 @@ void _syncContestLatestData() {
     if (latestAdminMatches.isNotEmpty) {
       final m = latestAdminMatches.first;
 
-      team1LiveScore =
-          ((m['team1Score'] ?? team1LiveScore) as num).toInt();
+      team1LiveScore = _userGameInt(
+  m['team1Score'] ?? team1LiveScore,
+);
 
-      team2LiveScore =
-          ((m['team2Score'] ?? team2LiveScore) as num).toInt();
+team2LiveScore = _userGameInt(
+  m['team2Score'] ?? team2LiveScore,
+);
 
-      team1LiveWickets = latestJoinedMatches.isNotEmpty
+team1LiveWickets = latestJoinedMatches.isNotEmpty
     ? (latestJoinedMatches.first.team1Wickets ?? 0)
-    : ((m['team1Wickets'] ?? team1LiveWickets) as num).toInt();
+    : _userGameInt(
+        m['team1Wickets'] ?? team1LiveWickets,
+      );
 
 team2LiveWickets = latestJoinedMatches.isNotEmpty
     ? (latestJoinedMatches.first.team2Wickets ?? 0)
-    : ((m['team2Wickets'] ?? team2LiveWickets) as num).toInt();
+    : _userGameInt(
+        m['team2Wickets'] ?? team2LiveWickets,
+      );
     } else if (latestJoinedMatches.isNotEmpty) {
       final m = latestJoinedMatches.first;
 
@@ -18194,14 +18255,19 @@ final realResultEntries =
             widget.contest!,
           );
 
-final leaderboard =
-    contestCompleted
-        ? realResultEntries
-        : <Map<String, dynamic>>[];
+final leaderboard = realResultEntries;
+
+final resultId = (
+  widget.contest?['contestId'] ??
+  widget.contest?['id'] ??
+  ''
+).toString().trim();
+
+final rankResult = contestResults.value[resultId];
 
 final bool showFinalRanks =
-    contestCompleted &&
-        leaderboard.isNotEmpty;
+    leaderboard.isNotEmpty &&
+    (contestCompleted || rankResult?['phase'] == 'LIVE');
 
 Map<String, dynamic>? myResult;
 
@@ -18364,7 +18430,7 @@ if (showMatchWinner) ...[
 Text(
   calculatedLiveRank <= 0
       ? 'Winning Prize: Pending'
-      : 'Winning Prize: ₹${calculatedWinningPrize.toStringAsFixed(0)}',
+            : '${contestCompleted ? 'Winning Prize' : 'संभावित Prize'}: ₹${calculatedWinningPrize.toStringAsFixed(0)}',
   style: const TextStyle(
     color: Color(0xFF9A5263),
     fontWeight: FontWeight.bold,
@@ -18398,349 +18464,266 @@ Text(
             top: Radius.circular(24),
           ),
         ),
-        builder: (context) {
+        builder: (sheetContext) {
+  int visibleCount = 100;
+
+  return StatefulBuilder(
+    builder: (sheetContext, setSheetState) {
+      return ValueListenableBuilder<
+          Map<String, Map<String, dynamic>>>(
+        valueListenable: contestResults,
+        builder: (context, results, _) {
+          final entries =
+              _contestResultEntriesFor(widget.contest!);
+
+          final cid = (
+            widget.contest!['contestId'] ??
+            widget.contest!['id'] ??
+            ''
+          ).toString().trim();
+
+          final result = results[cid];
+
+          final ready =
+              result?['finalized'] == true ||
+              result?['phase'] == 'LIVE';
+
+          final uid =
+              FirebaseAuth.instance.currentUser?.uid ?? '';
+
+          Map<String, dynamic>? you;
+
+          for (final entry in entries) {
+            if (entry['userId'].toString() == uid) {
+              you = entry;
+              break;
+            }
+          }
+
+          final shown = <Map<String, dynamic>>[
+            if (you != null) you,
+            ...entries.take(visibleCount).where(
+              (entry) =>
+                  entry['userId'].toString() != uid,
+            ),
+          ];
+
           return SafeArea(
-  top: false,
-  child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                 Text(
-  detailContestName.contains('head')
-      ? 'Team Ranks 🏆'
-      : 'Top 10 Ranks 🏆',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+            top: false,
+            child: SizedBox(
+              height:
+                  MediaQuery.of(context).size.height * 0.8,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Text(
+                          detailContestName.contains('head')
+                              ? 'Team Ranks 🏆'
+                              : 'Top 100 Ranks 🏆',
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          result?['finalized'] == true
+                              ? 'Final ranks'
+                              : 'Live ranks • हर score update पर बदल सकती हैं',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Rank • Team / User • Points',
+                          style: TextStyle(
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  Expanded(
+                    child: !ready || entries.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Score update के बाद ranks दिखेंगी',
+                            ),
+                          )
+                        : ListView.builder(
+                            padding:
+                                const EdgeInsets.symmetric(
+                              horizontal: 16,
+                            ),
+                            itemCount: shown.length +
+                                (entries.length >
+                                        visibleCount
+                                    ? 1
+                                    : 0),
+                            itemBuilder: (context, index) {
+                              if (index == shown.length) {
+                                return TextButton(
+                                  onPressed: () {
+                                    setSheetState(() {
+                                      visibleCount += 100;
+                                    });
+                                  },
+                                  child: const Text(
+                                    'और देखें • अगले 100',
+                                  ),
+                                );
+                              }
 
-                const SizedBox(height: 6),
+                              final entry = shown[index];
 
-                Text(
-                  winningType.toLowerCase().contains('winner takes all')
-                      ? 'Highest points will win • Winner Takes All'
-                      : 'Highest points will win',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey,
+                              final rank =
+                                  _userGameInt(entry['rank']);
+
+                              final points =
+                                  _userGameDouble(
+                                entry['points'],
+                              );
+
+                              final isYou =
+                                  entry['userId']
+                                      .toString() ==
+                                  uid;
+
+                              final username = (
+                                entry['username'] ??
+                                entry['name'] ??
+                                'User'
+                              ).toString().replaceFirst(
+                                RegExp(r'^@+'),
+                                '',
+                              );
+
+                              final badge = rank == 1
+                                  ? '🥇 👑'
+                                  : rank == 2
+                                      ? '🥈'
+                                      : rank == 3
+                                          ? '🥉'
+                                          : '';
+
+                              final rowColor = rank == 1
+                                  ? const Color(0xFFFFF3C4)
+                                  : rank == 2
+                                      ? const Color(
+                                          0xFFF1F3F5,
+                                        )
+                                      : rank == 3
+                                          ? const Color(
+                                              0xFFFFE8D6,
+                                            )
+                                          : const Color(
+                                              0xFFFFF4F6,
+                                            );
+
+                              return Container(
+                                margin:
+                                    const EdgeInsets.only(
+                                  bottom: 8,
+                                ),
+                                padding:
+                                    const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: rowColor,
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    14,
+                                  ),
+                                  border: Border.all(
+                                    color: rank == 1
+                                        ? const Color(
+                                            0xFFD4A017,
+                                          )
+                                        : rank == 2
+                                            ? const Color(
+                                                0xFFB0BEC5,
+                                              )
+                                            : rank == 3
+                                                ? const Color(
+                                                    0xFFCD7F32,
+                                                  )
+                                                : const Color(
+                                                    0xFFF0C8D1,
+                                                  ),
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 48,
+                                          child: Text(
+                                            '#$rank',
+                                            style:
+                                                const TextStyle(
+                                              fontWeight:
+                                                  FontWeight
+                                                      .bold,
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            '${isYou ? 'You' : '@$username'} $badge',
+                                            style:
+                                                const TextStyle(
+                                              fontWeight:
+                                                  FontWeight
+                                                      .w600,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(
+                                          width: 8,
+                                        ),
+                                        Text(
+                                          points % 1 == 0
+                                              ? points
+                                                  .toStringAsFixed(
+                                                  0,
+                                                )
+                                              : points
+                                                  .toStringAsFixed(
+                                                  1,
+                                                ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Align(
+                                      alignment:
+                                          Alignment.centerRight,
+                                      child: Text(
+                                        '${result?['finalized'] == true ? 'Winning' : 'संभावित prize'}: ₹${_userGameDouble(entry['winning']).toStringAsFixed(0)}',
+                                        style:
+                                            const TextStyle(
+                                          color: Colors.green,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
                   ),
-                ),
-
-                const SizedBox(height: 18),
-
-               if (!showFinalRanks)
-  const Padding(
-    padding: EdgeInsets.symmetric(vertical: 30),
-    child: Text(
-      'Ranks Pending',
-      style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Color(0xFF9A5263),
-      ),
-    ),
-  )
-else
-  Builder(
-    builder: (context) {
-
-      // ==========================================
-      // REAL FIREBASE LEADERBOARD
-      // ==========================================
-
-      final List<Map<String, dynamic>>
-          rankedUsers = [];
-
-      for (final user
-          in leaderboard) {
-        rankedUsers.add({
-          'rank':
-              _userGameInt(
-            user['rank'],
-          ),
-          'user': user,
-        });
-      }
-
-      // ==========================================
-      // CURRENT USER
-      // ==========================================
-
-      Map<String, dynamic>? youEntry;
-
-      for (final entry
-          in rankedUsers) {
-        final user =
-            Map<String, dynamic>.from(
-          entry['user'],
-        );
-
-        if ((user['userId'] ?? '')
-                .toString() ==
-            currentUserId) {
-          youEntry = entry;
-          break;
-        }
-      }
-
-      // You first + actual Top 10
-      final List<Map<String, dynamic>>
-          displayUsers = [];
-
-      if (youEntry != null) {
-        displayUsers.add(
-          youEntry,
-        );
-      }
-
-      for (final entry
-          in rankedUsers.take(10)) {
-        final user =
-            Map<String, dynamic>.from(
-          entry['user'],
-        );
-
-        if ((user['userId'] ?? '')
-                .toString() ==
-            currentUserId) {
-          continue;
-        }
-
-                displayUsers.add(
-          entry,
-        );
-      }
-
-    
-      return Column(
-        children:
-            displayUsers.map(
-          (entry) {
-            final int rank =
-                _userGameInt(
-              entry['rank'],
-            );
-
-            final Map<String, dynamic>
-                user =
-                Map<String,
-                    dynamic>.from(
-              entry['user'],
-            );
-
-            final String rawUsername =
-                (user['username'] ??
-                        user['name'] ??
-                        'User')
-                    .toString();
-
-            final bool isYou =
-                (user['userId'] ?? '')
-                        .toString() ==
-                    currentUserId;
-
-            final String username =
-                rawUsername
-                        .startsWith('@')
-                    ? rawUsername
-                    : '@$rawUsername';
-
-            final String rankBadge =
-                rank == 1
-                    ? '🥇 👑'
-                    : rank == 2
-                        ? '🥈'
-                        : rank == 3
-                            ? '🥉'
-                            : '';
-
-            final String displayName =
-                rankBadge.isNotEmpty
-                    ? '${isYou ? 'You' : username} $rankBadge'
-                    : (isYou
-                        ? 'You'
-                        : username);
-
-            final double points =
-                _userGameDouble(
-              user['points'],
-            );
-
-            final double winning =
-                _userGameDouble(
-              user['winning'],
-            );
-        
-        
-                // ======================================
-          // RANK COLOR SYSTEM
-          // ======================================
-
-          Color rowColor;
-          Color borderColor;
-          Color rankColor;
-
-          // 🥇 Rank 1
-          if (rank == 1) {
-            rowColor =
-                const Color(0xFFFFF3C4);
-
-            borderColor =
-                const Color(0xFFD4A017);
-
-            rankColor =
-                const Color(0xFFB8860B);
-          }
-
-          // 🥈 Rank 2
-          else if (rank == 2) {
-            rowColor =
-                const Color(0xFFF1F3F5);
-
-            borderColor =
-                const Color(0xFFB0BEC5);
-
-            rankColor =
-                const Color(0xFF78909C);
-          }
-
-          // 🥉 Rank 3
-          else if (rank == 3) {
-            rowColor =
-                const Color(0xFFFFE8D6);
-
-            borderColor =
-                const Color(0xFFCD7F32);
-
-            rankColor =
-                const Color(0xFFB87333);
-          }
-
-          // Rank 4 या उससे नीचे
-          else {
-            rowColor =
-                const Color(0xFFFFF4F6);
-
-            borderColor =
-                const Color(0xFFF0C8D1);
-
-            rankColor =
-                const Color(0xFF333333);
-          }
-
-          return Container(
-            margin:
-                const EdgeInsets.only(
-              bottom: 8,
-            ),
-
-            padding:
-                const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 12,
-            ),
-
-            decoration: BoxDecoration(
-              color: rowColor,
-
-              borderRadius:
-                  BorderRadius.circular(14),
-
-              border: Border.all(
-                color: borderColor,
-                width: 1.2,
+                ],
               ),
             ),
-
-            child: Row(
-              children: [
-
-                // =========================
-                // RANK
-                // =========================
-                SizedBox(
-                  width: 55,
-                  child: Text(
-                    '#$rank',
-                    style: TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                      color: rankColor,
-                    ),
-                  ),
-                ),
-                
-                // =========================
-                // USER NAME
-                // =========================
-                Expanded(
-  child: Text(
-    displayName,
-                    style: const TextStyle(
-                      fontWeight:
-                          FontWeight.w600,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-
-                // =========================
-                // POINTS
-                // =========================
-                SizedBox(
-                  width: 65,
-                  child: Text(
-                    points % 1 == 0
-                        ? points
-                            .toStringAsFixed(0)
-                        : points
-                            .toStringAsFixed(1),
-
-                    textAlign:
-                        TextAlign.center,
-
-                    style:
-                        const TextStyle(
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-
-                // =========================
-                // WINNING
-                // =========================
-                SizedBox(
-                  width: 70,
-                  child: Text(
-                    '₹${winning.toStringAsFixed(0)}',
-
-                    textAlign:
-                        TextAlign.right,
-
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                      color: Colors.green,
-                    ),
-                  ),
-                ),
-              ],
-            ),
           );
-        }).toList(),
+        },
       );
     },
-  ),
-                
-                
-              ],
-            ),
-            ),
-);
-        },
+  );
+},               
       );
     },
     child: Container(
@@ -18767,7 +18750,7 @@ else
           Text(
   detailContestName.contains('head')
       ? 'Team Ranks 🏆'
-      : 'Top 10 Ranks 🏆',
+            : 'Top 100 Ranks 🏆',
   style: const TextStyle(
     fontSize: 17,
     fontWeight: FontWeight.bold,
@@ -44897,16 +44880,17 @@ for (final savedAdminMatch
   }
 }
 
-if (finalAdminMatch != null &&
-    (finalAdminMatch[
-                'finalScoreUpdated'] ??
-            '')
-        .toString()
-        .toLowerCase() ==
-        'true') {
+if (finalAdminMatch != null) {
+  final isFinal =
+      (finalAdminMatch['finalScoreUpdated'] ?? '')
+          .toString()
+          .toLowerCase() ==
+      'true';
+
   await _finalizeRealContestResultsForMatch(
     matchKey: matchKey,
     adminMatch: finalAdminMatch,
+    publishLiveOnly: !isFinal,
   );
 }
                   Navigator.pop(dialogContext);
