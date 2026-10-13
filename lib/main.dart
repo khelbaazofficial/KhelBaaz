@@ -13029,7 +13029,126 @@ const SizedBox(height: 12),
     );
   }
 }
+class _PlayingXiReminder extends StatelessWidget {
+  const _PlayingXiReminder();
 
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(8, 6, 8, 5),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 8,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4D8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: const Color(0xFFFFCF79),
+        ),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info,
+            color: Color(0xFFF29A00),
+            size: 20,
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'मैच Live होने से 20 मिनट पहले Playing XI जाँचें।\n'
+              'टीम और C/VC में बदलाव मैच Live होने से 5 मिनट पहले तक करें।',
+              style: TextStyle(
+                color: Color(0xFF63451C),
+                fontSize: 11.5,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Widget _compactPlayerFlag(Player player) {
+  final team = player.team.trim().toUpperCase();
+  String flag = '';
+
+  // Admin में इस टीम के लिए saved flag/logo इस्तेमाल करें।
+  for (final match in adminMatches.value.reversed) {
+    final team1 =
+        (match['team1'] ?? '').trim().toUpperCase();
+    final team2 =
+        (match['team2'] ?? '').trim().toUpperCase();
+
+    if (team == team1) {
+      flag = (match['team1Logo'] ?? '').trim();
+    } else if (team == team2) {
+      flag = (match['team2Logo'] ?? '').trim();
+    }
+
+    if (flag.isNotEmpty) break;
+  }
+
+  // Flag नहीं मिला तो existing fallback इस्तेमाल करें।
+  if (flag.isEmpty) {
+    switch (team) {
+      case 'IND':
+      case 'INDIA':
+        flag = '🇮🇳';
+        break;
+      case 'AUS':
+      case 'AUSTRALIA':
+        flag = '🇦🇺';
+        break;
+      case 'NZ':
+      case 'NEW ZEALAND':
+        flag = '🇳🇿';
+        break;
+      case 'PAK':
+      case 'PAKISTAN':
+        flag = '🇵🇰';
+        break;
+      case 'SL':
+      case 'SRI LANKA':
+        flag = '🇱🇰';
+        break;
+      case 'SA':
+      case 'SOUTH AFRICA':
+        flag = '🇿🇦';
+        break;
+      case 'BAN':
+      case 'BANGLADESH':
+        flag = '🇧🇩';
+        break;
+      case 'AFG':
+      case 'AFGHANISTAN':
+        flag = '🇦🇫';
+        break;
+      default:
+        flag = '🏏';
+    }
+  }
+
+  return SizedBox(
+    width: 28,
+    height: 32,
+    child: Center(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          flag,
+          style: const TextStyle(fontSize: 24),
+        ),
+      ),
+    ),
+  );
+}
 // ================= TEAM PAGE =================
 class TeamPage
     extends StatefulWidget {
@@ -13230,7 +13349,7 @@ void dispose() {
       body: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(15),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
             child: Column(
               children: [
                 Row(
@@ -13262,7 +13381,7 @@ void dispose() {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
@@ -13287,7 +13406,7 @@ void dispose() {
               ],
             ),
           ),
-          const Divider(),
+          const _PlayingXiReminder(),
           Expanded(
             child: ListView.builder(
               itemCount: filteredPlayers.length,
@@ -13298,45 +13417,65 @@ void dispose() {
     widget.selected.any((p) => p.name == player.name);
 
                 return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  child: ListTile(
-                    leading: CircleAvatar(child: Text(player.name[0])),
-                    title: Text(
-  player.name,
-  style: const TextStyle(
-    color: Color(0xFF8B3A3A),
-    fontWeight: FontWeight.w600,
+  margin: const EdgeInsets.symmetric(
+    horizontal: 8,
+    vertical: 3,
   ),
-),
-                    subtitle: Text(
-  '${player.team} • ${player.role}\n'
-  '${player.playing ? "🟢 Playing" : "🔴 Not Playing"}\n'
-  'Points: ${player.points.toStringAsFixed(0)}',
-),
-                    isThreeLine: true,
-                    trailing: SizedBox(
-                      width: 90,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(
-                            '${player.credit}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(width: 10),
-                          Icon(
-                            selected ? Icons.remove_circle : Icons.add_circle,
-                            color: selected ? Colors.red : Colors.green,
-                          ),
-                        ],
-                      ),
-                    ),
-                    onTap: player.playing ? () => togglePlayer(player) : null,
-                  ),
-                );
+  child: ListTile(
+    dense: true,
+    visualDensity: const VisualDensity(vertical: -2),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: 10,
+      vertical: 2,
+    ),
+    minLeadingWidth: 28,
+    horizontalTitleGap: 8,
+    leading: _compactPlayerFlag(player),
+    title: Text(
+      player.name,
+      style: const TextStyle(
+        color: Color(0xFF8B3A3A),
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+    subtitle: Text(
+      '${player.team} • ${player.role}\n'
+      '${player.playing ? "🟢 Playing" : "🔴 Not Playing"}'
+      ' • Points: ${player.points.toStringAsFixed(0)}',
+      style: const TextStyle(
+        fontSize: 11,
+        height: 1.2,
+      ),
+    ),
+    trailing: SizedBox(
+      width: 68,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(
+            '${player.credit}',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            selected
+                ? Icons.remove_circle
+                : Icons.add_circle,
+            size: 23,
+            color: selected ? Colors.red : Colors.green,
+          ),
+        ],
+      ),
+    ),
+    onTap: player.playing
+        ? () => togglePlayer(player)
+        : null,
+  ),
+);
               },
             ),
           ),
@@ -13516,12 +13655,17 @@ class _CaptainPageState extends State<CaptainPage> {
       body: Column(
         children: [
           const Padding(
-            padding: EdgeInsets.all(15),
-            child: Text(
-              'Captain को 2X और Vice Captain को 1.5X points मिलेंगे',
-              textAlign: TextAlign.center,
-            ),
-          ),
+  padding: EdgeInsets.fromLTRB(10, 10, 10, 6),
+  child: Text(
+    'Captain को 2X और Vice Captain को 1.5X points मिलेंगे',
+    textAlign: TextAlign.center,
+    style: TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+    ),
+  ),
+),
+const _PlayingXiReminder(),
           Expanded(
             child: ListView.builder(
               itemCount: widget.selected.length,
@@ -13530,15 +13674,27 @@ class _CaptainPageState extends State<CaptainPage> {
 
                 return Card(
                   child: ListTile(
-                    leading: CircleAvatar(child: Text(player.name[0])),
+  dense: true,
+  visualDensity: const VisualDensity(vertical: -2),
+  contentPadding: const EdgeInsets.symmetric(
+    horizontal: 10,
+    vertical: 2,
+  ),
+  minLeadingWidth: 28,
+  horizontalTitleGap: 8,
+  leading: _compactPlayerFlag(player),
                     title: Text(
   player.name,
   style: const TextStyle(
     color: Color(0xFF8B3A3A),
+    fontSize: 14,
     fontWeight: FontWeight.w600,
   ),
 ),
-                    subtitle: Text('${player.team} • ${player.role}'),
+                    subtitle: Text(
+  '${player.team} • ${player.role}',
+  style: const TextStyle(fontSize: 11),
+),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
