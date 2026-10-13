@@ -40158,9 +40158,21 @@ Future<void>
         final item =
             Map<String, dynamic>.from(raw);
 
-        item['userId'] ??= doc.id;
-        item['username'] ??=
-            user['username'];
+                item['userId'] = doc.id;
+
+        final profileUsername =
+            (user['username'] ?? '').toString().trim();
+
+        item['username'] = profileUsername.isNotEmpty
+            ? profileUsername
+            : (item['username'] ?? '').toString().trim();
+
+        final profileName =
+            (user['name'] ?? '').toString().trim();
+
+        item['walletUserName'] = profileName.isNotEmpty
+            ? profileName
+            : (user['displayName'] ?? '').toString().trim();
 
         final createdAt =
             item['createdAt'];
@@ -40242,21 +40254,43 @@ final reverseNote =
       title: const Text(
         'Reverse Deposit',
       ),
-      content: TextFormField(
-        initialValue: '',
-        maxLines: 3,
-        onChanged: (value) {
-          reverseNoteText = value;
-        },
-        decoration:
-            const InputDecoration(
-          labelText:
-              'Admin Note / Reason',
-          hintText:
-              'Deposit reverse karne ka reason likhiye',
-          border:
-              OutlineInputBorder(),
-        ),
+            content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            [
+              if ((item['walletUserName'] ?? '')
+                  .toString().trim().isNotEmpty)
+                item['walletUserName'].toString().trim(),
+              if ((item['username'] ?? '')
+                  .toString().trim().isNotEmpty)
+                '@${item['username'].toString().trim().replaceFirst(RegExp(r'^@+'), '')}',
+            ].join(' · '),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          SelectableText(
+            'Deposit: ₹${amount.toStringAsFixed(0)}\n'
+            'Txn ID: $txnNumber\n'
+            'User UID: $userId',
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            initialValue: '',
+            maxLines: 3,
+            onChanged: (value) {
+              reverseNoteText = value;
+            },
+            decoration: const InputDecoration(
+              labelText: 'Admin Note / Reason',
+              hintText: 'Deposit reverse karne ka reason likhiye',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
       ),
       actions: [
         TextButton(
@@ -41340,138 +41374,182 @@ final selected = selectedHours == hours;
                   final isDeposit =
                       type == 'DEPOSIT';
 
+                  
+                      final username = (item['username'] ?? '')
+                      .toString()
+                      .trim()
+                      .replaceFirst(RegExp(r'^@+'), '');
+
+                  final name = (item['walletUserName'] ?? '')
+                      .toString()
+                      .trim();
+
+                  final identity = [
+                    if (name.isNotEmpty) name,
+                    if (username.isNotEmpty) '@$username',
+                  ].join(' · ');
+
+                  final userLabel = identity.isNotEmpty
+                      ? identity
+                      : 'User name उपलब्ध नहीं';
+
+                  final txnId = (item['txnNumber'] ?? '')
+                      .toString()
+                      .trim();
+
+                  final title = isDeposit
+                      ? 'Deposit'
+                      : type == 'WITHDRAWAL'
+                          ? 'Withdrawal'
+                          : type == 'BONUS'
+                              ? (item['bonusType'] == 'WELCOME_BONUS'
+                                  ? 'Welcome Bonus 🎁'
+                                  : item['bonusType'] == 'USER_BONUS'
+                                      ? 'User Reward Bonus 🎁'
+                                      : 'Bonus 🎁')
+                              : type;
+
+                  final date = item['resolvedAt'];
+                  final dateLabel = date is DateTime
+                      ? '${date.day.toString().padLeft(2, '0')}/'
+                          '${date.month.toString().padLeft(2, '0')}/'
+                          '${date.year} '
+                          '${date.hour.toString().padLeft(2, '0')}:'
+                          '${date.minute.toString().padLeft(2, '0')}'
+                      : 'समय उपलब्ध नहीं';
+
+                  final iconColor = type == 'BONUS'
+                      ? Colors.purple
+                      : isDeposit
+                          ? Colors.green
+                          : Colors.red;
+
                   return Card(
-  margin: const EdgeInsets.only(
-    bottom: 6,
-  ),
-  child: ListTile(
-    dense: true,
-    visualDensity: const VisualDensity(
-  vertical: -1,
-),
-    minLeadingWidth: 32,
-    contentPadding:
-        const EdgeInsets.symmetric(
-      horizontal: 10,
-      vertical: 0,
-    ),
-    leading: CircleAvatar(
-      radius: 16,
-      backgroundColor:
-          type == 'BONUS'
-              ? Colors.purple.shade50
-              : isDeposit
-                  ? Colors.green.shade50
-                  : Colors.red.shade50,
-      child: Icon(
-        type == 'BONUS'
-            ? Icons.card_giftcard
-            : isDeposit
-                ? Icons.arrow_downward
-                : Icons.arrow_upward,
-        size: 17,
-        color: type == 'BONUS'
-            ? Colors.purple
-            : isDeposit
-                ? Colors.green
-                : Colors.red,
-      ),
-    ),
-    title: Text(
-      type == 'DEPOSIT'
-          ? 'Deposit'
-          : type == 'WITHDRAWAL'
-              ? 'Withdrawal'
-              : type == 'BONUS'
-                  ? ((item['bonusType'] ?? '')
-                              .toString()
-                              .toUpperCase() ==
-                          'WELCOME_BONUS'
-                      ? 'Welcome Bonus 🎁'
-                      : (item['bonusType'] ?? '')
-                                  .toString()
-                                  .toUpperCase() ==
-                              'USER_BONUS'
-                          ? 'User Reward Bonus 🎁'
-                          : 'Bonus 🎁')
-                  : type,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-    subtitle:
-        item['resolvedAt'] is DateTime
-            ? Text(
-                'APPROVED • '
-                '${(item['resolvedAt'] as DateTime).day.toString().padLeft(2, '0')}/'
-                '${(item['resolvedAt'] as DateTime).month.toString().padLeft(2, '0')}/'
-                '${(item['resolvedAt'] as DateTime).year} '
-                '${(item['resolvedAt'] as DateTime).hour.toString().padLeft(2, '0')}:'
-                '${(item['resolvedAt'] as DateTime).minute.toString().padLeft(2, '0')}',
-                maxLines: 1,
-                overflow:
-                    TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 10.5,
-                ),
-              )
-            : const Text(
-                'APPROVED',
-                style: TextStyle(
-                  fontSize: 10.5,
-                ),
-              ),
-    trailing: SizedBox(
-      width: 72,
-      child: Column(
-        mainAxisSize:
-            MainAxisSize.min,
-        crossAxisAlignment:
-            CrossAxisAlignment.end,
-        children: [
-          Text(
-            '₹${amount.toStringAsFixed(0)}',
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight:
-                  FontWeight.bold,
-            ),
-          ),
-          if (isDeposit)
-            TextButton(
-              style:
-                  TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize:
-                    MaterialTapTargetSize
-                        .shrinkWrap,
-              ),
-              onPressed: () {
-                reversePayment(
-                  context,
-                  item,
-                );
-              },
-              child: const Text(
-                '◀ REVERSE',
-                style: TextStyle(
-                  fontSize: 9.5,
-                  fontWeight:
-                      FontWeight.bold,
-                  color: Colors.red,
-                ),
-              ),
-            ),
-        ],
-      ),
-    ),
-  ),
-);
-    
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 22,
+                                backgroundColor: type == 'BONUS'
+                                    ? Colors.purple.shade50
+                                    : isDeposit
+                                        ? Colors.green.shade50
+                                        : Colors.red.shade50,
+                                child: Icon(
+                                  type == 'BONUS'
+                                      ? Icons.card_giftcard
+                                      : isDeposit
+                                          ? Icons.arrow_downward
+                                          : Icons.arrow_upward,
+                                  color: iconColor,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  title,
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '₹${amount.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            userLabel,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          SelectableText(
+                            'Txn ID: ${txnId.isEmpty ? 'उपलब्ध नहीं' : txnId}',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'APPROVED · $dateLabel',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF35643B),
+                            ),
+                          ),
+                          const Divider(height: 24),
+                          Wrap(
+                            spacing: 16,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.spaceBetween,
+                            children: [
+                              TextButton(
+                                onPressed: () {
+                                  showDialog<void>(
+                                    context: context,
+                                    builder: (detailsContext) {
+                                      return AlertDialog(
+                                        scrollable: true,
+                                        title: const Text(
+                                          'Transaction Details',
+                                        ),
+                                        content: SelectableText(
+                                          '$title — ₹${amount.toStringAsFixed(0)}\n\n'
+                                          '$userLabel\n\n'
+                                          'User UID: ${item['userId'] ?? 'उपलब्ध नहीं'}\n\n'
+                                          'Txn ID: ${txnId.isEmpty ? 'उपलब्ध नहीं' : txnId}\n\n'
+                                          'Status: APPROVED\n'
+                                          'Date: $dateLabel',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.pop(detailsContext);
+                                            },
+                                            child: const Text('CLOSE'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                },
+                                child: const Text('Details देखें ›'),
+                              ),
+                              if (isDeposit)
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.red.shade700,
+                                    side: BorderSide(
+                                      color: Colors.red.shade300,
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    reversePayment(context, item);
+                                  },
+                                  icon: const Icon(Icons.undo, size: 18),
+                                  label: const Text('Reverse'),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
     
       
                 }),
