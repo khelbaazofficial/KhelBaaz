@@ -25681,9 +25681,15 @@ class AboutPage
           ),
         ),
       ),
-      body: ListView(
-        padding:
-            const EdgeInsets.all(16),
+      body: SafeArea(
+  top: false,
+  child: ListView(
+    padding: const EdgeInsets.fromLTRB(
+      16,
+      16,
+      16,
+      24,
+    ),
         children: [
           Container(
             padding:
@@ -25833,6 +25839,7 @@ class AboutPage
             ),
           ),
         ],
+              ),
       ),
     );
   }
