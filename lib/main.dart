@@ -41492,7 +41492,7 @@ final selected = selectedHours == hours;
                               color: Color(0xFF35643B),
                             ),
                           ),
-                          const Divider(height: 8
+                          const Divider(height: 8),
                           Wrap(
                             spacing: 16,
                             runSpacing: 0,
