@@ -41425,9 +41425,9 @@ final selected = selectedHours == hours;
                           : Colors.red;
 
                   return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
+                    margin: const EdgeInsets.only(bottom: 8),
                     child: Padding(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -41435,7 +41435,7 @@ final selected = selectedHours == hours;
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               CircleAvatar(
-                                radius: 22,
+                                radius: 15,
                                 backgroundColor: type == 'BONUS'
                                     ? Colors.purple.shade50
                                     : isDeposit
@@ -41448,7 +41448,7 @@ final selected = selectedHours == hours;
                                           ? Icons.arrow_downward
                                           : Icons.arrow_upward,
                                   color: iconColor,
-                                  size: 24,
+                                  size: 18,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -41471,7 +41471,7 @@ final selected = selectedHours == hours;
                               ),
                             ],
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 4),
                           Text(
                             userLabel,
                             style: const TextStyle(
@@ -41479,12 +41479,12 @@ final selected = selectedHours == hours;
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 3),
                           SelectableText(
                             'Txn ID: ${txnId.isEmpty ? 'उपलब्ध नहीं' : txnId}',
                             style: const TextStyle(fontSize: 13),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 3),
                           Text(
                             'APPROVED · $dateLabel',
                             style: const TextStyle(
@@ -41492,10 +41492,10 @@ final selected = selectedHours == hours;
                               color: Color(0xFF35643B),
                             ),
                           ),
-                          const Divider(height: 24),
+                          const Divider(height: 8
                           Wrap(
                             spacing: 16,
-                            runSpacing: 8,
+                            runSpacing: 0,
                             alignment: WrapAlignment.spaceBetween,
                             children: [
                               TextButton(
