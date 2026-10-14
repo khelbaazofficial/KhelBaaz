@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'payment_details.dart';
 import 'ludo/ludo_screen.dart';
+import 'ludo/ludo_admin_tables.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -29000,6 +29001,38 @@ class AdminDashboardPage extends StatelessWidget {
     
 const SizedBox(height: 20),
 Card(
+  child: ListTile(
+    leading: const CircleAvatar(
+      backgroundColor: Color(0xFF4B287C),
+      child: Icon(
+        Icons.casino,
+        color: Colors.white,
+      ),
+    ),
+    title: const Text(
+      'Manage Ludo Tables',
+      style: TextStyle(
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+    subtitle: const Text(
+      'Create & Manage 2/4 Player Tables',
+    ),
+    trailing: const Icon(
+      Icons.chevron_right,
+    ),
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              const LudoAdminTablesPage(),
+        ),
+      );
+    },
+  ),
+),
+          Card(
   child: ListTile(
     leading: const CircleAvatar(
       backgroundColor: Colors.orange,
