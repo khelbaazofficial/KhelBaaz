@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'payment_details.dart';
+import 'ludo/ludo_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -10495,6 +10496,69 @@ appBar: AppBar(
             child: ListView(
               padding: const EdgeInsets.all(12),
               children: [
+                InkWell(
+  borderRadius: BorderRadius.circular(18),
+  onTap: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const LudoHubPage(),
+      ),
+    );
+  },
+  child: Container(
+    margin: const EdgeInsets.only(bottom: 14),
+    padding: const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 15,
+    ),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [
+          Color(0xFF122A4E),
+          Color(0xFF4D236D),
+        ],
+      ),
+      borderRadius: BorderRadius.circular(18),
+    ),
+    child: const Row(
+      children: [
+        Text(
+          '🎲',
+          style: TextStyle(fontSize: 36),
+        ),
+        SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                'KhelBaaz Ludo',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                '2 / 4 Player • Board Demo',
+                style: TextStyle(
+                  color: Colors.white70,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Icon(
+          Icons.arrow_forward_ios,
+          color: Colors.white,
+        ),
+      ],
+    ),
+  ),
+),
                 Row(
                   children: [
                     Expanded(
