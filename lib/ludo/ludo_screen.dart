@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -257,15 +258,34 @@ class _LudoLocalGamePageState extends State<LudoLocalGamePage> {
   late LudoGame game;
   final Random random = Random();
   int? lastDice;
-  String message = 'पासा फेंककर गेम शुरू करें';
+    String message = 'पासा फेंककर गेम शुरू करें';
+
+  Timer? _moveTimer;
+
+  LudoSeat? _movingSeat;
+  int? _movingToken;
+  int? _movingProgress;
 
   @override
   void initState() {
     super.initState();
-    game = LudoGame(playerCount: widget.playerCount);
+
+    game = LudoGame(
+      playerCount: widget.playerCount,
+    );
   }
 
-  void _roll() {
+  @override
+  void dispose() {
+    _moveTimer?.cancel();
+    super.dispose();
+  }
+
+    void _roll() {
+    if (_movingSeat != null) {
+      return;
+    }
+
     final seat = game.currentSeat;
     final dice = random.nextInt(6) + 1;
     setState(() {
@@ -283,24 +303,94 @@ class _LudoLocalGamePageState extends State<LudoLocalGamePage> {
     });
   }
 
-  void _move(int index) {
-    if (!game.movablePieces.contains(index)) return;
-    setState(() {
-      final seat = game.currentSeat;
-      final outcome = game.move(index);
-      if (outcome.completedSeat) {
-        message = '${_seatName(seat)} को ${game.rankingOf(seat)} स्थान मिला!';
-      } else if (outcome.captured) {
-        message = '${_seatName(seat)} ने गोटी काटी • एक्स्ट्रा बारी';
-      } else {
-        message = 'अगली बारी: ${_seatName(game.currentSeat)}';
-      }
-      if (outcome.gameOver) message = '🏆 सभी खिलाड़ियों की रैंक तय हो गई!';
-    });
-  }
+    void _move(int index) {
+    if (_movingSeat != null ||
+        !game.movablePieces.contains(index)) {
+      return;
+    }
 
-  void _tapBoard(Offset localPosition, double boardWidth) {
-    if (game.pendingDice == null) return;
+    final seat = game.currentSeat;
+
+    final oldPosition =
+        game.pieces[seat]![index];
+
+    final dice = game.pendingDice!;
+
+    final targetPosition =
+        oldPosition == -1
+            ? 0
+            : oldPosition + dice;
+
+    setState(() {
+      _movingSeat = seat;
+      _movingToken = index;
+      _movingProgress = oldPosition;
+
+      message =
+          '${_seatName(seat)} की गोटी चल रही है...';
+    });
+
+    _moveTimer?.cancel();
+
+    _moveTimer = Timer.periodic(
+      const Duration(milliseconds: 170),
+      (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+
+        final nextPosition =
+            _movingProgress! + 1;
+
+        if (nextPosition < targetPosition) {
+          setState(() {
+            _movingProgress = nextPosition;
+          });
+          return;
+        }
+
+        timer.cancel();
+        _moveTimer = null;
+
+        setState(() {
+          final result = game.move(index);
+
+          _movingSeat = null;
+          _movingToken = null;
+          _movingProgress = null;
+
+          if (result.completedSeat) {
+            message =
+                '${_seatName(seat)} को '
+                '${game.rankingOf(seat)} स्थान मिला!';
+          } else if (result.captured) {
+            message =
+                '${_seatName(seat)} ने गोटी काटी '
+                '• एक्स्ट्रा बारी';
+          } else {
+            message =
+                'अगली बारी: '
+                '${_seatName(game.currentSeat)}';
+          }
+
+          if (result.gameOver) {
+            message =
+                '🏆 सभी खिलाड़ियों की रैंक तय हो गई!';
+          }
+        });
+      },
+    );
+    }
+
+    void _tapBoard(
+    Offset localPosition,
+    double boardWidth,
+  ) {
+    if (_movingSeat != null ||
+        game.pendingDice == null) {
+      return;
+    }
     final movable = game.movablePieces;
     int? nearest;
     double minDistance = boardWidth * 0.65 / 15;
@@ -344,11 +434,23 @@ class _LudoLocalGamePageState extends State<LudoLocalGamePage> {
           IconButton(
             tooltip: 'Restart demo',
             icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() {
-              game = LudoGame(playerCount: widget.playerCount);
-              lastDice = null;
-              message = 'नया गेम • पासा फेंकें';
-            }),
+                        onPressed: () {
+              _moveTimer?.cancel();
+              _moveTimer = null;
+
+              setState(() {
+                _movingSeat = null;
+                _movingToken = null;
+                _movingProgress = null;
+
+                game = LudoGame(
+                  playerCount: widget.playerCount,
+                );
+
+                lastDice = null;
+                message = 'नया गेम • पासा फेंकें';
+              });
+            },
           ),
         ],
       ),
@@ -399,7 +501,12 @@ class _LudoLocalGamePageState extends State<LudoLocalGamePage> {
                     width: width,
                     height: width,
                     child: CustomPaint(
-                      painter: LudoBoardPainter(game),
+                                            painter: LudoBoardPainter(
+                        game,
+                        movingSeat: _movingSeat,
+                        movingToken: _movingToken,
+                        movingProgress: _movingProgress,
+                      ),
                     ),
                   ),
                 );
@@ -412,8 +519,9 @@ class _LudoLocalGamePageState extends State<LudoLocalGamePage> {
             LudoMatchHud(
               game: game,
               diceValue: lastDice,
-              canRoll: !game.isFinished &&
-                  game.pendingDice == null,
+                            canRoll: !game.isFinished &&
+                  game.pendingDice == null &&
+                  _movingSeat == null,
               onRoll: _roll,
             ),
             const SizedBox(height: 12),
@@ -499,7 +607,17 @@ class _LudoLocalGamePageState extends State<LudoLocalGamePage> {
 /// Standard 15x15 52-cell Ludo track, colored lanes, bases and movable tokens.
 class LudoBoardPainter extends CustomPainter {
   final LudoGame game;
-  LudoBoardPainter(this.game);
+
+  final LudoSeat? movingSeat;
+  final int? movingToken;
+  final int? movingProgress;
+
+  LudoBoardPainter(
+    this.game, {
+    this.movingSeat,
+    this.movingToken,
+    this.movingProgress,
+  });
 
   static const List<(int, int)> track = [
     (6, 1), (6, 2), (6, 3), (6, 4), (6, 5),
@@ -822,30 +940,71 @@ class LudoBoardPainter extends CustomPainter {
     canvas.drawCircle(center, .26 * s,
         Paint()..color = const Color(0xFFEDBB39));
 
-    // Draw only seats in this match. Finished pieces are tracked in the rank UI.
+        // Animated premium Ludo tokens
     for (final seat in game.seats) {
       final positions = game.pieces[seat]!;
+
       for (int i = 0; i < positions.length; i++) {
-        if (positions[i] == 56) continue;
-        final centerCell = tokenCenter(seat, i, positions[i]);
+        final isMoving =
+            movingSeat == seat &&
+            movingToken == i &&
+            movingProgress != null;
+
+        final progress =
+            isMoving ? movingProgress! : positions[i];
+
+        if (progress == LudoGame.homePosition) {
+          continue;
+        }
+
+        final centerCell = tokenCenter(
+          seat,
+          i,
+          progress,
+        );
+
         final overlapping = <int>[
-          for (int other = 0; other < positions.length; other++)
-            if (positions[other] == positions[i]) other,
+          for (int other = 0;
+              other < positions.length;
+              other++)
+            if (positions[other] == progress)
+              other,
         ];
-        final overlapIndex = overlapping.indexOf(i);
-        final shift = overlapping.length > 1 && positions[i] != -1
-            ? Offset((overlapIndex % 2 == 0 ? -.16 : .16) * s,
-                (overlapIndex < 2 ? -.16 : .16) * s)
-            : Offset.zero;
-        final p = Offset(centerCell.dx * s, centerCell.dy * s) + shift;
-                _drawPremiumPawn(
+
+        final overlapIndex =
+            overlapping.indexOf(i);
+
+        final shift =
+            !isMoving &&
+                    overlapping.length > 1 &&
+                    progress != -1
+                ? Offset(
+                    (overlapIndex % 2 == 0
+                            ? -.16
+                            : .16) *
+                        s,
+                    (overlapIndex < 2
+                            ? -.16
+                            : .16) *
+                        s,
+                  )
+                : Offset.zero;
+
+        final p = Offset(
+              centerCell.dx * s,
+              centerCell.dy * s,
+            ) +
+            shift;
+
+        _drawPremiumPawn(
           canvas,
           p,
           s,
           _seatColor(seat),
-          isActive: game.currentSeat == seat &&
-              game.pendingDice != null &&
-              game.movablePieces.contains(i),
+          isActive: isMoving ||
+              (game.currentSeat == seat &&
+                  game.pendingDice != null &&
+                  game.movablePieces.contains(i)),
         );
       }
     }
