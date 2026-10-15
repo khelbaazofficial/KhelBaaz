@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -55,7 +58,8 @@ class LudoMatchHud extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 7),
-              _DiceButton(
+                            _DiceButton(
+                key: ObjectKey(game),
                 value: diceValue,
                 canRoll: canRoll,
                 onRoll: onRoll,
@@ -174,8 +178,11 @@ class _ProfilePanel extends StatelessWidget {
   }
 }
 
-class _DiceButton extends StatelessWidget {
+// ===== PREMIUM ANIMATED LUDO DICE =====
+
+class _DiceButton extends StatefulWidget {
   const _DiceButton({
+    super.key,
     required this.value,
     required this.canRoll,
     required this.onRoll,
@@ -186,38 +193,188 @@ class _DiceButton extends StatelessWidget {
   final VoidCallback onRoll;
 
   @override
+  State<_DiceButton> createState() =>
+      _DiceButtonState();
+}
+
+class _DiceButtonState extends State<_DiceButton>
+    with SingleTickerProviderStateMixin {
+
+  late final AnimationController _spinController;
+
+  final math.Random _random = math.Random();
+
+  Timer? _previewTimer;
+
+  bool _rolling = false;
+
+  int _preview = 6;
+  int _frames = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _spinController = AnimationController(
+      vsync: this,
+      duration: const Duration(
+        milliseconds: 450,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _previewTimer?.cancel();
+    _spinController.dispose();
+    super.dispose();
+  }
+
+  void _startRoll() {
+
+    if (_rolling || !widget.canRoll) {
+      return;
+    }
+
+    setState(() {
+      _rolling = true;
+      _frames = 0;
+      _preview = _random.nextInt(6) + 1;
+    });
+
+    _spinController.repeat();
+
+    _previewTimer?.cancel();
+
+    _previewTimer = Timer.periodic(
+      const Duration(milliseconds: 85),
+      (timer) {
+
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+
+        if (_frames >= 12) {
+
+          timer.cancel();
+          _previewTimer = null;
+
+          _spinController.stop();
+          _spinController.value = 0;
+
+          setState(() {
+            _rolling = false;
+          });
+
+          // Actual dice result is generated
+          // by the existing game logic.
+          widget.onRoll();
+
+          return;
+        }
+
+        setState(() {
+          _preview = _random.nextInt(6) + 1;
+          _frames++;
+        });
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+
+    final diceNumber = _rolling
+        ? _preview
+        : (widget.value ?? 6);
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+
         GestureDetector(
-          onTap: canRoll ? onRoll : null,
+          onTap: widget.canRoll && !_rolling
+              ? _startRoll
+              : null,
+
           child: Container(
             height: 64,
             width: 67,
+
             padding: const EdgeInsets.all(8),
+
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF1A815A), Color(0xFF06432A)],
+                colors: [
+                  Color(0xFF1A815A),
+                  Color(0xFF06432A),
+                ],
               ),
-              borderRadius: BorderRadius.circular(13),
-              border: Border.all(color: LudoMatchHud._gold, width: 2),
-              boxShadow: const [BoxShadow(color: Color(0x66FFC53D), blurRadius: 7)],
+
+              borderRadius:
+                  BorderRadius.circular(13),
+
+              border: Border.all(
+                color: LudoMatchHud._gold,
+                width: 2,
+              ),
+
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x66FFC53D),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 260),
-              transitionBuilder: (child, animation) =>
-                  ScaleTransition(scale: animation, child: child),
+
+            child: AnimatedBuilder(
+              animation: _spinController,
+
+              builder: (context, child) {
+
+                final angle =
+                    _spinController.value *
+                        2 *
+                        math.pi;
+
+                final jump =
+                    math.sin(angle).abs();
+
+                return Transform(
+                  alignment: Alignment.center,
+
+                  transform: Matrix4.identity()
+                    ..setEntry(3, 2, 0.001)
+                    ..rotateZ(angle)
+                    ..rotateY(
+                      math.sin(angle) * 0.35,
+                    ),
+
+                  child: Transform.scale(
+                    scale: 1.0 + jump * 0.13,
+                    child: child,
+                  ),
+                );
+              },
+
               child: _DiceFace(
-                key: ValueKey<int?>(value),
-                value: value ?? 6,
+                value: diceNumber,
               ),
             ),
           ),
         ),
+
         const SizedBox(height: 5),
+
         Text(
-          canRoll ? '🎲 ROLL' : 'SELECT',
+          _rolling
+              ? '🎲 ROLLING'
+              : widget.canRoll
+                  ? '🎲 ROLL'
+                  : 'SELECT',
+
           style: const TextStyle(
             color: LudoMatchHud._gold,
             fontWeight: FontWeight.w900,
@@ -228,7 +385,6 @@ class _DiceButton extends StatelessWidget {
     );
   }
 }
-
 class _DiceFace extends StatelessWidget {
   const _DiceFace({super.key, required this.value});
   final int value;
