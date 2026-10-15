@@ -552,7 +552,176 @@ class LudoBoardPainter extends CustomPainter {
           ..strokeWidth = s * .035
           ..style = PaintingStyle.stroke);
   }
+  // ===== PREMIUM 3D LUDO TOKEN =====
 
+  void _drawPremiumPawn(
+    Canvas canvas,
+    Offset p,
+    double s,
+    Color color, {
+    required bool isActive,
+  }) {
+
+    // Ground shadow
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(p.dx, p.dy + .28 * s),
+        width: .65 * s,
+        height: .16 * s,
+      ),
+      Paint()
+        ..color = const Color(0x66000000),
+    );
+
+    // Token body
+    final body = Path()
+      ..moveTo(p.dx - .13 * s, p.dy - .08 * s)
+      ..quadraticBezierTo(
+        p.dx - .15 * s,
+        p.dy + .04 * s,
+        p.dx - .25 * s,
+        p.dy + .22 * s,
+      )
+      ..quadraticBezierTo(
+        p.dx,
+        p.dy + .30 * s,
+        p.dx + .25 * s,
+        p.dy + .22 * s,
+      )
+      ..quadraticBezierTo(
+        p.dx + .15 * s,
+        p.dy + .04 * s,
+        p.dx + .13 * s,
+        p.dy - .08 * s,
+      )
+      ..close();
+
+    canvas.drawPath(
+      body,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(color, Colors.white, .55)!,
+            color,
+            Color.lerp(color, Colors.black, .40)!,
+          ],
+        ).createShader(body.getBounds()),
+    );
+
+    // Bottom base
+    final base = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(p.dx, p.dy + .24 * s),
+        width: .62 * s,
+        height: .15 * s,
+      ),
+      Radius.circular(.07 * s),
+    );
+
+    canvas.drawRRect(
+      base,
+      Paint()
+        ..shader = LinearGradient(
+          colors: [
+            Color.lerp(color, Colors.white, .45)!,
+            color,
+            Color.lerp(color, Colors.black, .35)!,
+          ],
+        ).createShader(base.outerRect),
+    );
+
+    // Round glossy head
+    final head = Offset(
+      p.dx,
+      p.dy - .18 * s,
+    );
+
+    final headRect = Rect.fromCircle(
+      center: head,
+      radius: .19 * s,
+    );
+
+    canvas.drawCircle(
+      head,
+      .19 * s,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-.4, -.5),
+          colors: [
+            Color.lerp(color, Colors.white, .65)!,
+            color,
+            Color.lerp(color, Colors.black, .30)!,
+          ],
+        ).createShader(headRect),
+    );
+
+    // Head shine
+    canvas.drawCircle(
+      Offset(
+        head.dx - .055 * s,
+        head.dy - .065 * s,
+      ),
+      .055 * s,
+      Paint()
+        ..color = Colors.white.withValues(alpha: .75),
+    );
+
+    // Active token highlight
+    if (isActive) {
+      canvas.drawCircle(
+        p,
+        .43 * s,
+        Paint()
+          ..color = const Color(0xFFFFD54F)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .05 * s,
+      );
+    }
+  }
+
+  // ===== SAFE ZONE STAR =====
+
+  void _drawSafeStar(
+    Canvas canvas,
+    Offset center,
+    double radius,
+  ) {
+    final star = Path();
+
+    for (int i = 0; i < 10; i++) {
+      final angle = -pi / 2 + i * pi / 5;
+
+      final distance =
+          i.isEven ? radius : radius * .45;
+
+      final x = center.dx + cos(angle) * distance;
+      final y = center.dy + sin(angle) * distance;
+
+      if (i == 0) {
+        star.moveTo(x, y);
+      } else {
+        star.lineTo(x, y);
+      }
+    }
+
+    star.close();
+
+    canvas.drawPath(
+      star,
+      Paint()
+        ..color = const Color(0xFFFFD54F),
+    );
+
+    canvas.drawPath(
+      star,
+      Paint()
+        ..color = const Color(0xFF8A651A)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = radius * .12,
+    );
+  }
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.width / 15;
@@ -562,8 +731,36 @@ class LudoBoardPainter extends CustomPainter {
       (LudoSeat.red, 0, 0), (LudoSeat.green, 0, 9),
       (LudoSeat.yellow, 9, 9), (LudoSeat.blue, 9, 0),
     ]) {
-      canvas.drawRect(Rect.fromLTWH(left * s, top * s, 6 * s, 6 * s),
-          Paint()..color = _seatColor(seat));
+            final homeRect = Rect.fromLTWH(
+        left * s,
+        top * s,
+        6 * s,
+        6 * s,
+      );
+
+      final homeColor = _seatColor(seat);
+
+      canvas.drawRect(
+        homeRect,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.lerp(
+                homeColor,
+                Colors.white,
+                .25,
+              )!,
+              homeColor,
+              Color.lerp(
+                homeColor,
+                Colors.black,
+                .15,
+              )!,
+            ],
+          ).createShader(homeRect),
+      );
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH((left + .75) * s, (top + .75) * s,
@@ -589,10 +786,17 @@ class LudoBoardPainter extends CustomPainter {
           .where((entry) => entry.value == i);
       _cell(canvas, s, row, col,
           seat.isEmpty ? Colors.white : _seatColor(seat.first.key));
-      if (LudoGame.safeSquares.contains(i) && seat.isEmpty) {
-        canvas.drawCircle(Offset((col + .5) * s, (row + .5) * s),
-            .16 * s, Paint()..color = const Color(0xFFF4AD33));
-      }
+            if (LudoGame.safeSquares.contains(i) &&
+          seat.isEmpty) {
+        _drawSafeStar(
+          canvas,
+          Offset(
+            (col + .5) * s,
+            (row + .5) * s,
+          ),
+          .34 * s,
+        );
+            }
     }
     for (final entry in lanes.entries) {
       for (final (row, col) in entry.value) {
@@ -634,12 +838,15 @@ class LudoBoardPainter extends CustomPainter {
                 (overlapIndex < 2 ? -.16 : .16) * s)
             : Offset.zero;
         final p = Offset(centerCell.dx * s, centerCell.dy * s) + shift;
-        canvas.drawCircle(p + Offset(0, .08 * s), .33 * s,
-            Paint()..color = const Color(0x77000000));
-        canvas.drawCircle(p, .31 * s, Paint()..color = Colors.white);
-        canvas.drawCircle(p, .25 * s, Paint()..color = _seatColor(seat));
-        canvas.drawCircle(p - Offset(.065 * s, .065 * s), .065 * s,
-            Paint()..color = Colors.white.withValues(alpha: .8));
+                _drawPremiumPawn(
+          canvas,
+          p,
+          s,
+          _seatColor(seat),
+          isActive: game.currentSeat == seat &&
+              game.pendingDice != null &&
+              game.movablePieces.contains(i),
+        );
       }
     }
   }
