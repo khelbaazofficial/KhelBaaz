@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'ludo_game.dart';
+import 'ludo_match_hud.dart';
+import 'ludo_rules_page.dart';
 
 const _night = Color(0xFF07172C);
 const _panel = Color(0xFF102944);
@@ -30,10 +32,24 @@ class LudoHubPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _night,
-      appBar: AppBar(
+            appBar: AppBar(
         backgroundColor: _night,
         foregroundColor: Colors.white,
         title: const Text('KhelBaaz Ludo'),
+        actions: [
+          IconButton(
+            tooltip: 'Classic Rules',
+            icon: const Icon(Icons.menu_book_rounded),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const LudoRulesPage(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -78,13 +94,45 @@ class LudoHubPage extends StatelessWidget {
               colors: const [Color(0xFFE83351), Color(0xFFFFC43D)],
             ),
             const SizedBox(height: 14),
-            _TablePreviewCard(
-              players: 4,
-              subtitle: 'Red • Green • Yellow • Blue • Rank 1–4',
-              colors: const [
-                Color(0xFFE83351), Color(0xFF15A977),
-                Color(0xFFFFC43D), Color(0xFF2886E8),
-              ],
+                        Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF172642),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFF8066A9),
+                ),
+              ),
+              child: const Row(
+                children: [
+                  Text(
+                    '🔒',
+                    style: TextStyle(fontSize: 30),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '4 PLAYER MULTIPLAYER',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          'Future Update • Coming Soon',
+                          style: TextStyle(
+                            color: Color(0xFFFFC43D),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 22),
             const _Notice(),
@@ -281,6 +329,18 @@ class _LudoLocalGamePageState extends State<LudoLocalGamePage> {
         foregroundColor: Colors.white,
         title: Text('${widget.playerCount} Player Ludo • DEMO'),
         actions: [
+                        IconButton(
+            tooltip: 'Classic Rules',
+            icon: const Icon(Icons.menu_book_rounded),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const LudoRulesPage(),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Restart demo',
             icon: const Icon(Icons.refresh),
@@ -346,12 +406,25 @@ class _LudoLocalGamePageState extends State<LudoLocalGamePage> {
               },
             ),
           ),
-          const SizedBox(height: 10),
+                    const SizedBox(height: 10),
+
+          if (widget.playerCount == 2) ...[
+            LudoMatchHud(
+              game: game,
+              diceValue: lastDice,
+              canRoll: !game.isFinished &&
+                  game.pendingDice == null,
+              onRoll: _roll,
+            ),
+            const SizedBox(height: 12),
+          ],
           Text(message, textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white,
                   fontSize: 15, fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
-          if (!game.isFinished && game.pendingDice == null)
+                    if (widget.playerCount != 2 &&
+              !game.isFinished &&
+              game.pendingDice == null)
             SizedBox(
               height: 55,
               child: FilledButton.icon(
