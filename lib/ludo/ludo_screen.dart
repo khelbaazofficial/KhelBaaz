@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'ludo_online_lobby.dart';
 import 'ludo_game.dart';
 import 'ludo_match_hud.dart';
 import 'ludo_rules_page.dart';
@@ -312,35 +313,9 @@ class LudoHubPage extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          Container(
-            width: double.infinity,
-
-            padding:
-                const EdgeInsets.symmetric(
-              vertical: 12,
-              horizontal: 10,
-            ),
-
-            decoration: BoxDecoration(
-              color:
-                  const Color(0xFF32445D),
-
-              borderRadius:
-                  BorderRadius.circular(12),
-            ),
-
-            child: const Text(
-              '🔒 ONLINE JOINING • NEXT UPDATE',
-
-              textAlign: TextAlign.center,
-
-              style: TextStyle(
-                color: _gold,
-                fontSize: 12,
-                fontWeight:
-                    FontWeight.w900,
-              ),
-            ),
+                    LudoJoinButton(
+            tableId: doc.id,
+            tableName: tableName,
           ),
         ],
       ),
