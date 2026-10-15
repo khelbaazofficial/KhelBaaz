@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'ludo_game.dart';
 import 'ludo_match_hud.dart';
 import 'ludo_rules_page.dart';
@@ -24,109 +24,719 @@ String _seatName(LudoSeat seat) => switch (seat) {
       LudoSeat.blue => 'BLUE',
     };
 
-/// Safe UI-only introduction. This screen does not create online rooms,
-/// charge entries or distribute rewards.
+// ==================================================
+// KHELBAAZ LUDO USER HOME
+// FIREBASE ADMIN TABLES + LOCAL DEMO
+// ==================================================
+
 class LudoHubPage extends StatelessWidget {
   const LudoHubPage({super.key});
+
+  static const Color _gold =
+      Color(0xFFFFC43D);
+
+  static const Color _red =
+      Color(0xFFE83351);
+
+  // ================================================
+  // FIREBASE TABLE CARD
+  // ================================================
+
+  Widget _firebaseTableCard(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data();
+
+    final tableName =
+        (data['name'] ?? 'KhelBaaz Ludo')
+            .toString();
+
+    final entryCredits =
+        data['entryCredits'] ?? 0;
+
+    final rewards =
+        data['rewards'] is List
+            ? List<dynamic>.from(
+                data['rewards'] as List,
+              )
+            : <dynamic>[];
+
+    final firstReward =
+        rewards.isNotEmpty
+            ? rewards[0]
+            : 0;
+
+    final secondReward =
+        rewards.length > 1
+            ? rewards[1]
+            : 0;
+
+    return Container(
+      margin: const EdgeInsets.only(
+        bottom: 14,
+      ),
+
+      padding: const EdgeInsets.all(16),
+
+      decoration: BoxDecoration(
+        color: _panel,
+
+        borderRadius:
+            BorderRadius.circular(20),
+
+        border: Border.all(
+          color: _gold,
+          width: 1.5,
+        ),
+
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22FFC43D),
+            blurRadius: 10,
+          ),
+        ],
+      ),
+
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 55,
+                height: 55,
+
+                decoration: BoxDecoration(
+                  color: Colors.white,
+
+                  borderRadius:
+                      BorderRadius.circular(13),
+                ),
+
+                child: const Row(
+                  mainAxisAlignment:
+                      MainAxisAlignment.center,
+
+                  children: [
+                    CircleAvatar(
+                      radius: 11,
+                      backgroundColor: _red,
+                    ),
+
+                    SizedBox(width: 5),
+
+                    CircleAvatar(
+                      radius: 11,
+                      backgroundColor: _gold,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+
+                  children: [
+                    Text(
+                      tableName,
+
+                      maxLines: 2,
+
+                      overflow:
+                          TextOverflow.ellipsis,
+
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight:
+                            FontWeight.w900,
+                      ),
+                    ),
+
+                    const SizedBox(height: 5),
+
+                    const Text(
+                      '👥 2 PLAYER • RED vs YELLOW',
+
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 15),
+
+          const Divider(
+            color: Colors.white24,
+          ),
+
+          const SizedBox(height: 10),
+
+          Row(
+            children: [
+              const Icon(
+                Icons.confirmation_number_outlined,
+                color: Colors.white70,
+                size: 19,
+              ),
+
+              const SizedBox(width: 8),
+
+              Expanded(
+                child: Text(
+                  'Demo Entry: $entryCredits Credits',
+
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ),
+
+              const Text(
+                '● ENABLED',
+
+                style: TextStyle(
+                  color: Colors.greenAccent,
+                  fontSize: 11,
+                  fontWeight:
+                      FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          Container(
+            padding:
+                const EdgeInsets.all(12),
+
+            decoration: BoxDecoration(
+              color:
+                  const Color(0xFF1A3655),
+
+              borderRadius:
+                  BorderRadius.circular(12),
+            ),
+
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      '🥇',
+                      style: TextStyle(
+                        fontSize: 21,
+                      ),
+                    ),
+
+                    const SizedBox(width: 10),
+
+                    const Expanded(
+                      child: Text(
+                        '1st Winner',
+
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                    ),
+
+                    Text(
+                      '$firstReward Credits',
+
+                      style: const TextStyle(
+                        color: _gold,
+                        fontWeight:
+                            FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                Row(
+                  children: [
+                    const Text(
+                      '🥈',
+                      style: TextStyle(
+                        fontSize: 21,
+                      ),
+                    ),
+
+                    const SizedBox(width: 10),
+
+                    const Expanded(
+                      child: Text(
+                        '2nd Position',
+
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                    ),
+
+                    Text(
+                      '$secondReward Credits',
+
+                      style: const TextStyle(
+                        color: _gold,
+                        fontWeight:
+                            FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          Container(
+            width: double.infinity,
+
+            padding:
+                const EdgeInsets.symmetric(
+              vertical: 12,
+              horizontal: 10,
+            ),
+
+            decoration: BoxDecoration(
+              color:
+                  const Color(0xFF32445D),
+
+              borderRadius:
+                  BorderRadius.circular(12),
+            ),
+
+            child: const Text(
+              '🔒 ONLINE JOINING • NEXT UPDATE',
+
+              textAlign: TextAlign.center,
+
+              style: TextStyle(
+                color: _gold,
+                fontSize: 12,
+                fontWeight:
+                    FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================================================
+  // FIREBASE TABLE LIST
+  // ================================================
+
+  Widget _firebaseTablesList() {
+    return StreamBuilder<
+        QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('ludo_tables')
+          .snapshots(),
+
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Container(
+            padding:
+                const EdgeInsets.all(18),
+
+            decoration: BoxDecoration(
+              color: _panel,
+
+              borderRadius:
+                  BorderRadius.circular(15),
+
+              border: Border.all(
+                color: Colors.redAccent,
+              ),
+            ),
+
+            child: Text(
+              'Firebase Tables लोड नहीं हुईं।\n'
+              '${snapshot.error}',
+
+              textAlign: TextAlign.center,
+
+              style: const TextStyle(
+                color: Colors.redAccent,
+              ),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.all(25),
+
+            child: Center(
+              child:
+                  CircularProgressIndicator(
+                color: _gold,
+              ),
+            ),
+          );
+        }
+
+        // Only enabled 2-player tables
+        // are displayed to users.
+
+        final tables =
+            snapshot.data!.docs.where(
+          (doc) {
+            final data = doc.data();
+
+            return data['enabled'] == true &&
+                data['playerCount'] == 2;
+          },
+        ).toList();
+
+        if (tables.isEmpty) {
+          return Container(
+            width: double.infinity,
+
+            padding:
+                const EdgeInsets.all(24),
+
+            decoration: BoxDecoration(
+              color: _panel,
+
+              borderRadius:
+                  BorderRadius.circular(18),
+
+              border: Border.all(
+                color: Colors.white24,
+              ),
+            ),
+
+            child: const Column(
+              children: [
+                Text(
+                  '🎲',
+                  style: TextStyle(
+                    fontSize: 48,
+                  ),
+                ),
+
+                SizedBox(height: 10),
+
+                Text(
+                  'अभी कोई Ludo Table उपलब्ध नहीं है।',
+
+                  textAlign: TextAlign.center,
+
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                SizedBox(height: 8),
+
+                Text(
+                  'Admin से Enabled 2 Player Table '
+                  'बनाने के बाद यहाँ दिखाई देगी।',
+
+                  textAlign: TextAlign.center,
+
+                  style: TextStyle(
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+
+          children: [
+            Text(
+              '${tables.length} Tables Available',
+
+              style: const TextStyle(
+                color: Colors.greenAccent,
+                fontSize: 13,
+                fontWeight:
+                    FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            for (final table in tables)
+              _firebaseTableCard(table),
+          ],
+        );
+      },
+    );
+  }
+
+  // ================================================
+  // MAIN LUDO HOME
+  // ================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _night,
-            appBar: AppBar(
+
+      appBar: AppBar(
         backgroundColor: _night,
+
         foregroundColor: Colors.white,
-        title: const Text('KhelBaaz Ludo'),
+
+        title: const Text(
+          'KhelBaaz Ludo',
+        ),
+
         actions: [
           IconButton(
             tooltip: 'Classic Rules',
-            icon: const Icon(Icons.menu_book_rounded),
+
+            icon: const Icon(
+              Icons.menu_book_rounded,
+            ),
+
             onPressed: () {
               Navigator.push(
                 context,
+
                 MaterialPageRoute(
-                  builder: (_) => const LudoRulesPage(),
+                  builder: (_) =>
+                      const LudoRulesPage(),
                 ),
               );
             },
           ),
         ],
       ),
+
       body: Container(
-        decoration: const BoxDecoration(
+        decoration:
+            const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0A2444), _night, Color(0xFF261640)],
+            colors: [
+              Color(0xFF0A2444),
+              _night,
+              Color(0xFF261640),
+            ],
+
             begin: Alignment.topLeft,
+
             end: Alignment.bottomRight,
           ),
         ),
+
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding:
+              const EdgeInsets.all(18),
+
           children: [
+
+            // ==============================
+            // HEADER
+            // ==============================
+
             Container(
-              padding: const EdgeInsets.all(24),
+              padding:
+                  const EdgeInsets.all(23),
+
               decoration: BoxDecoration(
                 color: _panel,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white24),
+
+                borderRadius:
+                    BorderRadius.circular(23),
+
+                border: Border.all(
+                  color: Colors.white24,
+                ),
               ),
+
               child: const Column(
                 children: [
-                  Text('🎲', style: TextStyle(fontSize: 62)),
+                  Text(
+                    '🎲',
+                    style: TextStyle(
+                      fontSize: 58,
+                    ),
+                  ),
+
                   SizedBox(height: 8),
-                  Text('KHELBAAZ LUDO',
-                      style: TextStyle(color: Colors.white, fontSize: 27,
-                          fontWeight: FontWeight.w900, letterSpacing: 1)),
-                  SizedBox(height: 10),
-                  Text('चारों गोटियाँ HOME पहुँचाएँ और अपनी रैंक बनाएँ।',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white70, fontSize: 15)),
+
+                  Text(
+                    'KHELBAAZ LUDO',
+
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 25,
+                      fontWeight:
+                          FontWeight.w900,
+                    ),
+                  ),
+
+                  SizedBox(height: 9),
+
+                  Text(
+                    '2 Player • Red vs Yellow',
+
+                    style: TextStyle(
+                      color: _gold,
+                      fontSize: 15,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 22),
-            const Text('TABLE CHOOSE करें',
-                style: TextStyle(color: Colors.white, fontSize: 19,
-                    fontWeight: FontWeight.bold)),
+
+            const SizedBox(height: 25),
+
+            // ==============================
+            // FIREBASE ADMIN TABLES
+            // ==============================
+
+            const Text(
+              '🏆 ADMIN LUDO TABLES',
+
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 21,
+                fontWeight:
+                    FontWeight.w900,
+              ),
+            ),
+
+            const SizedBox(height: 7),
+
+            const Text(
+              'Admin द्वारा बनाई गई '
+              '2 Player Tables',
+
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            _firebaseTablesList(),
+
+            const SizedBox(height: 25),
+
+            // ==============================
+            // LOCAL DEMO
+            // ==============================
+
+            const Text(
+              '🎮 LOCAL DEMO',
+
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight:
+                    FontWeight.w900,
+              ),
+            ),
+
             const SizedBox(height: 12),
+
             _TablePreviewCard(
               players: 2,
-              subtitle: 'Red vs Yellow • 1st / 2nd Winner',
-              colors: const [Color(0xFFE83351), Color(0xFFFFC43D)],
+
+              subtitle:
+                  'Red vs Yellow • Practice Game',
+
+              colors: const [
+                _red,
+                _gold,
+              ],
             ),
-            const SizedBox(height: 14),
-                        Container(
-              padding: const EdgeInsets.all(16),
+
+            const SizedBox(height: 16),
+
+            // ==============================
+            // 4 PLAYER FUTURE UPDATE
+            // ==============================
+
+            Container(
+              padding:
+                  const EdgeInsets.all(16),
+
               decoration: BoxDecoration(
-                color: const Color(0xFF172642),
-                borderRadius: BorderRadius.circular(20),
+                color:
+                    const Color(0xFF172642),
+
+                borderRadius:
+                    BorderRadius.circular(18),
+
                 border: Border.all(
-                  color: const Color(0xFF8066A9),
+                  color:
+                      const Color(0xFF8066A9),
                 ),
               ),
+
               child: const Row(
                 children: [
                   Text(
                     '🔒',
-                    style: TextStyle(fontSize: 30),
+                    style: TextStyle(
+                      fontSize: 28,
+                    ),
                   ),
+
                   SizedBox(width: 12),
+
                   Expanded(
                     child: Column(
                       crossAxisAlignment:
                           CrossAxisAlignment.start,
+
                       children: [
                         Text(
                           '4 PLAYER MULTIPLAYER',
+
                           style: TextStyle(
                             color: Colors.white,
-                            fontWeight: FontWeight.w900,
+                            fontWeight:
+                                FontWeight.w900,
                           ),
                         ),
+
+                        SizedBox(height: 4),
+
                         Text(
                           'Future Update • Coming Soon',
+
                           style: TextStyle(
-                            color: Color(0xFFFFC43D),
+                            color: _gold,
                           ),
                         ),
                       ],
@@ -135,7 +745,9 @@ class LudoHubPage extends StatelessWidget {
                 ],
               ),
             ),
+
             const SizedBox(height: 22),
+
             const _Notice(),
           ],
         ),
@@ -237,11 +849,15 @@ class _Notice extends StatelessWidget {
           border: Border.all(color: const Color(0xFFFFCE6B)),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Text(
-          'अभी यह केवल उसी फोन पर खेलने वाला नियम/बोर्ड प्रीव्यू है। '
-          'LIVE Multiplayer, Admin Tables और Wallet/Prize सिस्टम अभी चालू नहीं हैं। '
-          'इस डेमो में कोई असली पैसे या वर्चुअल बैलेंस का लेनदेन नहीं होता।',
-          style: TextStyle(color: Colors.white, height: 1.5),
+                child: const Text(
+          '🎲 KhelBaaz Ludo में Admin की Firebase Tables दिखाई देंगी। '
+          'अभी Online Joining और Live Multiplayer चालू नहीं हैं। '
+          'Local Demo इसी फोन पर खेल सकते हैं। '
+          'Cricket या Ludo Wallet से कोई पैसा या क्रेडिट नहीं कटेगा।',
+          style: TextStyle(
+            color: Colors.white,
+            height: 1.5,
+          ),
         ),
       );
 }
