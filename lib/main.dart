@@ -10544,7 +10544,7 @@ appBar: AppBar(
               ),
               SizedBox(height: 4),
               Text(
-                '2 / 4 Player • Board Demo',
+                '2 Player • Classic Demo',
                 style: TextStyle(
                   color: Colors.white70,
                 ),
