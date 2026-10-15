@@ -99,9 +99,11 @@ class _LudoAdminTablesPageState extends State<LudoAdminTablesPage> {
                         decoration: const InputDecoration(
                           labelText: 'Players', border: OutlineInputBorder(),
                         ),
-                        items: const [
-                          DropdownMenuItem(value: 2, child: Text('2 Players')),
-                          DropdownMenuItem(value: 4, child: Text('4 Players')),
+                                                items: const [
+                          DropdownMenuItem(
+                            value: 2,
+                            child: Text('2 Players'),
+                          ),
                         ],
                         onChanged: (v) {
                           if (v != null) updateDialog(() => count = v);
@@ -238,7 +240,7 @@ class _LudoAdminTablesPageState extends State<LudoAdminTablesPage> {
                   color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900,
                 )),
                 SizedBox(height: 8),
-                Text('2 या 4 Player Table बनाएँ और Rank Rewards का प्रीव्यू देखें।',
+                Text('2 Player Table बनाएँ और Rank Rewards का प्रीव्यू देखें।',
                     style: TextStyle(color: Colors.white70, height: 1.4)),
               ],
             ),
