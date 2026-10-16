@@ -290,6 +290,98 @@ class LudoLobbyService {
       maxAttempts: 5,
     );
   }
+  // ==========================================
+  // REJOIN EXISTING ONLINE LUDO ROOM
+  // ==========================================
+
+  static Future<String> joinOrReopenTable({
+    required String tableId,
+  }) async {
+    final uid =
+        FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      throw StateError(
+        'पहले Login करें।',
+      );
+    }
+
+    final pointerRef = _db
+        .collection('ludo_player_rooms')
+        .doc(uid);
+
+    // ------------------------------------------
+    // STEP A - CHECK PREVIOUS ROOM
+    // ------------------------------------------
+
+    final pointerSnapshot = await pointerRef.get(
+      const GetOptions(
+        source: Source.server,
+      ),
+    );
+
+    final pointer = pointerSnapshot.data();
+
+    if (pointer != null &&
+        pointer['tableId'] == tableId) {
+      final oldRoomId =
+          (pointer['roomId'] ?? '').toString();
+
+      if (oldRoomId.isNotEmpty) {
+        final oldRoomSnapshot = await _db
+            .collection('ludo_rooms')
+            .doc(oldRoomId)
+            .get(
+              const GetOptions(
+                source: Source.server,
+              ),
+            );
+
+        final oldRoom = oldRoomSnapshot.data();
+
+        if (oldRoom != null &&
+            oldRoom['tableId'] == tableId) {
+          final isMember =
+              oldRoom['hostUid'] == uid ||
+              oldRoom['guestUid'] == uid;
+
+          final isReady =
+              oldRoom['status'] == 'ready';
+
+          final isOwnWaiting =
+              oldRoom['status'] == 'waiting' &&
+              oldRoom['hostUid'] == uid;
+
+          if (isMember &&
+              (isReady || isOwnWaiting)) {
+            // Return to the previous room.
+            return oldRoomId;
+          }
+        }
+      }
+    }
+
+    // ------------------------------------------
+    // STEP B - JOIN OR CREATE NEW ROOM
+    // ------------------------------------------
+
+    final newRoomId = await joinTable(
+      tableId: tableId,
+    );
+
+    // ------------------------------------------
+    // STEP C - SAVE ROOM FOR REJOIN
+    // ------------------------------------------
+
+    await pointerRef.set({
+      'roomId': newRoomId,
+      'tableId': tableId,
+      'updatedAt':
+          FieldValue.serverTimestamp(),
+    });
+
+    return newRoomId;
+  }
 }
 
 // ===============================================
@@ -324,7 +416,7 @@ class _LudoJoinButtonState
 
     try {
       final roomId =
-          await LudoLobbyService.joinTable(
+                     await LudoLobbyService.joinOrReopenTable(
         tableId: widget.tableId,
       );
 
