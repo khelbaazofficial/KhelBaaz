@@ -21,7 +21,7 @@ class LudoLobbyService {
       FirebaseFirestore.instance;
   // Waiting room lifetime.
   static const Duration waitingTimeout =
-      Duration(minutes: 15);
+      Duration(minutes: 5);
 
   static bool isWaitingRoomExpired(
     Map<String, dynamic> room,
@@ -862,7 +862,7 @@ class LudoWaitingRoomPage extends StatelessWidget {
                           .add(LudoLobbyService.waitingTimeout)
                           .difference(DateTime.now())
                           .inSeconds
-                          .clamp(0, 900)
+                          .clamp(0, 300)
                           .toInt()
                       : 0;
 
@@ -902,7 +902,7 @@ class LudoWaitingRoomPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          '15 मिनट पूरे हो गए हैं '
+                          '5 मिनट पूरे हो गए हैं '
                           'या Waiting Room Cancel हो गया है।\n'
                           'नया गेम शुरू करने के लिए वापस जाएँ।',
                           textAlign: TextAlign.center,
