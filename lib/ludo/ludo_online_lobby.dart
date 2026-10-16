@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'ludo_online_game.dart';
+
 // ===============================================
 // KHELBAAZ LUDO - ONLINE MATCHMAKING DEMO
 // ===============================================
@@ -638,18 +640,86 @@ class LudoWaitingRoomPage extends StatelessWidget {
 
                 const SizedBox(height: 12),
 
-                const Text(
-                  'दोनों खिलाड़ी Firebase Room '
-                  'में जुड़ गए हैं।\n'
-                  'Live Board Synchronization '
-                  'अगले चरण में जोड़ा जाएगा।',
+                                const Text(
+                  '🎮 दोनों खिलाड़ी तैयार हैं!\n'
+                  'अब दोनों अपने-अपने मोबाइल पर '
+                  'START LIVE GAME दबाएँ।',
 
-                  textAlign:
-                      TextAlign.center,
+                  textAlign: TextAlign.center,
 
                   style: TextStyle(
-                    color: Colors.white70,
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                     height: 1.5,
+                  ),
+                ),
+
+                const SizedBox(height: 22),
+
+                // ==================================
+                // START ONLINE LUDO GAME
+                // ==================================
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 58,
+
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              LudoOnlineGamePage(
+                            roomId: roomId,
+                            tableName: tableName,
+                          ),
+                        ),
+                      );
+                    },
+
+                    style: FilledButton.styleFrom(
+                      backgroundColor:
+                          const Color(0xFFFFC43D),
+
+                      foregroundColor: Colors.black,
+
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(14),
+                      ),
+                    ),
+
+                    icon: const Icon(
+                      Icons.sports_esports_rounded,
+                      size: 27,
+                    ),
+
+                    label: const Text(
+                      'START LIVE GAME',
+
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 15),
+
+                const Text(
+                  '🔴 RED vs 🟡 YELLOW\n'
+                  '2 PLAYER • ONLINE DEMO',
+
+                  textAlign: TextAlign.center,
+
+                  style: TextStyle(
+                    color: Color(0xFFFFC43D),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
