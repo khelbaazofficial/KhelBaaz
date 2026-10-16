@@ -150,50 +150,59 @@ class LudoLobbyService {
           final roomData =
               waitingRoomSnapshot.data();
 
-                    final available =
+                              final available =
               waitingRoomSnapshot.exists &&
               roomData != null &&
               roomData['tableId'] == tableId &&
               roomData['status'] == 'waiting' &&
               roomData['guestUid'] == '';
 
-          if (available) {
-            final expired =
-                isWaitingRoomExpired(roomData!);
+          final expired = available &&
+              isWaitingRoomExpired(roomData!);
 
-            if (!expired) {
-              final hostUid =
-                  (roomData['hostUid'] ?? '')
-                      .toString();
+          // Cancel an expired waiting room
+          // in the same transaction.
+          if (expired) {
+            if (roomData['createdAt'] is! Timestamp) {
+              throw StateError(
+                'Waiting Room का समय उपलब्ध नहीं है।',
+              );
+            }
 
-              // Host reopening the same room.
-              if (hostUid == uid) {
-                return waitingRoomId;
-              }
+            transaction.update(waitingRoomRef, {
+              'status': 'cancelled',
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            });
+          }
 
-              // Second player joins active room.
-              transaction.update(waitingRoomRef, {
-                'guestUid': uid,
-                'guestName': playerName,
-                'status': 'ready',
-                'updatedAt':
-                    FieldValue.serverTimestamp(),
-              });
+          if (available && !expired) {
+            final hostUid =
+                (roomData['hostUid'] ?? '')
+                    .toString();
 
-              transaction.set(queueRef, {
-                'waitingRoomId': '',
-                'updatedAt':
-                    FieldValue.serverTimestamp(),
-              });
-
+            // Host reopening active room.
+            if (hostUid == uid) {
               return waitingRoomId;
             }
 
-            // Expired room is skipped.
-            // The new room below replaces its queue
-            // pointer without modifying the old room.
+            // Second player joins.
+            transaction.update(waitingRoomRef, {
+              'guestUid': uid,
+              'guestName': playerName,
+              'status': 'ready',
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            });
+
+            transaction.set(queueRef, {
+              'waitingRoomId': '',
+              'updatedAt':
+                  FieldValue.serverTimestamp(),
+            });
+
+            return waitingRoomId;
           }
-        }
 
         // ---------------------------------------
         // STEP C - CREATE NEW WAITING ROOM
