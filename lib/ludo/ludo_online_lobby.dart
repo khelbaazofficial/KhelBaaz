@@ -19,7 +19,24 @@ import 'ludo_online_game.dart';
 class LudoLobbyService {
   static final FirebaseFirestore _db =
       FirebaseFirestore.instance;
+  // Waiting room lifetime.
+  static const Duration waitingTimeout =
+      Duration(minutes: 15);
 
+  static bool isWaitingRoomExpired(
+    Map<String, dynamic> room,
+  ) {
+    final createdAt = room['createdAt'];
+
+    if (createdAt is! Timestamp) {
+      return true;
+    }
+
+    final expiryTime =
+        createdAt.toDate().add(waitingTimeout);
+
+    return !DateTime.now().isBefore(expiryTime);
+  }
   static Future<String> joinTable({
     required String tableId,
   }) async {
@@ -133,7 +150,7 @@ class LudoLobbyService {
           final roomData =
               waitingRoomSnapshot.data();
 
-          final available =
+                    final available =
               waitingRoomSnapshot.exists &&
               roomData != null &&
               roomData['tableId'] == tableId &&
@@ -141,35 +158,40 @@ class LudoLobbyService {
               roomData['guestUid'] == '';
 
           if (available) {
-            final hostUid =
-                (roomData['hostUid'] ?? '')
-                    .toString();
+            final expired =
+                isWaitingRoomExpired(roomData!);
 
-            // Same player reopening waiting room.
-            if (hostUid == uid) {
+            if (!expired) {
+              final hostUid =
+                  (roomData['hostUid'] ?? '')
+                      .toString();
+
+              // Host reopening the same room.
+              if (hostUid == uid) {
+                return waitingRoomId;
+              }
+
+              // Second player joins active room.
+              transaction.update(waitingRoomRef, {
+                'guestUid': uid,
+                'guestName': playerName,
+                'status': 'ready',
+                'updatedAt':
+                    FieldValue.serverTimestamp(),
+              });
+
+              transaction.set(queueRef, {
+                'waitingRoomId': '',
+                'updatedAt':
+                    FieldValue.serverTimestamp(),
+              });
+
               return waitingRoomId;
             }
 
-            // ---------------------------------
-            // SECOND PLAYER JOINS
-            // ---------------------------------
-
-            transaction.update(waitingRoomRef, {
-              'guestUid': uid,
-              'guestName': playerName,
-              'status': 'ready',
-              'updatedAt':
-                  FieldValue.serverTimestamp(),
-            });
-
-            // Queue is available for next room.
-            transaction.set(queueRef, {
-              'waitingRoomId': '',
-              'updatedAt':
-                  FieldValue.serverTimestamp(),
-            });
-
-            return waitingRoomId;
+            // Expired room is skipped.
+            // The new room below replaces its queue
+            // pointer without modifying the old room.
           }
         }
 
@@ -265,27 +287,24 @@ class LudoLobbyService {
         final queueSnapshot =
             await transaction.get(queueRef);
 
-        if (queueSnapshot.data()
-                ?['waitingRoomId'] != roomId) {
+                final queueMatches =
+            queueSnapshot.data()?['waitingRoomId'] ==
+                roomId;
 
-          throw StateError(
-            'Waiting Queue बदल चुकी है।',
-          );
-        }
-
-        // Mark waiting room cancelled.
+        // Mark this waiting room cancelled.
         transaction.update(roomRef, {
           'status': 'cancelled',
-          'updatedAt':
-              FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         });
 
-        // Clear table waiting queue.
-        transaction.set(queueRef, {
-          'waitingRoomId': '',
-          'updatedAt':
-              FieldValue.serverTimestamp(),
-        });
+        // Clear the queue only if it still points
+        // to this room. Do not disturb a newer room.
+        if (queueMatches) {
+          transaction.set(queueRef, {
+            'waitingRoomId': '',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
       },
       maxAttempts: 5,
     );
@@ -390,28 +409,38 @@ class LudoLobbyService {
           // EXPIRE OWN OLD WAITING ROOM
           // =====================================
 
-          if (isHost &&
+                    if (isHost &&
               status == 'waiting' &&
               oldRoom['guestUid'] == '') {
 
-            final createdAt =
-                oldRoom['createdAt'];
-
-            final expired =
-                createdAt is Timestamp &&
-                DateTime.now().difference(
-                  createdAt.toDate(),
-                ) >= const Duration(minutes: 15);
-
-            if (!expired) {
+            if (!isWaitingRoomExpired(oldRoom)) {
               return oldRoomId;
             }
 
-            // Cancel expired waiting room.
-            await cancelWaitingRoom(
-              roomId: oldRoomId,
-            );
-          }
+            try {
+              await cancelWaitingRoom(
+                roomId: oldRoomId,
+              );
+            } on StateError {
+              // Another player may have joined meanwhile.
+              final latest = await oldRoomSnapshot
+                  .reference
+                  .get(
+                    const GetOptions(
+                      source: Source.server,
+                    ),
+                  );
+
+              final latestData = latest.data();
+
+              if (latestData != null &&
+                  latestData['status'] == 'ready' &&
+                  (latestData['hostUid'] == uid ||
+                      latestData['guestUid'] == uid)) {
+                return oldRoomId;
+              }
+            }
+                    }
                 }
       }
     }
@@ -795,11 +824,140 @@ class LudoWaitingRoomPage extends StatelessWidget {
               (roomData['guestUid'] ?? '')
                   .toString();
 
-          final ready =
-              roomData['status'] == 'ready' &&
-              guestUid.isNotEmpty;
+                    return StreamBuilder<int>(
+            stream: Stream<int>.periodic(
+              const Duration(seconds: 1),
+              (tick) => tick,
+            ),
+            initialData: 0,
+            builder: (context, timerSnapshot) {
+              final status =
+                  (roomData['status'] ?? '').toString();
 
-          return ListView(
+              final ready =
+                  status == 'ready' &&
+                  guestUid.isNotEmpty;
+
+              final createdAt = roomData['createdAt'];
+
+              final expired =
+                  status == 'waiting' &&
+                  LudoLobbyService.isWaitingRoomExpired(
+                    roomData,
+                  );
+
+              final remainingSeconds =
+                  createdAt is Timestamp
+                      ? createdAt
+                          .toDate()
+                          .add(LudoLobbyService.waitingTimeout)
+                          .difference(DateTime.now())
+                          .inSeconds
+                          .clamp(0, 900)
+                          .toInt()
+                      : 0;
+
+              final minutesLeft =
+                  (remainingSeconds ~/ 60)
+                      .toString()
+                      .padLeft(2, '0');
+
+              final secondsLeft =
+                  (remainingSeconds % 60)
+                      .toString()
+                      .padLeft(2, '0');
+
+              if (expired ||
+                  status == 'expired' ||
+                  status == 'cancelled') {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.timer_off_rounded,
+                          size: 75,
+                          color: Color(0xFFFFC43D),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'WAITING ROOM CLOSED',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          '15 मिनट पूरे हो गए हैं '
+                          'या Waiting Room Cancel हो गया है।\n'
+                          'नया गेम शुरू करने के लिए वापस जाएँ।',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        FilledButton.icon(
+                          onPressed: () async {
+                            final uid = FirebaseAuth
+                                .instance.currentUser?.uid;
+
+                            if (status == 'waiting' &&
+                                roomData['hostUid'] == uid) {
+                              try {
+                                await LudoLobbyService
+                                    .cancelWaitingRoom(
+                                  roomId: roomId,
+                                );
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Room cleanup: $e',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            }
+
+                            if (context.mounted) {
+                              Navigator.of(context).pop();
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                          ),
+                          label: const Text(
+                            'BACK TO TABLES',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              if (!ready && status != 'waiting') {
+                return const Center(
+                  child: Text(
+                    'यह Waiting Room उपलब्ध नहीं है।',
+                    style: TextStyle(
+                      color: Colors.white,
+                    ),
+                  ),
+                );
+              }
+
+              return ListView(
             padding: const EdgeInsets.all(20),
 
             children: [
@@ -889,6 +1047,19 @@ class LudoWaitingRoomPage extends StatelessWidget {
               const SizedBox(height: 28),
 
               if (!ready) ...[
+                               Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Text(
+                    '⏰ ROOM EXPIRES IN '
+                    '$minutesLeft:$secondsLeft',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFFFFC43D),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
                 const Center(
                   child: CircularProgressIndicator(
                     color: _gold,
@@ -1107,6 +1278,8 @@ class LudoWaitingRoomPage extends StatelessWidget {
                 ),
               ),
             ],
+          );
+                      },
           );
         },
       ),
