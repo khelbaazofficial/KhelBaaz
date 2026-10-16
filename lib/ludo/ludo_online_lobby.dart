@@ -210,6 +210,86 @@ class LudoLobbyService {
       maxAttempts: 5,
     );
   }
+  // ==========================================
+  // CANCEL LUDO WAITING ROOM
+  // ==========================================
+
+  static Future<void> cancelWaitingRoom({
+    required String roomId,
+  }) async {
+
+    final uid =
+        FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      throw StateError(
+        'पहले Login करें।',
+      );
+    }
+
+    final roomRef = _db
+        .collection('ludo_rooms')
+        .doc(roomId);
+
+    await _db.runTransaction<void>(
+      (transaction) async {
+
+        final roomSnapshot =
+            await transaction.get(roomRef);
+
+        final roomData = roomSnapshot.data();
+
+        if (roomData == null ||
+            roomData['status'] != 'waiting' ||
+            roomData['hostUid'] != uid ||
+            roomData['guestUid'] != '') {
+
+          throw StateError(
+            'Room अब Cancel नहीं किया जा सकता।',
+          );
+        }
+
+        final tableId = roomData['tableId'];
+
+        if (tableId is! String ||
+            tableId.isEmpty) {
+          throw StateError(
+            'Invalid Ludo Table',
+          );
+        }
+
+        final queueRef = _db
+            .collection('ludo_table_queue')
+            .doc(tableId);
+
+        final queueSnapshot =
+            await transaction.get(queueRef);
+
+        if (queueSnapshot.data()
+                ?['waitingRoomId'] != roomId) {
+
+          throw StateError(
+            'Waiting Queue बदल चुकी है।',
+          );
+        }
+
+        // Mark waiting room cancelled.
+        transaction.update(roomRef, {
+          'status': 'cancelled',
+          'updatedAt':
+              FieldValue.serverTimestamp(),
+        });
+
+        // Clear table waiting queue.
+        transaction.set(queueRef, {
+          'waitingRoomId': '',
+          'updatedAt':
+              FieldValue.serverTimestamp(),
+        });
+      },
+      maxAttempts: 5,
+    );
+  }
 }
 
 // ===============================================
@@ -759,17 +839,57 @@ class LudoWaitingRoomPage extends StatelessWidget {
 
               const SizedBox(height: 30),
 
+                            // ==================================
+              // CANCEL WAITING ROOM OR GO BACK
+              // ==================================
+
               OutlinedButton.icon(
-                onPressed: () {
+                onPressed: () async {
+
+                  final isHost =
+                      roomData['hostUid'] ==
+                      FirebaseAuth
+                          .instance
+                          .currentUser
+                          ?.uid;
+
+                  if (!ready && isHost) {
+                    try {
+                      await LudoLobbyService
+                          .cancelWaitingRoom(
+                        roomId: roomId,
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+
+                      ScaffoldMessenger.of(context)
+                          .showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Cancel Error: $e',
+                          ),
+                        ),
+                      );
+
+                      return;
+                    }
+                  }
+
+                  if (!context.mounted) return;
+
                   Navigator.pop(context);
                 },
 
-                icon: const Icon(
-                  Icons.arrow_back,
+                icon: Icon(
+                  !ready
+                      ? Icons.cancel_outlined
+                      : Icons.arrow_back,
                 ),
 
-                label: const Text(
-                  'BACK TO TABLES',
+                label: Text(
+                  !ready
+                      ? 'CANCEL WAITING & BACK'
+                      : 'BACK TO TABLES',
                 ),
               ),
 
