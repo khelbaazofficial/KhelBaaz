@@ -203,6 +203,7 @@ class LudoLobbyService {
 
             return waitingRoomId;
           }
+        }
 
         // ---------------------------------------
         // STEP C - CREATE NEW WAITING ROOM
