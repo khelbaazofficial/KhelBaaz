@@ -174,7 +174,7 @@ class _LudoOnlineGamePageState extends State<LudoOnlineGamePage> {
           const CustomPaint(painter: _LudoBackdropPainter()),
           SafeArea(
             child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: _roomRef.snapshots(),
+              stream: _roomRef.snapshots(includeMetadataChanges: true),
               builder: (context, roomSnap) {
                 if (roomSnap.hasError) {
                   return _info('Room error: ${roomSnap.error}');
@@ -192,7 +192,7 @@ class _LudoOnlineGamePageState extends State<LudoOnlineGamePage> {
                     : LudoSeat.yellow;
 
                 return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                  stream: _stateRef.snapshots(),
+                  stream: _stateRef.snapshots(includeMetadataChanges: true),
                   builder: (context, stateSnap) {
                     if (stateSnap.hasError) {
                       return _info('Game error: ${stateSnap.error}');
@@ -222,7 +222,23 @@ class _LudoOnlineGamePageState extends State<LudoOnlineGamePage> {
                     final activeColor = redTurn ? _red : _yellow;
                     final hostName = (room['hostName'] ?? 'RED PLAYER').toString();
                     final guestName = (room['guestName'] ?? 'YELLOW PLAYER').toString();
+                    final reconnecting =
+                        roomSnap.data!.metadata.isFromCache ||
+                        stateSnap.data!.metadata.isFromCache;
 
+                    final canPlay = mine && !reconnecting;
+
+                    if (game.isFinished) {
+                      return _LudoFinalResult(
+                        game: game,
+                        mySeat: mySeat,
+                        hostName: hostName,
+                        guestName: guestName,
+                        onExit: () {
+                          Navigator.of(context).maybePop();
+                        },
+                      );
+                    }
                     final String instruction;
                     if (game.isFinished) {
                       instruction = '🏆 GAME COMPLETE  •  नीचे रैंकिंग देखें';
@@ -236,6 +252,42 @@ class _LudoOnlineGamePageState extends State<LudoOnlineGamePage> {
 
                     return Column(
                       children: [
+                                                if (reconnecting)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 5,
+                            ),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF7D2424),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: const Color(0xFFFFB74D),
+                              ),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.wifi_off_rounded,
+                                  color: Colors.white,
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Reconnecting... इंटरनेट कनेक्शन जाँच रहे हैं। '
+                                    'गेम सिंक होने तक पासा और गोटी बंद हैं।',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         Container(
                           width: double.infinity,
                           margin: const EdgeInsets.fromLTRB(8, 7, 8, 7),
@@ -302,7 +354,7 @@ class _LudoOnlineGamePageState extends State<LudoOnlineGamePage> {
                                             lastMover: lastMover,
                                             onTokenTap: (offset) => _tapToken(
                                               game,
-                                              mine,
+                                                                                             canPlay,
                                               offset,
                                               constraints.maxWidth,
                                             ),
@@ -335,7 +387,7 @@ class _LudoOnlineGamePageState extends State<LudoOnlineGamePage> {
                                   children: [
                                     for (final i in game.movablePieces)
                                       OutlinedButton(
-                                        onPressed: mine && !_busy
+                                                                                onPressed: canPlay && !_busy
                                             ? () => _action(token: i)
                                             : null,
                                         style: OutlinedButton.styleFrom(
@@ -474,11 +526,11 @@ class _LudoOnlineGamePageState extends State<LudoOnlineGamePage> {
                               Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  _LiveDiceButton(
-                                    enabled: mine &&
+                                                                    _LiveDiceButton(
+                                    enabled: canPlay &&
                                         game.pendingDice == null &&
                                         !_busy,
-                                    active: mine,
+                                    active: canPlay,
                                     value: lastDice,
                                     revision: revision,
                                     lastAction: lastAction,
@@ -586,16 +638,11 @@ class _BottomPlayerCard extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: seatColor,
-            child: Icon(
-              Icons.person_rounded,
-              size: 22,
-              color: seatName == 'YELLOW'
-                  ? const Color(0xFF1C1E24)
-                  : Colors.white,
-            ),
+                    _KhelBaazAvatar(
+            name: name,
+            color: seatColor,
+            size: 38,
+            active: active,
           ),
           const SizedBox(height: 3),
           Text(
@@ -624,7 +671,306 @@ class _BottomPlayerCard extends StatelessWidget {
     );
   }
 }
+// =============================================
+// PREMIUM PLAYER AVATAR
+// =============================================
 
+class _KhelBaazAvatar extends StatelessWidget {
+  const _KhelBaazAvatar({
+    required this.name,
+    required this.color,
+    this.size = 42,
+    this.active = false,
+  });
+
+  final String name;
+  final Color color;
+  final double size;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final cleanName = name.trim();
+
+    final initial = cleanName.isEmpty
+        ? '?'
+        : String.fromCharCode(
+            cleanName.runes.first,
+          ).toUpperCase();
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color,
+            const Color(0xFF142A51),
+          ],
+        ),
+        border: Border.all(
+          color: active
+              ? const Color(0xFFFFDF69)
+              : Colors.white70,
+          width: active ? 3 : 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: active
+                ? color.withValues(alpha: 0.65)
+                : Colors.black26,
+            blurRadius: active ? 14 : 5,
+            spreadRadius: active ? 2 : 0,
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: size * 0.43,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================
+// LUDO FINAL RESULT SCREEN
+// =============================================
+
+class _LudoFinalResult extends StatelessWidget {
+  const _LudoFinalResult({
+    required this.game,
+    required this.mySeat,
+    required this.hostName,
+    required this.guestName,
+    required this.onExit,
+  });
+
+  final LudoGame game;
+  final LudoSeat mySeat;
+  final String hostName;
+  final String guestName;
+  final VoidCallback onExit;
+
+  static const Color _gold = Color(0xFFFFD45B);
+
+  String _nameFor(LudoSeat seat) {
+    return seat == LudoSeat.red
+        ? hostName
+        : guestName;
+  }
+
+  Color _colorFor(LudoSeat seat) {
+    return seat == LudoSeat.red
+        ? const Color(0xFFE83351)
+        : const Color(0xFFFFC43D);
+  }
+
+  Widget _rankCard({
+    required LudoSeat seat,
+    required int rank,
+  }) {
+    final winner = rank == 1;
+    final isYou = seat == mySeat;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: winner
+              ? [
+                  const Color(0xFF785216),
+                  const Color(0xFF30230F),
+                ]
+              : [
+                  const Color(0xFF234A81),
+                  const Color(0xFF10294F),
+                ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: winner
+              ? _gold
+              : const Color(0xFFB8C6D9),
+          width: winner ? 2 : 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          _KhelBaazAvatar(
+            name: _nameFor(seat),
+            color: _colorFor(seat),
+            size: 54,
+            active: winner,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _nameFor(seat),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  winner
+                      ? '🏆 WINNER'
+                      : '🥈 RUNNER-UP',
+                  style: TextStyle(
+                    color: winner
+                        ? _gold
+                        : Colors.white70,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                if (isYou)
+                  const Text(
+                    'YOU',
+                    style: TextStyle(
+                      color: Colors.lightGreenAccent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Text(
+            '#$rank',
+            style: TextStyle(
+              color: winner
+                  ? _gold
+                  : Colors.white,
+              fontSize: 30,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final winnerSeat = game.finishOrder.first;
+    final runnerSeat = game.finishOrder.last;
+
+    final youWon = winnerSeat == mySeat;
+
+    return Container(
+      width: double.infinity,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(16),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF102F69),
+            Color(0xFF06152E),
+          ],
+        ),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.emoji_events_rounded,
+              size: 105,
+              color: _gold,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              youWon
+                  ? '🎉 YOU ARE THE WINNER!'
+                  : '🏆 MATCH COMPLETED',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _gold,
+                fontWeight: FontWeight.w900,
+                fontSize: 23,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'KHELBAAZ LUDO',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                letterSpacing: 2,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 24),
+            _rankCard(
+              seat: winnerSeat,
+              rank: 1,
+            ),
+            _rankCard(
+              seat: runnerSeat,
+              rank: 2,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: onExit,
+                icon: const Icon(
+                  Icons.home_rounded,
+                ),
+                label: const Text(
+                  'BACK TO LUDO',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _gold,
+                  foregroundColor:
+                      const Color(0xFF17213A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'ONLINE DEMO • NO WALLET TRANSACTIONS',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white60,
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 class _LiveDiceButton extends StatefulWidget {
   const _LiveDiceButton({
     required this.enabled,
