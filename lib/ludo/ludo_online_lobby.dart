@@ -528,7 +528,56 @@ class LudoWaitingRoomPage extends StatelessWidget {
             .collection('ludo_rooms')
             .doc(roomId);
 
-    return Scaffold(
+        return WillPopScope(
+      onWillPop: () async {
+
+        final uid =
+            FirebaseAuth.instance.currentUser?.uid;
+
+        if (uid == null) {
+          return true;
+        }
+
+        try {
+          final snapshot = await roomRef.get(
+            const GetOptions(
+              source: Source.server,
+            ),
+          );
+
+          final data = snapshot.data();
+
+          if (data != null &&
+              data['status'] == 'waiting' &&
+              data['hostUid'] == uid &&
+              data['guestUid'] == '') {
+
+            await LudoLobbyService
+                .cancelWaitingRoom(
+              roomId: roomId,
+            );
+          }
+
+          return true;
+
+        } catch (e) {
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Waiting Room Error: $e',
+                ),
+              ),
+            );
+          }
+
+          return false;
+        }
+      },
+
+      child: Scaffold(
       backgroundColor: _background,
 
       appBar: AppBar(
@@ -895,23 +944,26 @@ class LudoWaitingRoomPage extends StatelessWidget {
 
               const SizedBox(height: 15),
 
-              const Text(
+                            const Text(
                 'TEST MODE • NO WALLET TRANSACTIONS\n'
-                'Waiting Room से वापस आने पर '
-                'Room अपने आप Cancel नहीं होगा।',
+                'दूसरा खिलाड़ी JOIN करने से पहले '
+                'Back दबाने पर Waiting Room Cancel होगा।\n'
+                'दोनों खिलाड़ी जुड़ने के बाद '
+                'Back करने से Game Cancel नहीं होगा।',
 
-                textAlign:
-                    TextAlign.center,
+                textAlign: TextAlign.center,
 
                 style: TextStyle(
                   color: Colors.white54,
                   fontSize: 11,
+                  height: 1.5,
                 ),
               ),
             ],
           );
         },
       ),
+          ),
     );
   }
 }
