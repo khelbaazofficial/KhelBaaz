@@ -141,4 +141,120 @@ class LudoGame {
       if (!finishOrder.contains(seats[_turnIndex])) return;
     }
   }
+  // ============================================
+  // ONLINE LUDO GAME STATE
+  // ============================================
+
+  // Save current Ludo state to Firebase.
+  Map<String, dynamic> toOnlineMap() => {
+        'redPieces':
+            List<int>.from(pieces[LudoSeat.red]!),
+
+        'yellowPieces':
+            List<int>.from(pieces[LudoSeat.yellow]!),
+
+        'currentSeat': currentSeat.name,
+
+        'pendingDice': pendingDice ?? 0,
+
+        'consecutiveSixes': _consecutiveSixes,
+
+        'finishOrder':
+            finishOrder.map((s) => s.name).toList(),
+      };
+
+  // Restore game state from Firebase.
+  factory LudoGame.fromOnlineMap(
+    Map<String, dynamic> data,
+  ) {
+    final game = LudoGame(playerCount: 2);
+
+    List<int> parsePieces(Object? value) {
+      if (value is! List || value.length != 4) {
+        throw StateError('Invalid online token list');
+      }
+
+      return value.map((v) {
+        if (v is! int ||
+            v < -1 ||
+            v > homePosition) {
+          throw StateError(
+            'Invalid token progress',
+          );
+        }
+
+        return v;
+      }).toList();
+    }
+
+    game.pieces[LudoSeat.red] =
+        parsePieces(data['redPieces']);
+
+    game.pieces[LudoSeat.yellow] =
+        parsePieces(data['yellowPieces']);
+
+    final current = data['currentSeat'];
+
+    if (current != 'red' &&
+        current != 'yellow') {
+      throw StateError('Invalid turn');
+    }
+
+    game._turnIndex =
+        current == 'red' ? 0 : 1;
+
+    final sixes = data['consecutiveSixes'];
+
+    if (sixes is! int ||
+        sixes < 0 ||
+        sixes > 2) {
+      throw StateError(
+        'Invalid consecutive sixes',
+      );
+    }
+
+    game._consecutiveSixes = sixes;
+
+    final dice = data['pendingDice'];
+
+    if (dice is! int ||
+        dice < 0 ||
+        dice > 6) {
+      throw StateError(
+        'Invalid pending dice',
+      );
+    }
+
+    game.pendingDice =
+        dice == 0 ? null : dice;
+
+    final result = data['finishOrder'];
+
+    if (result is! List ||
+        result.length > 2) {
+      throw StateError(
+        'Invalid finish order',
+      );
+    }
+
+    for (final name in result) {
+      final seat = switch (name) {
+        'red' => LudoSeat.red,
+        'yellow' => LudoSeat.yellow,
+        _ => throw StateError(
+            'Invalid finishing seat',
+          ),
+      };
+
+      if (game.finishOrder.contains(seat)) {
+        throw StateError(
+          'Duplicate finishing seat',
+        );
+      }
+
+      game.finishOrder.add(seat);
+    }
+
+    return game;
+  }
 }
