@@ -33,8 +33,41 @@ class LudoLobbyService {
 
     final uid = user.uid;
 
-    final rawName =
+        // ==========================================
+    // LOAD REAL USERNAME FROM FIREBASE PROFILE
+    // ==========================================
+
+    String rawName =
         (user.displayName ?? '').trim();
+
+    try {
+      final profile = await _db
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      final data = profile.data();
+
+      if (data != null) {
+        for (final key in [
+          'username',
+          'userName',
+          'name',
+          'fullName',
+          'displayName',
+        ]) {
+          final value =
+              (data[key] ?? '').toString().trim();
+
+          if (value.isNotEmpty) {
+            rawName = value;
+            break;
+          }
+        }
+      }
+    } catch (_) {
+      // Firebase Auth name remains the fallback.
+    }
 
     final playerName = rawName.isEmpty
         ? 'PLAYER'
