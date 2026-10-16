@@ -25,7 +25,8 @@ jobs:
 
       - name: Get packages
         run: flutter pub get
-
+      - name: Test Ludo Game Rules
+        run: flutter test test/ludo_game_test.dart
       - name: Generate App Icon
         run: dart run flutter_launcher_icons
         
