@@ -339,25 +339,80 @@ class LudoLobbyService {
 
         final oldRoom = oldRoomSnapshot.data();
 
-        if (oldRoom != null &&
+                if (oldRoom != null &&
             oldRoom['tableId'] == tableId) {
-          final isMember =
-              oldRoom['hostUid'] == uid ||
-              oldRoom['guestUid'] == uid;
 
-          final isReady =
-              oldRoom['status'] == 'ready';
-
-          final isOwnWaiting =
-              oldRoom['status'] == 'waiting' &&
+          final isHost =
               oldRoom['hostUid'] == uid;
 
-          if (isMember &&
-              (isReady || isOwnWaiting)) {
-            // Return to the previous room.
-            return oldRoomId;
+          final isGuest =
+              oldRoom['guestUid'] == uid;
+
+          final isMember = isHost || isGuest;
+
+          final status =
+              (oldRoom['status'] ?? '').toString();
+
+          // =====================================
+          // REOPEN UNFINISHED ONLINE GAME
+          // =====================================
+
+          if (isMember && status == 'ready') {
+
+            final gameSnapshot =
+                await oldRoomSnapshot.reference
+                    .collection('game')
+                    .doc('state')
+                    .get(
+                      const GetOptions(
+                        source: Source.server,
+                      ),
+                    );
+
+            final gameData = gameSnapshot.data();
+
+            final finishOrder =
+                gameData?['finishOrder'];
+
+            final gameFinished =
+                finishOrder is List &&
+                finishOrder.length == 2;
+
+            if (!gameFinished) {
+              return oldRoomId;
+            }
+
+            // Finished game:
+            // Continue below to join a new room.
           }
-        }
+
+          // =====================================
+          // EXPIRE OWN OLD WAITING ROOM
+          // =====================================
+
+          if (isHost &&
+              status == 'waiting' &&
+              oldRoom['guestUid'] == '') {
+
+            final createdAt =
+                oldRoom['createdAt'];
+
+            final expired =
+                createdAt is Timestamp &&
+                DateTime.now().difference(
+                  createdAt.toDate(),
+                ) >= const Duration(minutes: 15);
+
+            if (!expired) {
+              return oldRoomId;
+            }
+
+            // Cancel expired waiting room.
+            await cancelWaitingRoom(
+              roomId: oldRoomId,
+            );
+          }
+                }
       }
     }
 
