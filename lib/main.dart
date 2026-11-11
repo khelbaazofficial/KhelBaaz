@@ -3273,6 +3273,63 @@ Map<String, String>?
 
 
 // ======================================================
+// LEGACY USER HISTORY DISPLAY RETENTION
+// Some old team/contest rows may no longer link to a match.
+// Hide stale legacy rows safely without touching accounting.
+// Actual database cleanup still requires final settlement.
+// ======================================================
+
+bool _expiredUserMatchDisplay({
+  required String matchKey,
+  MatchModel? linkedMatch,
+}) {
+  final now = DateTime.now();
+
+  DateTime? legacyEndOfDay(String text) {
+    final match =
+        RegExp(r'(\d{1,2})/(\d{1,2})/(\d{4})').firstMatch(text);
+    if (match == null) return null;
+
+    final day = int.tryParse(match.group(1)!);
+    final month = int.tryParse(match.group(2)!);
+    final year = int.tryParse(match.group(3)!);
+    if (day == null || month == null || year == null) {
+      return null;
+    }
+
+    final parsed = DateTime(year, month, day, 23, 59, 59);
+    if (parsed.day != day ||
+        parsed.month != month ||
+        parsed.year != year) {
+      return null;
+    }
+    return parsed;
+  }
+
+  // Use the row's own match key before a team-name fallback,
+  // because the same two teams can play again on a later date.
+  final fromKey = legacyEndOfDay(matchKey);
+  if (fromKey != null &&
+      !now.isBefore(fromKey.add(const Duration(days: 6)))) {
+    return true;
+  }
+
+  if (linkedMatch != null &&
+      linkedMatch.currentStatus == 'COMPLETED') {
+    final completion = linkedMatch.completedAt ??
+        linkedMatch.startTime?.add(linkedMatch.liveDuration);
+    if (completion != null) {
+      return !now.isBefore(
+          completion.add(const Duration(days: 5)));
+    }
+  }
+
+  final fromMatch = legacyEndOfDay(linkedMatch?.time ?? '');
+  return fromMatch != null &&
+      !now.isBefore(fromMatch.add(const Duration(days: 6)));
+}
+
+// ======================================================
 // GLOBAL USER DISPLAY CLEANUP
 //
 // Completion + 5 days:
@@ -7211,11 +7268,27 @@ bool _retentionDue(Map match) {
           .trim()
           .toUpperCase();
 
-  final completed =
+  if (status != 'COMPLETED') return false;
+
+  // Older records may have a final COMPLETED state but no
+  // completedAt timestamp. Use scheduled end as a fallback.
+  // Transaction below still checks finalized results and
+  // settled entries before removing any Firebase display data.
+  DateTime? completed =
       _adminRetentionDateValue(match['completedAt']);
 
-  return status == 'COMPLETED' &&
-      completed != null &&
+  if (completed == null) {
+    final start = _adminRetentionStartTime(match);
+    final durationMinutes = int.tryParse(
+          (match['durationMinutes'] ?? '180').toString(),
+        ) ??
+        180;
+    if (start != null && durationMinutes > 0) {
+      completed = start.add(Duration(minutes: durationMinutes));
+    }
+  }
+
+  return completed != null &&
       !DateTime.now().isBefore(
         completed.add(const Duration(days: 5)),
       );
@@ -16624,6 +16697,12 @@ class _MyContestsPageState extends State<MyContestsPage> {
 // CURRENT CONTESTS
 final visibleContests = contests.where((contest) {
   final linkedMatch = findLinkedMatch(contest);
+  if (_expiredUserMatchDisplay(
+    matchKey: (contest['matchKey'] ?? '').toString(),
+    linkedMatch: linkedMatch,
+  )) {
+    return false;
+  }
 
   if (linkedMatch == null ||
       linkedMatch.currentStatus != 'COMPLETED') {
@@ -16647,6 +16726,12 @@ final visibleContests = contests.where((contest) {
 // ARCHIVED CONTESTS
 final archivedContests = contests.where((contest) {
   final linkedMatch = findLinkedMatch(contest);
+  if (_expiredUserMatchDisplay(
+    matchKey: (contest['matchKey'] ?? '').toString(),
+    linkedMatch: linkedMatch,
+  )) {
+    return false;
+  }
 
   if (linkedMatch == null ||
       linkedMatch.currentStatus != 'COMPLETED') {
@@ -20290,6 +20375,13 @@ bool keepTeamMatch(
 ) {
   final linkedMatch =
       linkedTeamMatch(matchKey);
+
+  if (_expiredUserMatchDisplay(
+    matchKey: matchKey,
+    linkedMatch: linkedMatch,
+  )) {
+    return false;
+  }
 
   if (linkedMatch == null ||
       linkedMatch.currentStatus !=
