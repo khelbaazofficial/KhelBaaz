@@ -20283,30 +20283,36 @@ class MyTeamsPage extends StatelessWidget {
       body: ValueListenableBuilder<List<List<Player>>>(
         valueListenable: savedTeams,
         builder: (context, teams, _) {
+          // Use the same illustrated empty state for a new account
+          // and when all saved teams are hidden after retention expiry.
+          Widget emptyTeamsView() {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/user_my_teams.webp',
+                    width: 320,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'आपने अभी कोई टीम नहीं बनाई है',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF555555),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
           if (teams.isEmpty) {
-  return Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Image.asset(
-          'assets/user_my_teams.webp',
-          width: 320,
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.high,
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'आपने अभी कोई टीम नहीं बनाई है',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF555555),
-          ),
-        ),
-      ],
-    ),
-  );
+            return emptyTeamsView();
           }
 
           final matchGroups = <String, List<int>>{};
@@ -20424,6 +20430,10 @@ final matchKeys =
           matchTimeForKey(a),
         ),
       );
+if (matchKeys.isEmpty) {
+  return emptyTeamsView();
+}
+
 return ListView.builder(
   padding: const EdgeInsets.all(12),
   itemCount: matchKeys.length,
